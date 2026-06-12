@@ -1,6 +1,12 @@
 # Changelog
 
 
+## v0.30.0-pad92.5 - *2026-06-12*
+
+* add configuration documentation file `doc/configuration.md` and link it in `README.md`
+* modernize photo preview to display EXIF metadata in a responsive glassmorphic panel
+
+
 ## v0.30.0-pad92.4 - *2026-06-12*
 
 * optimize and standardize UI icon SVG markup and structure

@@ -27,3 +27,120 @@
         overflow: hidden;
     }
 }
+
+#pv-bar-info {
+    &.active {
+        background: rgba(255, 255, 255, 0.15) !important;
+        opacity: 1.0 !important;
+        
+        img {
+            filter: drop-shadow(0 0 2px #00bcd4);
+        }
+    }
+}
+
+#pv-exif-card {
+    position: absolute;
+    bottom: 68px;
+    right: 20px;
+    z-index: 10;
+    width: 280px;
+    padding: 16px;
+    background: rgba(20, 20, 20, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    color: #fff;
+    font-family: "Ubuntu", "Roboto", "Helvetica Neue", sans-serif;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    opacity: 0;
+    transform: translateY(10px);
+    pointer-events: none;
+    text-align: left;
+    box-sizing: border-box;
+
+    &.visible {
+        opacity: 1;
+        transform: translateY(0);
+        pointer-events: auto;
+    }
+
+    .exif-header {
+        font-weight: 700;
+        font-size: 14px;
+        margin-bottom: 12px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        padding-bottom: 6px;
+        color: #e0e0e0;
+    }
+
+    .exif-item {
+        display: flex;
+        align-items: center;
+        margin-bottom: 8px;
+        font-size: 13px;
+
+        .exif-icon {
+            font-size: 16px;
+            margin-right: 10px;
+            width: 20px;
+            text-align: center;
+            color: #a0a0a0;
+        }
+
+        .exif-value {
+            color: #f0f0f0;
+            word-break: break-all;
+
+            a {
+                color: #00bcd4;
+                text-decoration: none;
+                &:hover {
+                    text-decoration: underline;
+                }
+            }
+        }
+    }
+
+    .exif-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-top: 10px;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        padding-top: 10px;
+
+        .exif-grid-item {
+            display: flex;
+            flex-direction: column;
+
+            .exif-grid-label {
+                font-size: 10px;
+                color: #888;
+                text-transform: uppercase;
+                margin-bottom: 2px;
+            }
+
+            .exif-grid-value {
+                font-size: 12px;
+                color: #e0e0e0;
+                font-weight: 500;
+            }
+        }
+    }
+}
+
+@media only screen and (max-width: 600px) {
+    #pv-exif-card {
+        width: 100%;
+        bottom: 48px;
+        left: 0;
+        right: 0;
+        border-radius: 0;
+        border-left: none;
+        border-right: none;
+        border-bottom: none;
+    }
+}
