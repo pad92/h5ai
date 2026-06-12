@@ -1,6 +1,12 @@
 # Changelog
 
 
+## v0.30.0-pad92.3 - *2026-06-12*
+
+* implement video thumbnail capture fallback mechanism and update code style formatting
+* add `.dockerignore` and update `.gitignore` with standard ignore patterns
+
+
 ## v0.30.0-pad92.2 - *2026-06-12*
 
 * update devDependencies and support modern Node.js environments (no legacy OpenSSL flag needed)
