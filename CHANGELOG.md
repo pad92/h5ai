@@ -1,12 +1,15 @@
 # Changelog
 
 
+## v0.30.0-pad92.1 - *2026-06-12*
+
 * modernize video player preview with `movi-player` (supports x264, x265, multiple audio tracks, subtitles)
 * update `marked` to 9.1.6 (fixes security vulnerabilities)
 * add cross-origin isolation headers to page templates
 * configure Babel build script to support private class properties and methods in `node_modules`
 
-## v0.30.0
+
+## v0.30.0 - *2024-11-09*
 
 * now require PHP 7.0.0+
 * fix archive-single-item problem
