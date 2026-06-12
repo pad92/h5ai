@@ -1,0 +1,262 @@
+# h5ai Configuration Guide
+
+All configuration files for **h5ai** are located in the `_h5ai/private/conf/` directory. This guide explains how to customize and configure the application by modifying these files.
+
+## Files Overview
+
+- **`options.json`**: The main configuration file containing display options, enabled extensions, and general behavior settings.
+- **`types.json`**: Associates file patterns (globs) to specific file types (e.g., mapping `*.zip` to `ar-zip`).
+- **`l10n/`**: Directory containing translation files for localized UI strings and date formatting.
+
+---
+
+## 1. Options Configuration (`options.json`)
+
+Located at [options.json](../src/_h5ai/private/conf/options.json).
+
+> [!TIP]
+> Ensure the syntax of `options.json` is valid JSON (except that comments `/* ... */` are supported by h5ai's JSON parser).
+
+### General Options
+
+| Option / Section | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `passhash` | `string` | `cf83e...` (empty) | SHA512 hash of the password for the h5ai info page (`/_h5ai/public/index.php`). The default value corresponds to an empty string password. |
+| `resources.scripts` | `array` | `[]` | List of URLs or paths of custom scripts to inject into every page. Paths not starting with `http://`, `https://` or `/` are relative to `_h5ai/public/ext/`. |
+| `resources.styles` | `array` | `["//fonts.googleapis.com/..."]` | List of URLs or paths of custom stylesheets to inject. |
+
+### View Options (`view`)
+
+Customize the general look and feel of the index page.
+
+| Key | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `binaryPrefix` | `boolean` | `false` | If `true`, uses IEC binary prefixes (1024 B = 1 KiB) for file sizes. If `false`, uses SI decimal prefixes (1000 B = 1 KB). |
+| `disableSidebar` | `boolean` | `false` | Hides the sidebar and its toggle button entirely. |
+| `fallbackMode` | `boolean` | `false` | Serves h5ai in fallback mode (useful for browsers without JS or very old browsers). |
+| `fastBrowsing` | `boolean` | `true` | Uses the HTML5 History API to navigate folders without reloading the whole page. |
+| `fonts` | `array` | `["Ubuntu", ...]` | Font family names for normal text. |
+| `fontsMono` | `array` | `["Ubuntu Mono", ...]` | Font family names for monospace text. |
+| `hidden` | `array` | `["^\\.", "^_h5ai"]` | Regular expressions matching files/directories that should be hidden from the index. |
+| `hideFolders` | `boolean` | `false` | Hides all folders from the main file listing. |
+| `hideIf403` | `boolean` | `true` | Hides files/folders that are unreadable by the web server (avoiding 403 Forbidden errors). |
+| `hideParentFolder` | `boolean` | `false` | Hides the link to navigate to the parent folder. |
+| `maxIconSize` | `number` | `40` | Maximum icon size in pixels. |
+| `modes` | `array` | `["details", "grid", "icons"]` | Enabled view modes. The first one is the default. If only one is specified, the selector is hidden. |
+| `modeToggle` | `boolean`/`string` | `false` | Shows a toggle button for view modes in the toolbar. Can be `"next"`. |
+| `setParentFolderLabels`| `boolean` | `true` | Shows the actual parent folder name instead of just "Parent Folder". |
+| `sizes` | `array` | `[20, 40, ...]` | List of selectable icon/row sizes. The first one is the default. |
+| `theme` | `string` | `"comity"` | Name of the folder under `_h5ai/public/images/themes` to use for file icons. |
+| `unmanaged` | `array` | `["index.html", ...]` | If a folder contains any of these files, h5ai will not manage it, allowing default index pages to load instead. |
+| `unmanagedInNewWindow` | `boolean` | `false` | Opens unmanaged folder links in a new window/tab. |
+
+### Extensions Configuration
+
+Each extension under `options.json` can be enabled or disabled and has specific parameters.
+
+#### `autorefresh`
+Automatically refreshes the current folder contents at a defined interval.
+- `enabled` (default: `false`): Enable autorefresh.
+- `interval` (default: `5000`): Refresh interval in milliseconds (minimum is `1000`).
+
+#### `crumb`
+Shows a clickable breadcrumb navigation at the top of the page.
+- `enabled` (default: `true`).
+
+#### `custom`
+Allows custom header and footer files to be automatically rendered above or below the directory listings.
+It searches for files named `_h5ai.header.html` and `_h5ai.footer.html` in the current folder, or recursively checks parent directories for `_h5ai.headers.html` and `_h5ai.footers.html`.
+If the files end in `.md`, they are rendered as Markdown.
+- `enabled` (default: `true`).
+- `stopSearchingAtRoot` (default: `true`): If `true`, stops searching for headers/footers when it reaches the web root folder.
+
+#### `download`
+Allows packaging and downloading of selected directory entries.
+- `enabled` (default: `true`).
+- `type` (default: `"php-tar"`): The type of archiving: `"php-tar"`, `"shell-tar"`, or `"shell-zip"`.
+- `packageName` (default: `null`): The default name of the archive package. If `null`, uses the current directory's name.
+- `alwaysVisible` (default: `false`): If `true`, the download button is always visible (downloads the entire folder if nothing is selected).
+
+#### `filter`
+Allows the user to filter the files displayed in the current folder using a text box in the toolbar.
+- `enabled` (default: `false`).
+- `advanced` (default: `true`): If `true`, checks for characters in the right order (e.g., "ab" matches "axb"). Allows spaces to OR query terms. Prefixing a query with `re:` enables regex search.
+- `debounceTime` (default: `100`): Debounce wait time in milliseconds before filtering.
+- `ignorecase` (default: `true`): Case-insensitive filtering.
+
+#### `foldersize`
+Calculates and displays the sizes of directories.
+> [!WARNING]
+> This operation can significantly slow down directory loading speeds, especially on large folders.
+- `enabled` (default: `true`).
+- `type` (default: `"php"`): Can be `"php"` (slow, adds up sizes of files recursively in PHP) or `"shell-du"` (uses command line `du`, faster but still slow).
+
+#### `google-analytics-ua`
+Integrates Google Analytics tracking code.
+- `enabled` (default: `false`).
+- `id` (default: `"UA-000000-0"`): Google Analytics property tracking ID.
+
+#### `info`
+Shows an informational sidebar displaying file/folder details on hover or select.
+- `enabled` (default: `true`).
+- `show` (default: `false`): Shows the sidebar by default for first-time visitors.
+- `qrcode` (default: `true`): Generates and displays a QR code for the hovered/selected file URL.
+- `qrFill` (default: `"#999"`): QR code fill color.
+- `qrBack` (default: `"#fff"`): QR code background color.
+
+#### `l10n`
+Configures localization and language preferences.
+- `enabled` (default: `true`).
+- `lang` (default: `"en"`): The default fallback language code (refer to translations in `l10n` folder).
+- `useBrowserLang` (default: `true`): Try to automatically detect and use the client's browser language.
+
+#### `piwik-analytics`
+Integrates Piwik (Matomo) tracking code.
+- `enabled` (default: `false`).
+- `baseURL` (default: `"some/url"`): The base URL to the Piwik instance, without protocol.
+- `idSite` (default: `1`): The site ID configured in Piwik.
+
+#### `preview-aud`
+Enables in-browser preview and playback of audio files.
+- `enabled` (default: `true`).
+- `autoplay` (default: `true`): Autoplay the audio file once the preview modal opens.
+- `types` (default: `["aud"]`): File types (configured in `types.json`) allowed for audio preview.
+
+#### `preview-img`
+Enables overlay preview of images.
+- `enabled` (default: `true`).
+- `size` (default: `false`): Maximum preview size, or `false` for original image size.
+- `types`: File types configured for image preview.
+
+#### `preview-txt`
+Enables previewing and syntax highlighting of text-based files.
+- `enabled` (default: `true`).
+- `styles`: A dictionary mapping text subtypes to rendering styles:
+  - `0`: Floating text
+  - `1`: Fixed-width text
+  - `2`: Markdown (`.md` files)
+  - `3`: Syntax highlighted code
+
+#### `preview-vid`
+Enables in-browser video playback.
+- `enabled` (default: `true`).
+- `autoplay` (default: `true`): Autoplay the video on preview start.
+- `types`: Supported video types for preview.
+
+#### `search`
+Allows users to search for files recursively inside the current folder and its subfolders.
+- `enabled` (default: `false`).
+- `advanced` (default: `true`): Support fuzzy matching, spaces to OR terms, or `re:` prefix for regex.
+- `debounceTime` (default: `300`): Delay before searching triggers.
+- `ignorecase` (default: `true`): Case-insensitive search.
+
+#### `select`
+Enables checkboxes and select options to choose multiple files.
+- `enabled` (default: `true`).
+- `clickndrag` (default: `true`): Allows drag-to-select with the mouse.
+- `checkboxes` (default: `true`): Shows a checkbox when hovering over files.
+
+#### `sort`
+Defines default sorting criteria.
+- `enabled` (default: `true`).
+- `column` (default: `0`): Sorting column: `0` for Name, `1` for Date, `2` for Size.
+- `reverse` (default: `false`): Set to `true` to sort in descending order.
+- `ignorecase` (default: `true`): Ignore case when sorting.
+- `natural` (default: `true`): Use natural sort order (e.g., `2` comes before `10`).
+- `folders` (default: `0`): Where folders are placed: `0` for top, `1` for in place, `2` for bottom.
+
+#### `thumbnails`
+Generates preview thumbnails for images, videos, and document files.
+> [!NOTE]
+> For document/video thumbnails, the server requires helper binaries (e.g., `ffmpeg`, `convert`) as listed in the requirements. The `_h5ai/private/cache` directory must also be writable by the web server.
+- `enabled` (default: `true`).
+- `img`, `mov`, `doc`: Arrays of types to generate thumbnails for.
+- `delay` (default: `1`): Delay in milliseconds before starting thumbnail generation on page load.
+- `size` (default: `240`): Size in pixels of the generated square thumbnails.
+- `exif` (default: `true`): Use embedded EXIF thumbnails if available (faster).
+- `chunksize` (default: `20`): Number of thumbnails requested in a single batch.
+
+#### `title`
+Updates the browser window/tab title with the path of the current folder.
+- `enabled` (default: `true`).
+
+#### `tree`
+Shows a collapsible directory tree sidebar on the left.
+- `enabled` (default: `true`).
+- `show` (default: `true`): Initially visible.
+- `maxSubfolders` (default: `50`): Max number of subfolders to render in the tree structure.
+- `naturalSort` (default: `true`): Use natural sorting in the tree view.
+- `ignorecase` (default: `true`): Case-insensitive sorting in the tree view.
+
+---
+
+## 2. File Types Configuration (`types.json`)
+
+Located at [types.json](../src/_h5ai/private/conf/types.json).
+
+This file configures how **h5ai** classifies files. It is a JSON dictionary mapping a generic type name (used by CSS styling and previews) to an array of filename glob patterns.
+
+### Customizing Types
+
+You can add custom file extensions to existing categories or define new file type groupings.
+
+For example, to configure Markdown files to be previewed as text-markdown, make sure `*.md` is in the `"txt-md"` array:
+```json
+"txt-md": [
+    "*.markdown",
+    "*.md"
+]
+```
+
+To configure configurations like `.env` or `.yaml` to render as scripts:
+```json
+"txt-script": [
+    "*.conf",
+    "*.ini",
+    "*.yaml",
+    "*.yml",
+    ".gitignore"
+]
+```
+
+---
+
+## 3. Localization (`l10n/` directory)
+
+Located at [l10n/](../src/_h5ai/private/conf/l10n).
+
+This directory contains JSON files named `<language_code>.json` (such as `en.json`, `fr.json`, `de.json`).
+
+### Translation Structure
+
+Every language translation file maps UI strings to localized strings.
+
+Here is an example translation file layout:
+```json
+{
+    "lang": "english",
+    "dateFormat": "YYYY-MM-DD HH:mm",
+    "details": "details",
+    "download": "download",
+    "empty": "empty",
+    "files": "files",
+    "filter": "filter",
+    "folders": "folders",
+    "grid": "grid",
+    "icons": "icons",
+    "language": "Language",
+    "lastModified": "Last modified",
+    "name": "Name",
+    "noMatch": "no match",
+    "parentDirectory": "Parent Directory",
+    "search": "search",
+    "size": "Size",
+    "tree": "Tree",
+    "view": "View"
+}
+```
+
+- **`dateFormat`**: Defines the date/time display pattern (using tokens like `YYYY`, `MM`, `DD`, `HH`, `mm`).
+- **Other keys**: Standard translations used across the toolbar, sidebar, and headers.
+
+To add a new language translation, create a new file named `<code>.json` in the `l10n/` directory, translate the keys, and reference it via the `"l10n"` extension settings in `options.json`.

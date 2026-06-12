@@ -47,6 +47,11 @@ might work on other configurations):
 ~~~
 
 
+## Configuration
+
+For detailed information on configuring **h5ai**, including options, file types, and localization, see the [Configuration Guide](doc/configuration.md).
+
+
 ## License
 
 The MIT License (MIT)
