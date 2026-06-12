@@ -21,11 +21,11 @@ There are installation ready packages for the latest [releases][release] and
 download the repository. From within the root folder run the following
 commands to find a fresh zipball in folder `build` (tested on linux only,
 requires [`node 10.0+`][node] to be installed, might work on other
-configurations).
+configurations). On modern environments (Node 17+), you may need to enable the OpenSSL legacy provider to run the build.
 
 ~~~sh
 > npm install
-> npm run build
+> NODE_OPTIONS=--openssl-legacy-provider npm run build
 ~~~
 
 
@@ -57,7 +57,7 @@ THE SOFTWARE.
 ## References
 
 **h5ai** profits from other projects, all of them licensed under the MIT license
-too. Exceptions are some [Material Design icons][material-design-icons] (CC BY 4.0).
+too. Exceptions are some [Material Design icons][material-design-icons] (CC BY 4.0) and [movi-player][movi-player] (Apache-2.0).
 
 
 [web]: https://larsjung.de/h5ai/
@@ -67,6 +67,7 @@ too. Exceptions are some [Material Design icons][material-design-icons] (CC BY 4
 [develop]: https://release.larsjung.de/h5ai/develop/
 [node]: https://nodejs.org
 [material-design-icons]: https://github.com/google/material-design-icons
+[movi-player]: https://github.com/mrujjwalg/movi-player
 
 [license-img]: https://img.shields.io/badge/license-MIT-a0a060.svg?style=flat-square
 [web-img]: https://img.shields.io/badge/web-larsjung.de/h5ai-a0a060.svg?style=flat-square

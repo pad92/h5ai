@@ -56,7 +56,7 @@ const load = item => {
             if (style === 1) {
                 return dom(preTpl).text(content);
             } else if (style === 2) {
-                return dom(divTpl).html(marked(content));
+                return dom(divTpl).html(marked.parse(content));
             } else if (style === 3) {
                 const $code = dom('<code></code>').text(content);
                 win.setTimeout(() => {

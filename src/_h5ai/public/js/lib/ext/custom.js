@@ -15,7 +15,7 @@ const update = (data, key) => {
     if (data && data[key].content) {
         let content = data[key].content;
         if (data[key].type === 'md') {
-            content = marked(content);
+            content = marked.parse(content);
         }
         $el.html(content).show();
     } else {

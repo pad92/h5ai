@@ -19,7 +19,11 @@ const WEBPACK_CFG = {
                 use: {
                     loader: 'babel-loader',
                     options: {
-                        presets: ['@babel/preset-env']
+                        presets: ['@babel/preset-env'],
+                        plugins: [
+                            '@babel/plugin-proposal-class-properties',
+                            '@babel/plugin-proposal-private-methods'
+                        ]
                     }
                 }
             },
@@ -107,7 +111,10 @@ ghu.task('build:copy', runtime => {
             .then(write(mapper, {overwrite: true, cluster: true})),
 
         read(`${ROOT}/*.md`)
-            .then(write(mapper_root, {overwrite: true, cluster: true}))
+            .then(write(mapper_root, {overwrite: true, cluster: true})),
+
+        read(`${ROOT}/node_modules/movi-player/dist/element.js`)
+            .then(write(join(BUILD, '_h5ai/public/ext/movi-player/element.js'), {overwrite: true}))
     ]);
 });
 
