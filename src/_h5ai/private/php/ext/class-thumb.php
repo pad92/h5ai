@@ -1,8 +1,11 @@
 <?php
 
-class Thumb {
-    private static $FFMPEG_CMDV = ['ffmpeg', '-ss', '0:00:02', '-i', '[SRC]', '-an', '-vframes', '1', '[DEST]'];
-    private static $AVCONV_CMDV = ['avconv', '-ss', '0:00:02', '-i', '[SRC]', '-an', '-vframes', '1', '[DEST]'];
+class Thumb
+{
+    private static $FFMPEG_CMDV = ['ffmpeg', '-ss', '0:00:30', '-i', '[SRC]', '-an', '-vframes', '1', '-update', '1', '[DEST]'];
+    private static $FFMPEG_CMDV_FALLBACK = ['ffmpeg', '-ss', '0:00:01', '-i', '[SRC]', '-an', '-vframes', '1', '-update', '1', '[DEST]'];
+    private static $AVCONV_CMDV = ['avconv', '-ss', '0:00:30', '-i', '[SRC]', '-an', '-vframes', '1', '[DEST]'];
+    private static $AVCONV_CMDV_FALLBACK = ['avconv', '-ss', '0:00:01', '-i', '[SRC]', '-an', '-vframes', '1', '[DEST]'];
     private static $CONVERT_CMDV = ['convert', '-density', '96', '-quality', '85', '-strip', '[SRC][0]', '[DEST]'];
     private static $GM_CONVERT_CMDV = ['gm', 'convert', '-density', '96', '-quality', '85', '[SRC][0]', '[DEST]'];
     private static $THUMB_CACHE = 'thumbs';
@@ -12,7 +15,8 @@ class Thumb {
     private $thumbs_path;
     private $thumbs_href;
 
-    public function __construct($context) {
+    public function __construct($context)
+    {
         $this->context = $context;
         $this->setup = $context->get_setup();
         $this->thumbs_path = $this->setup->get('CACHE_PUB_PATH') . '/' . Thumb::$THUMB_CACHE;
@@ -23,7 +27,8 @@ class Thumb {
         }
     }
 
-    public function thumb($type, $source_href, $width, $height) {
+    public function thumb($type, $source_href, $width, $height)
+    {
         $source_path = $this->context->to_path($source_href);
         if (!file_exists($source_path) || Util::starts_with($source_path, $this->setup->get('CACHE_PUB_PATH'))) {
             return null;
@@ -49,7 +54,8 @@ class Thumb {
         return $this->thumb_href($capture_path, $width, $height);
     }
 
-    private function thumb_href($source_path, $width, $height) {
+    private function thumb_href($source_path, $width, $height)
+    {
         if (!file_exists($source_path)) {
             return null;
         }
@@ -118,7 +124,8 @@ class Thumb {
         return file_exists($thumb_path) ? $thumb_href : null;
     }
 
-    private function capture($cmdv, $source_path) {
+    private function capture($cmdv, $source_path)
+    {
         if (!file_exists($source_path)) {
             return null;
         }
@@ -126,19 +133,38 @@ class Thumb {
         $capture_path = $this->thumbs_path . '/capture-' . sha1($source_path) . '.jpg';
 
         if (!file_exists($capture_path) || filemtime($source_path) >= filemtime($capture_path)) {
-            foreach ($cmdv as &$arg) {
+            $cmdv_exec = $cmdv;
+            foreach ($cmdv_exec as &$arg) {
                 $arg = str_replace('[SRC]', $source_path, $arg);
                 $arg = str_replace('[DEST]', $capture_path, $arg);
             }
 
-            Util::exec_cmdv($cmdv);
+            Util::exec_cmdv($cmdv_exec);
+
+            if (!file_exists($capture_path)) {
+                $fallback = null;
+                if ($cmdv[0] === 'ffmpeg') {
+                    $fallback = Thumb::$FFMPEG_CMDV_FALLBACK;
+                } elseif ($cmdv[0] === 'avconv') {
+                    $fallback = Thumb::$AVCONV_CMDV_FALLBACK;
+                }
+
+                if ($fallback !== null) {
+                    foreach ($fallback as &$arg) {
+                        $arg = str_replace('[SRC]', $source_path, $arg);
+                        $arg = str_replace('[DEST]', $capture_path, $arg);
+                    }
+                    Util::exec_cmdv($fallback);
+                }
+            }
         }
 
         return file_exists($capture_path) ? $capture_path : null;
     }
 }
 
-class Image {
+class Image
+{
     private $source_file;
     private $source;
     private $width;
@@ -146,7 +172,8 @@ class Image {
     private $type;
     private $dest;
 
-    public function __construct($filename = null) {
+    public function __construct($filename = null)
+    {
         $this->source_file = null;
         $this->source = null;
         $this->width = null;
@@ -158,12 +185,14 @@ class Image {
         $this->set_source($filename);
     }
 
-    public function __destruct() {
+    public function __destruct()
+    {
         $this->release_source();
         $this->release_dest();
     }
 
-    public function set_source($filename) {
+    public function set_source($filename)
+    {
         $this->release_source();
         $this->release_dest();
 
@@ -194,21 +223,24 @@ class Image {
         }
     }
 
-    public function save_dest_jpeg($filename, $quality = 80) {
+    public function save_dest_jpeg($filename, $quality = 80)
+    {
         if (!is_null($this->dest)) {
             @imagejpeg($this->dest, $filename, $quality);
             @chmod($filename, 0775);
         }
     }
 
-    public function release_dest() {
+    public function release_dest()
+    {
         if (!is_null($this->dest)) {
             @imagedestroy($this->dest);
             $this->dest = null;
         }
     }
 
-    public function release_source() {
+    public function release_source()
+    {
         if (!is_null($this->source)) {
             @imagedestroy($this->source);
             $this->source_file = null;
@@ -219,7 +251,8 @@ class Image {
         }
     }
 
-    public function thumb($width, $height) {
+    public function thumb($width, $height)
+    {
         if (is_null($this->source)) {
             return;
         }
@@ -263,18 +296,20 @@ class Image {
         imagecopyresampled($this->dest, $this->source, 0, 0, $src_x, 0, $width, $height, $src_w, $src_h);
     }
 
-    public function rotate($angle) {
+    public function rotate($angle)
+    {
         if (is_null($this->source) || ($angle !== 90 && $angle !== 180 && $angle !== 270)) {
             return;
         }
 
         $this->source = imagerotate($this->source, $angle, 0);
-        if ( $angle === 90 || $angle === 270 ) {
+        if ($angle === 90 || $angle === 270) {
             list($this->width, $this->height) = [$this->height, $this->width];
         }
     }
 
-    public function normalize_exif_orientation($exif_source_file = null) {
+    public function normalize_exif_orientation($exif_source_file = null)
+    {
         if (is_null($this->source) || !function_exists('exif_read_data')) {
             return;
         }
