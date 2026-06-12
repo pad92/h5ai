@@ -1,6 +1,11 @@
 # Changelog
 
 
+## v0.30.0-pad92.4 - *2026-06-12*
+
+* optimize and standardize UI icon SVG markup and structure
+
+
 ## v0.30.0-pad92.3 - *2026-06-12*
 
 * implement video thumbnail capture fallback mechanism and update code style formatting
