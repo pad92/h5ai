@@ -5,3 +5,12 @@
 /node_modules/
 /npm-debug.log
 /.npm_cache/
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# IDEs and editors
+.idea/
+.vscode/
+*.sw?
