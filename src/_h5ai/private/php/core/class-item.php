@@ -1,7 +1,9 @@
 <?php
 
-class Item {
-    public static function cmp($item1, $item2) {
+class Item
+{
+    public static function cmp($item1, $item2)
+    {
         if ($item1->is_folder && !$item2->is_folder) {
             return -1;
         }
@@ -12,7 +14,8 @@ class Item {
         return strcasecmp($item1->path, $item2->path);
     }
 
-    public static function get($context, $path, &$cache) {
+    public static function get($context, $path, &$cache)
+    {
         if (!Util::starts_with($path, $context->get_setup()->get('ROOT_PATH'))) {
             return null;
         }
@@ -37,7 +40,8 @@ class Item {
     public $is_folder;
     public $is_content_fetched;
 
-    private function __construct($context, $path) {
+    private function __construct($context, $path)
+    {
         $this->context = $context;
 
         $this->path = Util::normalize_path($path, false);
@@ -48,7 +52,8 @@ class Item {
         $this->is_content_fetched = false;
     }
 
-    public function to_json_object() {
+    public function to_json_object()
+    {
         $obj = [
             'href' => $this->href,
             'time' => $this->date * 1000, // seconds (PHP) to milliseconds (JavaScript)
@@ -63,7 +68,8 @@ class Item {
         return $obj;
     }
 
-    public function get_parent(&$cache) {
+    public function get_parent(&$cache)
+    {
         $parent_path = Util::normalize_path(dirname($this->path), false);
         if ($parent_path !== $this->path && Util::starts_with($parent_path, $this->context->get_setup()->get('ROOT_PATH'))) {
             return Item::get($this->context, $parent_path, $cache);
@@ -71,7 +77,8 @@ class Item {
         return null;
     }
 
-    public function get_content(&$cache) {
+    public function get_content(&$cache)
+    {
         $items = [];
 
         if (!$this->context->is_managed_href($this->href)) {

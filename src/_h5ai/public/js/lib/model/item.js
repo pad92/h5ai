@@ -15,7 +15,7 @@ const createLabel = sequence => {
     sequence = sequence.replace(reEndsWithSlash, '');
     try {
         sequence = decodeURIComponent(sequence);
-    } catch (e) {/* skip */}
+    } catch (e) {/* skip */ }
     return sequence;
 };
 
@@ -175,7 +175,7 @@ Item.prototype = {
     },
 
     getCrumb() {
-        let item = this; // eslint-disable-line consistent-this
+        let item = this;
         const crumb = [item];
 
         while (item.parent) {
@@ -207,7 +207,7 @@ Item.prototype = {
         });
 
         let depth = 0;
-        let item = this; // eslint-disable-line consistent-this
+        let item = this;
 
         while (item.parent) {
             depth += 1;
