@@ -19,11 +19,7 @@ const WEBPACK_CFG = {
                 use: {
                     loader: 'babel-loader',
                     options: {
-                        presets: ['@babel/preset-env'],
-                        plugins: [
-                            '@babel/plugin-proposal-class-properties',
-                            '@babel/plugin-proposal-private-methods'
-                        ]
+                        presets: ['@babel/preset-env']
                     }
                 }
             },

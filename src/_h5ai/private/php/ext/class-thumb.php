@@ -1,10 +1,10 @@
 <?php
 
 class Thumb {
-    private static $FFMPEG_CMDV = ['ffmpeg', '-ss', '0:00:10', '-i', '[SRC]', '-an', '-vframes', '1', '[DEST]'];
-    private static $AVCONV_CMDV = ['avconv', '-ss', '0:00:10', '-i', '[SRC]', '-an', '-vframes', '1', '[DEST]'];
-    private static $CONVERT_CMDV = ['convert', '-density', '200', '-quality', '100', '-strip', '[SRC][0]', '[DEST]'];
-    private static $GM_CONVERT_CMDV = ['gm', 'convert', '-density', '200', '-quality', '100', '[SRC][0]', '[DEST]'];
+    private static $FFMPEG_CMDV = ['ffmpeg', '-ss', '0:00:02', '-i', '[SRC]', '-an', '-vframes', '1', '[DEST]'];
+    private static $AVCONV_CMDV = ['avconv', '-ss', '0:00:02', '-i', '[SRC]', '-an', '-vframes', '1', '[DEST]'];
+    private static $CONVERT_CMDV = ['convert', '-density', '96', '-quality', '85', '-strip', '[SRC][0]', '[DEST]'];
+    private static $GM_CONVERT_CMDV = ['gm', 'convert', '-density', '96', '-quality', '85', '[SRC][0]', '[DEST]'];
     private static $THUMB_CACHE = 'thumbs';
 
     private $context;
@@ -59,22 +59,60 @@ class Thumb {
         $thumb_href = $this->thumbs_href . '/' . $name;
 
         if (!file_exists($thumb_path) || filemtime($source_path) >= filemtime($thumb_path)) {
-            $image = new Image();
-
             $et = false;
             if ($this->setup->get('HAS_PHP_EXIF') && $this->context->query_option('thumbnails.exif', false) === true && $height != 0) {
                 $et = @exif_thumbnail($source_path);
             }
-            if($et !== false) {
-                file_put_contents($thumb_path, $et);
-                $image->set_source($thumb_path);
-                $image->normalize_exif_orientation($source_path);
-            } else {
-                $image->set_source($source_path);
-            }
 
-            $image->thumb($width, $height);
-            $image->save_dest_jpeg($thumb_path, 80);
+            if ($et !== false) {
+                file_put_contents($thumb_path, $et);
+                $image = new Image($thumb_path);
+                $image->normalize_exif_orientation($source_path);
+                $image->thumb($width, $height);
+                $image->save_dest_jpeg($thumb_path, 80);
+            } else {
+                $imagick_success = false;
+                if (class_exists('Imagick')) {
+                    try {
+                        $im = new Imagick($source_path);
+                        $orientation = $im->getImageOrientation();
+                        switch ($orientation) {
+                            case Imagick::ORIENTATION_BOTTOMRIGHT:
+                                $im->rotateImage('#000', 180);
+                                break;
+                            case Imagick::ORIENTATION_RIGHTTOP:
+                                $im->rotateImage('#000', 90);
+                                break;
+                            case Imagick::ORIENTATION_LEFTBOTTOM:
+                                $im->rotateImage('#000', 270);
+                                break;
+                        }
+                        $im->setImageOrientation(Imagick::ORIENTATION_TOPLEFT);
+
+                        if ($height == 0) {
+                            $im->thumbnailImage($width, 0);
+                        } else {
+                            $im->cropThumbnailImage($width, $height);
+                        }
+
+                        $im->setImageFormat('jpeg');
+                        $im->setImageCompressionQuality(80);
+                        $im->stripImage();
+                        $im->writeImage($thumb_path);
+                        $im->clear();
+                        $im->destroy();
+                        $imagick_success = true;
+                    } catch (Exception $e) {
+                        $imagick_success = false;
+                    }
+                }
+
+                if (!$imagick_success) {
+                    $image = new Image($source_path);
+                    $image->thumb($width, $height);
+                    $image->save_dest_jpeg($thumb_path, 80);
+                }
+            }
         }
 
         return file_exists($thumb_path) ? $thumb_href : null;
@@ -145,7 +183,15 @@ class Image {
             return;
         }
 
-        $this->source = imagecreatefromstring(file_get_contents($this->source_file));
+        if ($this->type === IMAGETYPE_JPEG) {
+            $this->source = @imagecreatefromjpeg($this->source_file);
+        } elseif ($this->type === IMAGETYPE_PNG) {
+            $this->source = @imagecreatefrompng($this->source_file);
+        } elseif ($this->type === IMAGETYPE_GIF) {
+            $this->source = @imagecreatefromgif($this->source_file);
+        } else {
+            $this->source = @imagecreatefromstring(file_get_contents($this->source_file));
+        }
     }
 
     public function save_dest_jpeg($filename, $quality = 80) {

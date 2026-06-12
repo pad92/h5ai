@@ -14,18 +14,36 @@ A modern HTTP web server index for Apache httpd, lighttpd, and nginx.
 * For bug reports and feature requests please use [issues][github-issues].
 
 
+## Requirements
+
+### Runtime (Server-side)
+* PHP `7.0.0+`
+* Web server (Apache httpd, lighttpd, nginx, cherokee, etc.)
+* PHP extensions (depending on enabled features):
+  * `GD` (required for default image thumbnails)
+  * `Imagick` (recommended for optimized high-performance image resizing)
+  * `exif` (recommended for EXIF rotation and fast thumbnail extraction)
+* Command-line helpers (optional):
+  * `ffmpeg` or `avconv` (for video thumbnails)
+  * ImageMagick (`convert`) or GraphicsMagick (`gm`) (for PDF/document thumbnails)
+  * `tar` and `zip` (for packaged downloads)
+  * `du` (for folder size calculation)
+
+### Build-time (Development)
+* Node.js `18.0+` and npm (for building the project)
+
+
 ## Build
 
 There are installation ready packages for the latest [releases][release] and
 [dev builds][develop]. But to build **h5ai** yourself either `git clone` or
 download the repository. From within the root folder run the following
 commands to find a fresh zipball in folder `build` (tested on linux only,
-requires [`node 10.0+`][node] to be installed, might work on other
-configurations). On modern environments (Node 17+), you may need to enable the OpenSSL legacy provider to run the build.
+might work on other configurations):
 
 ~~~sh
 > npm install
-> NODE_OPTIONS=--openssl-legacy-provider npm run build
+> npm run build
 ~~~
 
 

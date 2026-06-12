@@ -366,7 +366,7 @@
         "doc": ["x-pdf", "x-ps"],
         "delay": 1,
         "size": 240,
-        "exif": false,
+        "exif": true,
         "chunksize": 20
     },
 

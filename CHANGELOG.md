@@ -1,6 +1,15 @@
 # Changelog
 
 
+## v0.30.0-pad92.2 - *2026-06-12*
+
+* update devDependencies and support modern Node.js environments (no legacy OpenSSL flag needed)
+* migrate ESLint configuration to flat format (`eslint.config.js`) using `@stylistic`
+* clean up legacy lint configuration files
+* optimize Babel build configurations in `ghu.js`
+* optimize server-side thumbnail generation (use EXIF, Imagick, direct GD streams, and optimized cli params)
+
+
 ## v0.30.0-pad92.1 - *2026-06-12*
 
 * modernize video player preview with `movi-player` (supports x264, x265, multiple audio tracks, subtitles)
