@@ -1,6 +1,13 @@
 # Changelog
 
 
+## v0.30.0-pad92.6 - *2026-06-13*
+
+* add support for all common RAW photo formats (including Canon CR3) in type mappings and thumbnails
+* set default image preview size to 1000 pixels to enable server-side RAW preview rendering out-of-the-box
+* document RAW image support and update preview size options in `doc/configuration.md`
+
+
 ## v0.30.0-pad92.5 - *2026-06-12*
 
 * add configuration documentation file `doc/configuration.md` and link it in `README.md`

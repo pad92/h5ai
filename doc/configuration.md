@@ -125,7 +125,7 @@ Enables in-browser preview and playback of audio files.
 #### `preview-img`
 Enables overlay preview of images.
 - `enabled` (default: `true`).
-- `size` (default: `false`): Maximum preview size, or `false` for original image size.
+- `size` (default: `1000`): Maximum preview size (e.g. `1000` pixels), or `false` for original image size. Setting a numeric size is recommended to enable server-side preview generation for RAW image formats (like CR3, DNG, NEF, ARW, etc.) since web browsers cannot render RAW formats natively.
 - `types`: File types configured for image preview.
 
 #### `preview-txt`

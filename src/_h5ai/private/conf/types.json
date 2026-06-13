@@ -81,8 +81,34 @@
         "*.png"
     ],
     "img-raw": [
+        "*.3fr",
+        "*.arw",
         "*.cr2",
-        "*.nef"
+        "*.cr3",
+        "*.crw",
+        "*.dcr",
+        "*.dng",
+        "*.erf",
+        "*.fff",
+        "*.iiq",
+        "*.k25",
+        "*.kdc",
+        "*.mef",
+        "*.mos",
+        "*.mrw",
+        "*.nef",
+        "*.nrw",
+        "*.orf",
+        "*.ori",
+        "*.pef",
+        "*.raf",
+        "*.raw",
+        "*.rw2",
+        "*.rwl",
+        "*.sr2",
+        "*.srf",
+        "*.srw",
+        "*.x3f"
     ],
     "img-svg": [
         "*.svg"
