@@ -50,6 +50,24 @@ Customize the general look and feel of the index page.
 | `unmanaged` | `array` | `["index.html", ...]` | If a folder contains any of these files, h5ai will not manage it, allowing default index pages to load instead. |
 | `unmanagedInNewWindow` | `boolean` | `false` | Opens unmanaged folder links in a new window/tab. |
 
+### Cache Options (`cache`)
+
+Configure automatic background cache warming (for pre-generating thumbnails and calculating folder sizes persistently).
+
+| Key | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `warm_at_startup` | `boolean` | `true` | If `true`, triggers the cache warmer script in the background on request if it has not run recently. |
+| `warm_interval` | `number` | `86400` | The execution interval in seconds for the background cache warmer (default is 24 hours). |
+
+> [!TIP]
+> **Manual Execution & Low Priority (`nice`)**
+> You can also run the cache warmer manually or via a system cron job using:
+> `nice -n 19 php _h5ai/private/php/warm-cache.php`
+> The task is executed with low scheduling priority to prevent resource starvation.
+> 
+> **How Invalidation Works**
+> The computed folder sizes are saved in `_h5ai/private/cache/foldersizes.json`. Along with each directory's size, it stores the modification times (`mtime`) of the directory and all of its descendant subfolders. When a page is requested, h5ai checks if the directory's own `mtime` or any of its descendant folders' `mtime`s have changed on disk. If so, only the affected folders are automatically invalidated and recomputed on-the-fly, keeping the cache 100% correct and extremely performant.
+
 ### Extensions Configuration
 
 Each extension under `options.json` can be enabled or disabled and has specific parameters.

@@ -81,6 +81,19 @@
 
 
 
+    /*
+    Cache warming configuration.
+
+    - warm_at_startup: boolean, trigger cache warming in background on request
+    - warm_interval: number, interval in seconds between runs (default 86400 = 24h)
+    */
+    "cache": {
+        "warm_at_startup": true,
+        "warm_interval": 86400
+    },
+
+
+
     /*** Extensions (in alphabetical order) ***/
 
     /*

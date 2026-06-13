@@ -1,6 +1,14 @@
 # Changelog
 
 
+## v0.30.0-pad92.7 - *2026-06-13*
+
+* add persistent foldersize caching with recursive directory mtime state validation
+* implement background cache warming task (`warm-cache.php`) to pre-generate thumbnails and populate folder sizes
+* add `cache` configuration section to `options.json` for enabling and scheduling cache warming
+* update configuration documentation in `doc/configuration.md` to cover cache warming and foldersize caching options
+
+
 ## v0.30.0-pad92.6 - *2026-06-13*
 
 * add support for all common RAW photo formats (including Canon CR3) in type mappings and thumbnails
