@@ -190,7 +190,8 @@ Generates preview thumbnails for images, videos, and document files.
 - `enabled` (default: `true`).
 - `img`, `mov`, `doc`: Arrays of types to generate thumbnails for.
 - `delay` (default: `1`): Delay in milliseconds before starting thumbnail generation on page load.
-- `size` (default: `240`): Size in pixels of the generated square thumbnails.
+- `size` (default: `240`): Height in pixels of the generated thumbnails.
+- `seek` (default: `50`): Percentage of total video duration to seek into when generating video thumbnails (requires `ffprobe` or `avprobe`).
 - `exif` (default: `true`): Use embedded EXIF thumbnails if available (faster).
 - `chunksize` (default: `20`): Number of thumbnails requested in a single batch.
 

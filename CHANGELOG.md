@@ -1,6 +1,14 @@
 # Changelog
 
 
+## v0.30.0-pad92.8 - *2026-06-14*
+
+* integrate Pull Request #765 for improved video thumbnail generation and prevention of thumbnail DoS exploit
+* use ffprobe/avprobe to query total video duration and seek into a configurable percentage (default 50%)
+* limit client control over generated thumbnail sizes to prevent resource exhaustion exploits
+* configure CSS object-fit on thumbnails for responsive square cropping
+
+
 ## v0.30.0-pad92.7 - *2026-06-13*
 
 * add persistent foldersize caching with recursive directory mtime state validation
