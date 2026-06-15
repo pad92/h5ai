@@ -34,6 +34,8 @@ class Thumb {
     private $source_hash;
     private $thumb_path;
     private $thumb_href;
+    private $thumb_width;
+    private $thumb_height;
 
     public function __construct($context, $source_path = null, $type = null, $db = null) {
         $this->context = $context;
@@ -114,6 +116,9 @@ class Thumb {
             $width = $arg1;
             $height = $arg2;
         }
+
+        $this->thumb_width = $width;
+        $this->thumb_height = $height;
 
         if (!file_exists($this->source_path)
             || Util::starts_with($this->source_path,
@@ -362,13 +367,20 @@ class Thumb {
                 }
                 $im->setImageOrientation(Imagick::ORIENTATION_TOPLEFT);
 
-                $height = $this->context->query_option('thumbnails.size', 240);
-                $width = floor($height * (4 / 3));
+                $req_width = $this->thumb_width;
+                $req_height = $this->thumb_height;
+                if (!isset($req_width) || $req_width <= 0) {
+                    $height_opt = $this->context->query_option('thumbnails.size', 240);
+                    $req_width = floor($height_opt * (4 / 3));
+                }
+                if (!isset($req_height) || $req_height < 0) {
+                    $req_height = 0;
+                }
 
-                if ($height == 0) {
-                    $im->thumbnailImage($width, 0);
+                if ($req_height == 0) {
+                    $im->thumbnailImage($req_width, 0);
                 } else {
-                    $im->cropThumbnailImage($width, $height);
+                    $im->cropThumbnailImage($req_width, $req_height);
                 }
 
                 $im->setImageFormat('webp');

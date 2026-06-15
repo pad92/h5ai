@@ -312,7 +312,9 @@ class Context {
                 continue;
             }
 
-            $hrefs[] = $thumbs[$path]->thumb($width, $height);
+            $req_width = isset($req['width']) ? (int)$req['width'] : $width;
+            $req_height = isset($req['height']) ? (int)$req['height'] : $height;
+            $hrefs[] = $thumbs[$path]->thumb($req_width, $req_height);
 
             if (method_exists($thumbs[$path], 'get_type') && $thumbs[$path]->get_type()->was_wrong()) {
                 $filetypes[] = $thumbs[$path]->get_type()->name;
