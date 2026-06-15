@@ -122,9 +122,14 @@ class Util {
     }
 
     public static function get_mimetype($source_path) {
-        //return mime_content_type($filename);
-        $finfo = new finfo(FILEINFO_MIME_TYPE);
-        return $finfo->file($source_path);
+        if (class_exists('finfo')) {
+            $finfo = new finfo(FILEINFO_MIME_TYPE);
+            return $finfo->file($source_path);
+        }
+        if (function_exists('mime_content_type')) {
+            return mime_content_type($source_path);
+        }
+        return 'application/octet-stream';
     }
 
     public static function log($log_msg, $filename = __DIR__."/../../cache/debug.log") {

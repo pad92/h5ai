@@ -28,9 +28,15 @@ class CacheDB {
         }
         if (file_exists($path)) {
             $this->conn = new SQLite3($path);
+            $this->conn->exec('PRAGMA journal_mode = WAL;');
+            $this->conn->exec('PRAGMA synchronous = NORMAL;');
+            $this->conn->exec('PRAGMA temp_store = MEMORY;');
             return;
         }
         $db = new SQLite3($path);
+        $db->exec('PRAGMA journal_mode = WAL;');
+        $db->exec('PRAGMA synchronous = NORMAL;');
+        $db->exec('PRAGMA temp_store = MEMORY;');
 
         // Record handled file types.
         $db->exec('CREATE TABLE types

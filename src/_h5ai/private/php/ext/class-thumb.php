@@ -331,7 +331,10 @@ class Thumb {
 
         if (is_string($source) && class_exists('Imagick')) {
             try {
-                $im = new Imagick($source);
+                $im = new Imagick();
+                $im->setResourceLimit(Imagick::RESOURCETYPE_MEMORY, 128 * 1024 * 1024); // 128MB
+                $im->setResourceLimit(Imagick::RESOURCETYPE_MAP, 256 * 1024 * 1024); // 256MB
+                $im->readImage($source);
                 $orientation = $im->getImageOrientation();
                 switch ($orientation) {
                     case Imagick::ORIENTATION_BOTTOMRIGHT:

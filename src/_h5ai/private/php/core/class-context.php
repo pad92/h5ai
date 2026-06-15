@@ -296,6 +296,11 @@ class Context {
                 continue;
             }
             $path = $this->to_path($req['href']);
+            if (!$this->is_managed_path(dirname($path))) {
+                $hrefs[] = null;
+                $filetypes[] = null;
+                continue;
+            }
             if (!array_key_exists($path, $thumbs)) {
                 $thumbs[$path] = new Thumb($this, $path, $req['type'], $db);
             }
