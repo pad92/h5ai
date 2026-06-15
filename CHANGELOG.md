@@ -24,6 +24,11 @@
     * Enable SQLite3 WAL (Write-Ahead Logging) mode, synchronous = NORMAL, and memory temp storage to optimize SQLite read/write operations and lower CPU wait times
     * Enforce memory limits (128MB RAM, 256MB mapped memory) in Imagick to prevent out-of-memory errors on large images/RAW formats
     * Bulletproof mimetype lookup fallback sequence to prevent fatal crashes on setups missing `FileInfo` extension
+* Bug Fixes & Case Insensitivity:
+    * Resolve Canon `CR3` preview issue where files downloaded instead of displaying in the overlay (bypassing `exif_imagetype` validation for RAW images)
+    * Fix thumbnail API and Imagick scaling logic to respect client-requested preview dimensions (e.g. 1000px wide) instead of hardcoding a 240px size
+    * Enforce case-insensitive extension matching for themes icon loader, archive entry checks, and file extension lookup globally
+    * Fix glob-to-mime array mapping syntax error inside CacheWarmer `TypeHelper` constructor under PHP 8
 * Code Quality:
     * Eliminate all ESLint syntax, shadowing, and formatting issues (0 errors, 0 warnings)
 
