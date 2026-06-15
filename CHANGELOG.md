@@ -1,6 +1,26 @@
 # Changelog
 
 
+## v0.33.0-pad92.1 - *2026-06-15*
+
+* Merge upstream `manti-X` changes:
+    * Switch build system from `ghu` to `gulp`
+    * Upgrade `eslint` configuration to flat format v9
+    * Switch default thumbnail output format to `webP`
+    * Add custom directory thumbnails (loads from `_thumb/` subdirectory)
+    * Integrate SQLite3 caching database (`CacheDB`) to cache failed thumbnail generation attempts
+    * Add MIME-based file type detection (requires PHP `FileInfo` module)
+    * Add touch gesture support
+* Retain and integrate all `pad92` fork additions:
+    * Advanced `movi-player` video preview (multi-audio tracks, subtitles, x265 support)
+    * Glassmorphic photo details sidebar displaying EXIF metadata
+    * Complete RAW photo format support (including Canon `CR3` thumbnails and previews)
+    * Persistent folder size caching and background cache warming engine
+    * Thumbnail DoS exploit protection and configurable video seek points
+* Enhance photo preview size:
+    * Dynamically scale the requested preview sample to 80% of the viewport dimensions when `preview-img.size` is active, avoiding low-res samples or excessive bandwidth consumption.
+
+
 ## v0.32.0 - *2025-08-18*
 
 * Update README.md
