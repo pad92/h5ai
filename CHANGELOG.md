@@ -19,6 +19,14 @@
     * Thumbnail DoS exploit protection and configurable video seek points
 * Enhance photo preview size:
     * Dynamically scale the requested preview sample to 80% of the viewport dimensions when `preview-img.size` is active, avoiding low-res samples or excessive bandwidth consumption.
+* Implement backend security and performance optimizations:
+    * Add path boundary checks in thumbnails and customization loaders to prevent arbitrary directory traversal attacks
+    * Enable SQLite3 WAL (Write-Ahead Logging) mode, synchronous = NORMAL, and memory temp storage to optimize SQLite read/write operations and lower CPU wait times
+    * Enforce memory limits (128MB RAM, 256MB mapped memory) in Imagick to prevent out-of-memory errors on large images/RAW formats
+    * Bulletproof mimetype lookup fallback sequence to prevent fatal crashes on setups missing `FileInfo` extension
+* Code Quality:
+    * Eliminate all ESLint syntax, shadowing, and formatting issues (0 errors, 0 warnings)
+
 
 ## v0.30.0-pad92.8 - *2026-06-14*
 
