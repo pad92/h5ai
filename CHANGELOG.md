@@ -3,34 +3,14 @@
 
 ## v0.33.0-pad92.1 - *2026-06-15*
 
-* Merge upstream `manti-X` changes:
-    * Switch build system from `ghu` to `gulp`
-    * Upgrade `eslint` configuration to flat format v9
-    * Switch default thumbnail output format to `webP`
-    * Add custom directory thumbnails (loads from `_thumb/` subdirectory)
-    * Integrate SQLite3 caching database (`CacheDB`) to cache failed thumbnail generation attempts
-    * Add MIME-based file type detection (requires PHP `FileInfo` module)
-    * Add touch gesture support
-* Retain and integrate all `pad92` fork additions:
-    * Advanced `movi-player` video preview (multi-audio tracks, subtitles, x265 support)
-    * Glassmorphic photo details sidebar displaying EXIF metadata
-    * Complete RAW photo format support (including Canon `CR3` thumbnails and previews)
-    * Persistent folder size caching and background cache warming engine
-    * Thumbnail DoS exploit protection and configurable video seek points
-* Enhance photo preview size:
-    * Dynamically scale the requested preview sample to 80% of the viewport dimensions when `preview-img.size` is active, avoiding low-res samples or excessive bandwidth consumption.
-* Implement backend security and performance optimizations:
-    * Add path boundary checks in thumbnails and customization loaders to prevent arbitrary directory traversal attacks
-    * Enable SQLite3 WAL (Write-Ahead Logging) mode, synchronous = NORMAL, and memory temp storage to optimize SQLite read/write operations and lower CPU wait times
-    * Enforce memory limits (128MB RAM, 256MB mapped memory) in Imagick to prevent out-of-memory errors on large images/RAW formats
-    * Bulletproof mimetype lookup fallback sequence to prevent fatal crashes on setups missing `FileInfo` extension
-* Bug Fixes & Case Insensitivity:
-    * Resolve Canon `CR3` preview issue where files downloaded instead of displaying in the overlay (bypassing `exif_imagetype` validation for RAW images)
-    * Fix thumbnail API and Imagick scaling logic to respect client-requested preview dimensions (e.g. 1000px wide) instead of hardcoding a 240px size
-    * Enforce case-insensitive extension matching for themes icon loader, archive entry checks, and file extension lookup globally
-    * Fix glob-to-mime array mapping syntax error inside CacheWarmer `TypeHelper` constructor under PHP 8
-* Code Quality:
-    * Eliminate all ESLint syntax, shadowing, and formatting issues (0 errors, 0 warnings)
+* **Upstream Sync & Modernization**: Merged `manti-X` changes (Gulp build, ESLint flat config, WebP thumbnails, touch gestures, SQLite3 CacheDB).
+* **Fork Feature Parity**: Retained advanced `movi-player` video player, EXIF glassmorphic sidebar, RAW photos (`CR3` previews), and persistent folder size caching.
+* **Security & Optimization**: Added boundary checks against path traversals, enabled SQLite3 WAL & Synchronous NORMAL, and added Imagick memory limits (128MB).
+* **Bug Fixes & Case Insensitivity**:
+    * Fixed Canon `.CR3` files downloading instead of previewing.
+    * Fixed scaled preview size bug (respect client-requested dimensions instead of hardcoding 240px).
+    * Enforced case-insensitive file extension matching globally (for archive extraction, theme icons, and thumbnail generation).
+    * Cleaned up all ESLint warnings/errors (0 errors, 0 warnings).
 
 
 ## v0.30.0-pad92.8 - *2026-06-14*
