@@ -57,7 +57,7 @@ const getItem = options => {
         return null;
     }
 
-    const item = cache[href] || Item(href);
+    const item = cache[href] || Item(href); // eslint-disable-line no-use-before-define
 
     if (isNum(options.time)) {
         item.time = options.time;
