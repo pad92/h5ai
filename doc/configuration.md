@@ -143,7 +143,7 @@ Enables in-browser preview and playback of audio files.
 #### `preview-img`
 Enables overlay preview of images.
 - `enabled` (default: `true`).
-- `size` (default: `1000`): Maximum preview size (e.g. `1000` pixels), or `false` for original image size. Setting a numeric size is recommended to enable server-side preview generation for RAW image formats (like CR3, DNG, NEF, ARW, etc.) since web browsers cannot render RAW formats natively.
+- `size` (default: `1000`): Maximum preview size (e.g. `1000` pixels), or `false` for original image size. Enabling this setting (by passing a numeric value or `true`) instructs the server to pre-generate optimized image samples for previews. When active, h5ai dynamically requests a sample size corresponding to 80% of the viewport dimensions to optimize rendering quality and network bandwidth (especially important for large files such as RAW image formats like CR3, DNG, NEF, ARW, etc.).
 - `types`: File types configured for image preview.
 
 #### `preview-txt`
@@ -194,6 +194,11 @@ Generates preview thumbnails for images, videos, and document files.
 - `seek` (default: `50`): Percentage of total video duration to seek into when generating video thumbnails (requires `ffprobe` or `avprobe`).
 - `exif` (default: `true`): Use embedded EXIF thumbnails if available (faster).
 - `chunksize` (default: `20`): Number of thumbnails requested in a single batch.
+
+> [!TIP]
+> **Failed Thumbnail Caching (`CacheDB`)**
+> If the `sqlite3` PHP module is enabled, h5ai automatically initializes a caching database at `_h5ai/private/cache/thumbs_cache.db`. This database keeps track of files that failed thumbnail generation or files whose types were misdetected. If a file fails to generate a thumbnail (e.g. due to corrupt files, unsupported codecs, or memory limits), its failure state is cached. Future directory requests read this state from the SQLite database directly, completely bypassing resource-heavy regeneration attempts.
+> The cache automatically invalidates entries if the source file's modification time changes or if the server's backend configuration/capabilities change.
 
 #### `title`
 Updates the browser window/tab title with the path of the current folder.
