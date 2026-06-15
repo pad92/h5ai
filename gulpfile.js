@@ -1,7 +1,7 @@
 import gulp from 'gulp';
-import { execSync } from 'child_process';
+import {execSync} from 'child_process';
 import path from 'path';
-import { deleteAsync as del } from 'del';
+import {deleteAsync as del} from 'del';
 import webpack from 'webpack-stream';
 import include from 'gulp-include';
 import less from 'gulp-less';
@@ -15,10 +15,10 @@ import replace from 'gulp-replace';
 import gulpif from 'gulp-if';
 import rename from 'gulp-rename';
 import uglify from 'gulp-uglify';
-import { fileURLToPath } from 'url';
-import pkg from './package.json' with { type: 'json' };
+import {fileURLToPath} from 'url';
+import pkg from './package.json' with {type: 'json'};
 
-const { src, dest, series, parallel } = gulp;
+const {src, dest, series, parallel} = gulp;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -32,13 +32,13 @@ const WEBPACK_CFG = {
     mode: isProduction ? 'production' : 'development',
     output: {
         filename: 'scripts.js',
-        library: { name: 'h5ai', type: 'window' }
+        library: {name: 'h5ai', type: 'window'}
     },
     module: {
         rules: [
             {
                 test: /\.js$/,
-                use: { loader: 'babel-loader', options: { presets: ['@babel/preset-env'] } }
+                use: {loader: 'babel-loader', options: {presets: ['@babel/preset-env']}}
             },
             {
                 test: /jsdom/,
@@ -51,7 +51,7 @@ const WEBPACK_CFG = {
 
 let version = pkg.version;
 try {
-    const hashes = execSync(`git rev-list v${pkg.version}..HEAD`, { encoding: 'utf8' }).split(/\r?\n/).filter(x => x);
+    const hashes = execSync(`git rev-list v${pkg.version}..HEAD`, {encoding: 'utf8'}).split(/\r?\n/).filter(x => x);
     if (hashes.length) {
         const counter = ('000' + hashes.length).substr(-3);
         const hash = hashes[0].substr(0, 7);
@@ -70,23 +70,23 @@ const clean = () => del([BUILD]);
 const buildScripts = () => src(path.join(SRC, '_h5ai/public/js/scripts.js'))
     .pipe(webpack(WEBPACK_CFG))
     .pipe(insert.prepend('//= require "pre.js"\n\n'))
-    .pipe(include({ hardFail: true, includePaths: [path.join(SRC, '_h5ai/public/js')] }))
+    .pipe(include({hardFail: true, includePaths: [path.join(SRC, '_h5ai/public/js')]}))
     .pipe(gulpif(isProduction, uglify()))
     .pipe(insert.prepend(comment_js))
     .pipe(dest(path.join(BUILD, '_h5ai/public/js')));
 
 const buildStyles = () => src(path.join(SRC, '_h5ai/public/css/styles.less'))
     .pipe(replace(/\/\/ @include/g, '//= require'))
-    .pipe(include({ hardFail: true }))
-    .pipe(less({ math: 'always' }))
+    .pipe(include({hardFail: true}))
+    .pipe(less({math: 'always'}))
     .pipe(autoprefixer())
     .pipe(gulpif(isProduction, cleanCss()))
     .pipe(insert.prepend(comment_js))
     .pipe(dest(path.join(BUILD, '_h5ai/public/css')));
 
 const buildPhpFromPug = () => src(`${SRC}/**/*.php.pug`)
-    .pipe(pug({ locals: { pkg } }))
-    .pipe(rename(path => { path.extname = ''; }))
+    .pipe(pug({locals: {pkg}}))
+    .pipe(rename(p => { p.extname = ''; }))
     .pipe(footer(comment_html))
     .pipe(dest(BUILD));
 
@@ -112,7 +112,7 @@ const copy = parallel(copyPhpAndStatic, copyJson, copyRootFiles, copyMoviPlayer)
 const buildTests = () => src(path.join(TEST, 'index.js'))
     .pipe(webpack(WEBPACK_CFG))
     .pipe(insert.prepend('//= require "pre.js"\n\n'))
-    .pipe(include({ hardFail: true, includePaths: [path.join(SRC, '_h5ai/public/js')] }))
+    .pipe(include({hardFail: true, includePaths: [path.join(SRC, '_h5ai/public/js')]}))
     .pipe(dest(path.join(BUILD, 'test')));
 
 const copyTestAssets = () => src(path.join(TEST, 'index.html'))
@@ -129,5 +129,5 @@ const build = series(parallel(buildScripts, buildStyles), parallel(buildPhpFromP
 const tests = series(buildStyles, copyTestStyles, buildTests, copyTestAssets);
 const release = series(clean, build, tests, createZip);
 
-export { clean, build, tests, release };
+export {clean, build, tests, release};
 export default release;

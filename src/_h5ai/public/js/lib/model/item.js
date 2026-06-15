@@ -1,4 +1,4 @@
-/* eslint-disable no-useless-escape */
+
 const {keys, each, filter, sortBy, isStr, isNum} = require('../util');
 const server = require('../server');
 const location = require('../core/location');

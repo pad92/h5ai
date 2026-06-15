@@ -1,6 +1,6 @@
 const lolight = require('lolight');
 const rawMarked = require('marked');
-const marked = (typeof rawMarked === 'function') ? rawMarked : rawMarked.parse;
+const marked = typeof rawMarked === 'function' ? rawMarked : rawMarked.parse;
 const {keys, dom} = require('../../util');
 const allsettings = require('../../core/settings');
 const preview = require('./preview');

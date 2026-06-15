@@ -1,4 +1,4 @@
-/* eslint-disable no-useless-escape */
+
 const {each, map} = require('../util');
 const config = require('../config');
 
@@ -28,11 +28,11 @@ const getType = sequence => {
     let result;
 
     const types = Object.keys(regexps);
-    for (let i = 0; i < types.length; ++i) {
+    for (let i = 0; i < types.length; i += 1) {
         if (regexps[types[i]].test(name)) {
             result = types[i];
             break;
-        };
+        }
     }
 
     return result ? result : 'file';

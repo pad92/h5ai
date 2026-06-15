@@ -101,8 +101,8 @@ const update = item => {
     if (settings.qrcode) {
         const loc = global.window.location;
         const theme = document.body && document.body.getAttribute && document.body.getAttribute('data-theme');
-        const qFill = theme === 'dark' ? (settings.qrFillDark || '#fff') : (settings.qrFill || '#999');
-        const qBack = theme === 'dark' ? (settings.qrBackDark || '#212121') : (settings.qrBack || '#fff');
+        const qFill = theme === 'dark' ? settings.qrFillDark || '#fff' : settings.qrFill || '#999';
+        const qBack = theme === 'dark' ? settings.qrBackDark || '#212121' : settings.qrBack || '#fff';
         $qrcode.clr().app(kjua({
             render: 'image',
             size: 200,

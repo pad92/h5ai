@@ -1,4 +1,4 @@
-/* eslint-disable no-useless-escape */
+
 const esc_pattern = sequence => {
     return sequence.replace(/[\-\[\]{}()*+?.,\\$\^|#\s]/g, '\\$&');
 };

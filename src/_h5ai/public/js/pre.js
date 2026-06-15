@@ -1,4 +1,4 @@
-(function (win) {
+(function preInit(win) {
     if (!win || win.window !== win || !win.document) {
         throw new Error('no-window');
     }

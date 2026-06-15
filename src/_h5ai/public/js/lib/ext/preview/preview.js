@@ -1,3 +1,4 @@
+/* eslint-disable no-use-before-define */
 const {each, isFn, dom, includes, compact} = require('../../util');
 const event = require('../../core/event');
 const resource = require('../../core/resource');
@@ -173,16 +174,16 @@ const videoControls = ev => {
 };
 
 const onKeydown = ev => {
-    switch(Preview.controlsType){
-    case 'vid':
-        videoControls(ev);
-        break;
-    default:
-        defaultControls(ev);
+    switch (Preview.controlsType) {
+        case 'vid':
+            videoControls(ev);
+            break;
+        default:
+            defaultControls(ev);
     }
 };
 
-const setControlType = (t) =>{
+const setControlType = t => {
     Preview.controlsType = t;
 };
 
@@ -230,13 +231,13 @@ const onTouchend = ev => {
         toggleFullscreen();
     } else if (touchState.isHorizontal && dX > TOUCH_GESTURE_DISTANCE && Date.now() - touchState.last < TOUCH_MAX_DELAY) {
         switch (touchState.deltaX > 0) {
-        case true:
-            dropEvent(ev);
-            prev();
-            break;
-        default:
-            dropEvent(ev);
-            next();
+            case true:
+                dropEvent(ev);
+                prev();
+                break;
+            default:
+                dropEvent(ev);
+                next();
         }
     }
     dom(doc)
@@ -352,8 +353,7 @@ const register = (types, load, adjust) => {
             item.click_callback = onclick;
             item.click_callback.type = item.type;
             item.$view.find('a').on('click', onclick);
-        }
-        else if (item.$view && item.click_callback && includes(types, item.click_callback.type)) {
+        } else if (item.$view && item.click_callback && includes(types, item.click_callback.type)) {
             item.$view.find('a').off('click', item.click_callback);
         }
     };
@@ -400,7 +400,7 @@ const Preview = {
     get item() {
         return session && session.item;
     },
-    controlsType:'default',
+    controlsType: 'default',
     setControlType
 };
 

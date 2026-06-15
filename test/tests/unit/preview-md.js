@@ -1,5 +1,5 @@
 const rawMarked = require('marked');
-const marked = (typeof rawMarked === 'function') ? rawMarked : rawMarked.parse;
+const marked = typeof rawMarked === 'function' ? rawMarked : rawMarked.parse;
 const {test} = require('scar');
 
 test('marked renders markdown', () => {

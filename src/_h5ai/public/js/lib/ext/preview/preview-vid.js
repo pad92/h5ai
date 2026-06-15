@@ -94,17 +94,17 @@ const addUnloadFn = el => {
         }
         try {
             el.pause();
-        } catch (e) {/* ignore */}
+        } catch {/* ignore */}
 
         if (el.tagName.toLowerCase() === 'movi-player' && typeof el.unload === 'function') {
             try {
                 el.unload();
-            } catch (e) {/* ignore */}
+            } catch {/* ignore */}
         } else {
             try {
                 el.src = '';
                 el.load();
-            } catch (e) {/* ignore */}
+            } catch {/* ignore */}
         }
     };
 };

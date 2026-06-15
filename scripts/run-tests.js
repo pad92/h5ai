@@ -8,7 +8,7 @@ require(path.join(__dirname, '..', 'test', 'index.js'));
 (async () => {
     const scar = require('scar');
     try {
-        await scar.test.run({ reporter: require('scar/lib/reporter') });
+        await scar.test.run({reporter: require('scar/lib/reporter')});
     } catch (err) {
         console.error(err);
         process.exit(2);

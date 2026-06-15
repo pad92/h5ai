@@ -1,3 +1,4 @@
+/* eslint-disable no-use-before-define */
 const {each, dom, cmp, naturalCmp} = require('../util');
 const event = require('../core/event');
 const location = require('../core/location');
