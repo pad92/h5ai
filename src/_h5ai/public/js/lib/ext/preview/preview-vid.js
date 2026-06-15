@@ -2,6 +2,8 @@ const {dom} = require('../../util');
 const allsettings = require('../../core/settings');
 const preview = require('./preview');
 
+preview.setControlType('vid');
+
 const settings = Object.assign({
     enabled: false,
     autoplay: true,
@@ -114,6 +116,12 @@ const loadNativeVideo = item => {
             .attr('controls', 'controls');
         if (settings.autoplay) {
             $el.attr('autoplay', 'autoplay');
+            $el.on('loadeddata', () => {
+                const isPlaying = $el[0].currentTime > 0 && !$el[0].paused && !$el[0].ended;
+                if (!isPlaying) {
+                    $el[0].play();
+                }
+            });
         }
         addUnloadFn($el[0]);
         $el.attr('src', item.absHref);

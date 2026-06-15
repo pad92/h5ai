@@ -2,10 +2,11 @@
 
 define('H5AI_VERSION', '{{VERSION}}');
 define('MIN_PHP_VERSION', '7.0.0');
+define('TESTED_PHP_VERSION', '8.0.0');
 
 if (!function_exists('version_compare') || version_compare(PHP_VERSION, MIN_PHP_VERSION, '<')) {
     header('Content-type: text/plain;charset=utf-8');
-    exit('[ERR] h5ai requires PHP ' . MIN_PHP_VERSION . ' or later, but found PHP ' . PHP_VERSION);
+    exit('[ERR] h5ai was tested with PHP '. TESTED_PHP_VERSION . ' and requires at least PHP ' . MIN_PHP_VERSION . ' or later, but found PHP ' . PHP_VERSION);
 }
 
 if (substr(H5AI_VERSION, 0, 1) === '{') {

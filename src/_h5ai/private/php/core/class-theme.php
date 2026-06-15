@@ -1,7 +1,7 @@
 <?php
 
 class Theme {
-    private static $EXTENSIONS = ['svg', 'png', 'jpg'];
+    private static $EXTENSIONS = ['svg', 'png', 'jpg', 'jpeg', 'webp'];
     private $context;
 
     public function __construct($context) {

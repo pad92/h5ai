@@ -1,10 +1,10 @@
 const {dom} = require('../../util');
-const server = require('../../server');
 const allsettings = require('../../core/settings');
 const preview = require('./preview');
 const EXIF = require('exif-js');
 const store = require('../../core/store');
 const resource = require('../../core/resource');
+const server = require('../../server');
 
 const settings = Object.assign({
     enabled: false,
@@ -232,22 +232,29 @@ const updateGui = () => {
     const elW = el.offsetWidth;
 
     const labels = [preview.item.label];
-    if (!settings.size) {
-        const elNW = el.naturalWidth;
-        const elNH = el.naturalHeight;
-        labels.push(String(elNW) + 'x' + String(elNH));
-        labels.push(String((100 * elW / elNW).toFixed(0)) + '%');
-    }
+    const elNW = el.naturalWidth;
+    const elNH = el.naturalHeight;
+    labels.push(String(elNW) + 'x' + String(elNH));
+    labels.push(String((100 * elW / elNW).toFixed(0)) + '%');
+
     preview.setLabels(labels);
 };
 
+const getPreviewSize = () => {
+    const win = global.window;
+    // Calculate 80% of the screen/viewport size (whichever is larger, width or height)
+    const size = Math.max(win.innerWidth, win.innerHeight) * 0.8;
+    return Math.round(size);
+};
+
 const requestSample = href => {
+    const previewSize = getPreviewSize();
     return server.request({
         action: 'get',
         thumbs: [{
             type: 'img',
             href,
-            width: settings.size,
+            width: previewSize,
             height: 0
         }]
     }).then(json => {

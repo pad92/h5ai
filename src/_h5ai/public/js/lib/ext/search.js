@@ -17,7 +17,7 @@ const settings = Object.assign({
 const tpl =
         `<div id="search" class="tool">
             <img src="${resource.image('search')}" alt="search"/>
-            <input class="l10n_ph-search" type="text" value=""/>
+            <input class="l10n_ph-search" type="text" value="search"/>
         </div>`;
 let inputIsVisible = false;
 let prevPattern = '';

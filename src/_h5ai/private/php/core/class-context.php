@@ -15,6 +15,7 @@ class Context {
     private $setup;
     private $options;
     private $passhash;
+    private $types;
 
     public function __construct($session, $request, $setup) {
         $this->session = $session;
@@ -49,7 +50,10 @@ class Context {
     }
 
     public function get_types() {
-        return Json::load($this->setup->get('CONF_PATH') . '/types.json');
+        if (!isset($this->types)) {
+            $this->types = Json::load($this->setup->get('CONF_PATH') . '/types.json');
+        }
+        return $this->types;
     }
 
     public function login_admin($pass) {
@@ -101,7 +105,6 @@ class Context {
     }
 
     public function is_hidden($name) {
-        // always hide
         if ($name === '.' || $name === '..') {
             return true;
         }
@@ -188,18 +191,20 @@ class Context {
         $cache = [];
         $folder = Item::get($this, $this->to_path($href), $cache);
 
-        // add content of subfolders
-        if ($what >= 2 && $folder !== null) {
+        if ($what >= 3 && $folder !== null) {
             foreach ($folder->get_content($cache) as $item) {
                 $item->get_content($cache);
             }
             $folder = $folder->get_parent($cache);
         }
 
-        // add content of this folder and all parent folders
-        while ($what >= 1 && $folder !== null) {
+        while ($what >= 2 && $folder !== null) {
             $folder->get_content($cache);
             $folder = $folder->get_parent($cache);
+        }
+        
+        if ($what == 1 && $folder !== null) {
+            $folder->get_content($cache);
         }
 
         uasort($cache, ['Item', 'cmp']);
@@ -208,6 +213,40 @@ class Context {
             $result[] = $item->to_json_object();
         }
 
+        include_once(__DIR__ . '/../ext/class-thumb.php');
+        include_once(__DIR__ . '/../ext/class-cachedb.php');
+
+        $db = new CacheDB($this->setup);
+        $height = $this->options['thumbnails']['size'] ?? 240;
+        $width = floor($height * (4 / 3));
+        $supported_formats = ['png', 'jpg', 'jpeg', 'webp'];
+
+        foreach ($result as &$item_obj) {
+            if (isset($item_obj['managed'])) {
+                $folder_path = $this->to_path($item_obj['href']);
+                $thumb_dir = $folder_path . '/_thumb';
+
+                if (is_dir($thumb_dir)) {
+                    $files = @scandir($thumb_dir);
+                    if ($files) {
+                        foreach ($files as $file) {
+                            $extension = strtolower(pathinfo($file, PATHINFO_EXTENSION));
+                            if (in_array($extension, $supported_formats)) {
+                                $image_source_path = $thumb_dir . '/' . $file;
+                                $thumb_gen = new Thumb($this, $image_source_path, 'img', $db);
+                                $thumb_href = $thumb_gen->thumb($width, $height);
+
+                                if ($thumb_href) {
+                                    $item_obj['thumbSquare'] = $thumb_href;
+                                    $item_obj['thumbRational'] = $thumb_href;
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
         return $result;
     }
 
@@ -231,76 +270,86 @@ class Context {
 
     public function get_l10n($iso_codes) {
         $results = [];
-
         foreach ($iso_codes as $iso_code) {
             if (!in_array($iso_code, Context::$L10N_ISO_CODES)) {
                 continue;
             }
-
             $file = $this->setup->get('CONF_PATH') . '/l10n/' . $iso_code . '.json';
             $results[$iso_code] = Json::load($file);
             $results[$iso_code]['isoCode'] = $iso_code;
         }
-
         return $results;
     }
 
     public function get_thumbs($requests) {
         $hrefs = [];
+        $thumbs = [];
+        $filetypes = [];
         $height = $this->options['thumbnails']['size'] ?? 240;
         $width = floor($height * (4 / 3));
+        $db = new CacheDB($this->setup);
 
         foreach ($requests as $req) {
-            $thumb = new Thumb($this);
-            $hrefs[] = $thumb->thumb($req['type'], $req['href'], $width, $height);
-        }
+            if ($req['type'] === 'blocked') {
+                $hrefs[] = null;
+                $filetypes[] = null;
+                continue;
+            }
+            $path = $this->to_path($req['href']);
+            if (!array_key_exists($path, $thumbs)) {
+                $thumbs[$path] = new Thumb($this, $path, $req['type'], $db);
+            }
+            else if ($thumbs[$path]->get_type()->name === 'file') {
+                // File has already been mime tested and cannot have a thumbnail
+                // Only applies if we request the same path again in the same request (security measure)
+                $hrefs[] = null;
+                $filetypes[] = 'file';
+                continue;
+            }
 
-        return $hrefs;
+            $hrefs[] = $thumbs[$path]->thumb($width, $height);
+
+            if (method_exists($thumbs[$path], 'get_type') && $thumbs[$path]->get_type()->was_wrong()) {
+                $filetypes[] = $thumbs[$path]->get_type()->name;
+            } else {
+                $filetypes[] = null; // No client-side update needed.
+            }
+        }
+        return [$hrefs, $filetypes];
     }
 
     private function prefix_x_head_href($href) {
         if (preg_match('@^(https?://|/)@i', $href)) {
             return $href;
         }
-
         return $this->setup->get('PUBLIC_HREF') . 'ext/' . $href;
     }
 
     private function get_fonts_html() {
         $fonts = $this->query_option('view.fonts', []);
         $fonts_mono = $this->query_option('view.fontsMono', []);
-
         $html = '<style class="x-head">';
-
         if (sizeof($fonts) > 0) {
             $html .= '#root,input,select{font-family:"' . implode('","', $fonts) . '"!important}';
         }
-
         if (sizeof($fonts_mono) > 0) {
             $html .= 'pre,code{font-family:"' . implode('","', $fonts_mono) . '"!important}';
         }
-
         $html .= '</style>';
-
         return $html;
     }
 
     public function get_x_head_html() {
         $scripts = $this->query_option('resources.scripts', []);
         $styles = $this->query_option('resources.styles', []);
-
         $html = '';
-
         foreach ($styles as $href) {
             $html .= '<link rel="stylesheet" href="' . $this->prefix_x_head_href($href) . '" class="x-head">';
         }
-
         foreach ($scripts as $href) {
             $html .= '<script src="' . $this->prefix_x_head_href($href) . '" class="x-head"></script>';
         }
-
         $html .= $this->get_fonts_html();
-
         return $html;
     }
 }

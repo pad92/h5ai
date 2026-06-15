@@ -1,3 +1,4 @@
+/* eslint-disable no-useless-escape */
 const {each, map} = require('../util');
 const config = require('../config');
 
@@ -12,7 +13,7 @@ const escapeRegExp = sequence => {
 
 const parse = types => {
     each(types, (patterns, type) => {
-        const pattern = '^(' + map(patterns, p => '(' + escapeRegExp(p).replace(/\*/g, '.*') + ')').join('|') + ')$';
+        const pattern = '^(' + map(patterns.glob, p => '(' + escapeRegExp(p).replace(/\*/g, '.*') + ')').join('|') + ')$';
         regexps[type] = new RegExp(pattern, 'i');
     });
 };
@@ -26,11 +27,13 @@ const getType = sequence => {
     const name = slashidx >= 0 ? sequence.substr(slashidx + 1) : sequence;
     let result;
 
-    each(regexps, (regexp, type) => {
-        if (regexps[type].test(name)) {
-            result = type;
-        }
-    });
+    const types = Object.keys(regexps);
+    for (let i = 0; i < types.length; ++i) {
+        if (regexps[types[i]].test(name)) {
+            result = types[i];
+            break;
+        };
+    }
 
     return result ? result : 'file';
 };

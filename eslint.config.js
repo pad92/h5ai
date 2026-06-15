@@ -10,10 +10,11 @@ module.exports = [
             '@stylistic/js': stylistic
         },
         languageOptions: {
-            ecmaVersion: 2020,
+            ecmaVersion: 'latest',
             sourceType: 'commonjs',
             globals: {
                 ...globals.node,
+                ...globals.browser,
                 ...globals.es6
             }
         },
@@ -173,6 +174,20 @@ module.exports = [
         files: ['src/**/*.js'],
         rules: {
             'no-console': 1
+        }
+    },
+    // Project uses ES modules for build tooling (gulpfile)
+    {
+        files: ['gulpfile.js'],
+        languageOptions: {
+            ecmaVersion: 'latest',
+            sourceType: 'module',
+            globals: {
+                ...globals.node
+            }
+        },
+        rules: {
+            'no-undef': 'off'
         }
     }
 ];

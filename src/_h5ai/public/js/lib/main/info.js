@@ -1,7 +1,7 @@
 const {dom} = require('../util');
 const config = require('../config');
 const server = require('../server');
-const resource = require('../core/resource');
+require('../ext/theme');
 
 
 const testsTpl =
@@ -23,16 +23,16 @@ const loginTpl =
             </div>
         </div>`;
 const supportTpl =
-        `<div id="support">
-            Show your support with a donation!
-            <div class="paypal">
-                <form action="https://www.paypal.com/cgi-bin/webscr" method="post" target="_blank">
-                    <input type="hidden" name="cmd" value="_s-xclick"/>
-                    <input type="hidden" name="hosted_button_id" value="8WSPKWT7YBTSQ"/>
-                    <input type="image" src="${resource.image('paypal')}" name="submit" alt="PayPal"/>
-                </form>
-            </div>
-        </div>`;
+    `<div id="support">
+        Show your support with a donation!
+        <div class="kofi">
+            <a href="https://ko-fi.com/bakaloli" target="_blank">
+                <img src="https://storage.ko-fi.com/cdn/kofi5.png" 
+                     alt="Buy me a coffee at ko-fi.com" 
+                     style="width:180px; height:auto;"/>
+            </a>
+        </div>
+    </div>`;
 const setup = config.setup;
 
 
@@ -103,12 +103,27 @@ const addTests = () => {
     );
 
     addTest(
+        'Fileinfo module', 'PHP Fileinfo extension is available',
+        setup.HAS_PHP_FILEINFO
+    );
+
+    addTest(
+        'Zip module', 'PHP Zip extension is available',
+        setup.HAS_PHP_ZIP
+    );
+
+    addTest(
+        'Rar module', 'PHP Rar extension is available',
+        setup.HAS_PHP_RAR
+    );
+
+    addTest(
         'Use EXIF thumbs', 'PHP EXIF extension available',
         setup.HAS_PHP_EXIF
     );
 
     addTest(
-        'Movie thumbs', 'Command line program <code>avconv</code> or <code>ffmpeg</code> available',
+        'Video thumbs', 'Command line program <code>avconv</code> or <code>ffmpeg</code> available',
         setup.HAS_CMD_AVCONV || setup.HAS_CMD_FFMPEG
     );
 

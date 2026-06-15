@@ -20,6 +20,7 @@ const tpl =
                 <div class="label"></div>
                 <div class="time"></div>
                 <div class="size"></div>
+                <div class="type"></div>
                 <div class="content">
                     <span class="folders"></span> <span class="l10n-folders"></span>,
                     <span class="files"></span> <span class="l10n-files"></span>
@@ -39,6 +40,7 @@ let $img;
 let $label;
 let $time;
 let $size;
+let $type;
 let $content;
 let $folders;
 let $files;
@@ -85,6 +87,8 @@ const update = item => {
         $size.hide();
     }
 
+    $type.text(item.type);
+
     if (item.isContentFetched) {
         const stats = item.getStats();
         $folders.text(stats.folders);
@@ -96,11 +100,14 @@ const update = item => {
 
     if (settings.qrcode) {
         const loc = global.window.location;
+        const theme = document.body && document.body.getAttribute && document.body.getAttribute('data-theme');
+        const qFill = theme === 'dark' ? (settings.qrFillDark || '#fff') : (settings.qrFill || '#999');
+        const qBack = theme === 'dark' ? (settings.qrBackDark || '#212121') : (settings.qrBack || '#fff');
         $qrcode.clr().app(kjua({
             render: 'image',
             size: 200,
-            fill: settings.qrFill,
-            back: settings.qrBack,
+            fill: qFill,
+            back: qBack,
             text: loc.protocol + '//' + loc.host + item.absHref,
             crisp: true,
             quiet: 1
@@ -131,6 +138,7 @@ const init = () => {
     $label = $info.find('.label');
     $time = $info.find('.time');
     $size = $info.find('.size');
+    $type = $info.find('.type');
     $content = $info.find('.content');
     $folders = $info.find('.folders');
     $files = $info.find('.files');
@@ -159,6 +167,13 @@ const init = () => {
     event.sub('location.changed', onLocationChanged);
     event.sub('item.mouseenter', onMouseenter);
     event.sub('item.mouseleave', onMouseleave);
+    // when theme changes, regenerate qr if visible
+    event.sub('theme.changed', () => {
+        // regenerate qr for current folder/item, if we have one
+        if (currentFolder) {
+            update(currentFolder);
+        }
+    });
 };
 
 

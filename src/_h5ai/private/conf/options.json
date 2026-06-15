@@ -65,7 +65,7 @@
         "fastBrowsing": true,
         "fonts": ["Ubuntu", "Roboto", "Helvetica", "Arial", "sans-serif"],
         "fontsMono": ["Ubuntu Mono", "Monaco", "Lucida Sans Typewriter", "monospace"],
-        "hidden": ["^\\.", "^_h5ai"],
+        "hidden": ["^\\.", "^\\_", "^_h5ai", "robots.txt", "ads.txt"],
         "hideFolders": false,
         "hideIf403": true,
         "hideParentFolder": false,
@@ -102,7 +102,7 @@
     - interval: number, update interval in milliseconds, at least 1000
     */
     "autorefresh": {
-        "enabled": false,
+        "enabled": true,
         "interval": 5000
     },
 
@@ -136,12 +136,15 @@
     To select files the "select"-extension needs to be enabled.
 
     - type: string, "php-tar", "shell-tar" or "shell-zip"
+        "php-tar" uses PHP's PharData class to create a tar archive.
+        "shell-tar" uses the "tar" command line tool to create a tar archive.
+        "shell-zip" uses the "zip" command line tool to create a zip archive. "zip" must be installed (apt install zip).
     - packageName: string, basename of the download package, null for current filename or foldername
     - alwaysVisible: boolean, always show download button (defaults to download the current folder)
     */
     "download": {
         "enabled": true,
-        "type": "php-tar",
+        "type": "shell-zip",
         "packageName": null,
         "alwaysVisible": false
     },
@@ -160,7 +163,7 @@
     - ignorecase: boolean, ignore case
     */
     "filter": {
-        "enabled": false,
+        "enabled": true,
         "advanced": true,
         "debounceTime": 100,
         "ignorecase": true
@@ -173,10 +176,11 @@
     also adds the sizes for the actual folder files.
 
     - type: string, "php" (sloooow) or "shell-du" (sloow)
+        "shell-du" must be installed (apt install shell-du).
     */
     "foldersize": {
         "enabled": true,
-        "type": "php"
+        "type": "shell-du"
     },
 
     /*
@@ -202,7 +206,9 @@
         "show": false,
         "qrcode": true,
         "qrFill": "#999",
-        "qrBack": "#fff"
+        "qrBack": "#fff",
+        "qrFillDark": "#fff",
+        "qrBackDark": "#212121"
     },
 
     /*
@@ -247,12 +253,11 @@
     Show an image preview on click.
 
     - types: array of strings
-    - size: number, sample size, or false for original size
     */
     "preview-img": {
         "enabled": true,
         "size": 1000,
-        "types": ["img", "img-bmp", "img-gif", "img-ico", "img-jpg", "img-png", "img-raw", "img-svg"]
+        "types": ["img", "img-bmp", "img-gif", "img-ico", "img-jpg", "img-png", "img-raw", "img-svg", "img-webp"]
     },
 
     /*
@@ -305,7 +310,7 @@
     "preview-vid": {
         "enabled": true,
         "autoplay": true,
-        "types": ["vid-avi", "vid-flv", "vid-mkv", "vid-mov", "vid-mp4", "vid-mpg", "vid-webm"]
+        "types": ["vid-mkv", "vid-mov", "vid-mp4", "vid-mpg", "vid-webm"]
     },
 
     /*
@@ -322,7 +327,7 @@
     - ignorecase: boolean, ignore case
     */
     "search": {
-        "enabled": false,
+        "enabled": true,
         "advanced": true,
         "debounceTime": 300,
         "ignorecase": true
@@ -362,27 +367,32 @@
 
     /*
     Show thumbnails for image files. Needs the "/_h5ai/public/cache" folder to be
-    writable for the web Server.
+    writable for the web Server. Removing a default value from an array of strings
+    results in adding it to the blocklist implicitly.
 
     - img: array of strings
     - mov: array of strings
     - doc: array of strings
+    - ar : array of strings
     - delay: number, delay in milliseconds after "dom-ready" before thumb-requesting starts
     - size: number, height in pixel of the generated thumbnails
     - seek: number, percentage of total video duration to seek into
     - exif: boolean, use included EXIF thumbs if possible
     - chunksize: int, number of thumbs per request
+    - blocklist: array of strings, do not generate thumbnails for these types
     */
     "thumbnails": {
         "enabled": true,
-        "img": ["img-bmp", "img-gif", "img-ico", "img-jpg", "img-png", "img-raw"],
-        "mov": ["vid-avi", "vid-flv", "vid-mkv", "vid-mov", "vid-mp4", "vid-mpg", "vid-webm"],
+        "img": ["img-bmp", "img-gif", "img-ico", "img-jpg", "img-png", "img-raw", "img-svg", "img-tiff", "img-webp"],
+        "mov": ["vid-avi", "vid-mkv", "vid-flv", "vid-swf", "vid-mov", "vid-mp4", "vid-mpg", "vid-webm", "vid-wmv", "vid-ts"],
         "doc": ["x-pdf", "x-ps"],
+        "ar": ["ar-zip", "ar-rar"],
         "delay": 1,
         "size": 240,
         "seek": 50,
         "exif": true,
-        "chunksize": 20
+        "chunksize": 20,
+        "blocklist": []
     },
 
     /*

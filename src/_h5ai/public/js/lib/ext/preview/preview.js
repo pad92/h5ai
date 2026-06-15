@@ -5,6 +5,7 @@ const allsettings = require('../../core/settings');
 const store = require('../../core/store');
 
 const win = global.window;
+const doc = win.document;
 const settings = Object.assign({
     enabled: true
 }, allsettings.preview);
@@ -27,11 +28,15 @@ const overlayTpl =
         </div>`;
 const storekey = 'ext/preview';
 
+const TOUCH_MAX_DELAY = 250;
+const TOUCH_GESTURE_DISTANCE = 40;
+
 let isFullscreen = store.get(storekey) || false;
 let userAliveTimeoutId = null;
 let spinnerIsVisible = false;
 let spinnerTimeoutId = null;
 let session = null;
+let touchState = {};
 
 const centerContent = () => {
     const $container = dom('#pv-container');
@@ -54,7 +59,7 @@ const centerContent = () => {
 };
 
 const updateGui = () => {
-    const docEl = win.document.documentElement;
+    const docEl = doc.documentElement;
     const winWidth = docEl.clientWidth;
     const winHeight = docEl.clientHeight;
     const margin = isFullscreen ? 0 : 20;
@@ -131,12 +136,12 @@ const dropEvent = ev => {
     ev.preventDefault();
 };
 
-const onKeydown = ev => {
+const defaultControls = ev => {
     const key = ev.keyCode;
 
     if (key === 27) { // esc
         dropEvent(ev);
-        exit(); // eslint-disable-line no-use-before-define
+        exit();
     } else if (key === 8 || key === 37) { // backspace, left
         dropEvent(ev);
         prev();
@@ -149,9 +154,101 @@ const onKeydown = ev => {
     }
 };
 
+const videoControls = ev => {
+    const key = ev.keyCode;
+
+    if (key === 27) { // esc
+        dropEvent(ev);
+        exit();
+    } else if (key === 8 || key === 188) { // backspace === 8; , ===188
+        dropEvent(ev);
+        prev();
+    } else if (key === 13 || key === 190) { // enter === 13; . ===190
+        dropEvent(ev);
+        next();
+    } else if (key === 70) { // f
+        dropEvent(ev);
+        toggleFullscreen();
+    }
+};
+
+const onKeydown = ev => {
+    switch(Preview.controlsType){
+    case 'vid':
+        videoControls(ev);
+        break;
+    default:
+        defaultControls(ev);
+    }
+};
+
+const setControlType = (t) =>{
+    Preview.controlsType = t;
+};
+
+const onTouchstart = ev => {
+    const now = Date.now();
+    const deltaT = now - (touchState.last || now);
+    const touch = ev.changedTouches;
+
+    touchState = {
+        x: touch[0].pageX,
+        y: touch[0].pageY,
+        last: now,
+        deltaX: 0,
+        deltaY: 0,
+        isHorizontal: null,
+        isDoubleTap: touch.length === 1 && deltaT > 0 && deltaT <= TOUCH_MAX_DELAY
+    };
+
+    dom(doc)
+        .on('touchmove', onTouchmove)
+        .on('touchend', onTouchend);
+};
+
+const onTouchmove = ev => {
+    const touch = ev.changedTouches;
+    if (touch && touch.length > 1 || ev.scale && ev.scale !== 1) {
+        return;
+    }
+
+    touchState.deltaX = touch[0].pageX - touchState.x;
+    touchState.deltaY = touch[0].pageY - touchState.y;
+
+    if (touchState.isHorizontal === null) {
+        touchState.isHorizontal = Math.abs(touchState.deltaX) >= Math.abs(touchState.deltaY);
+    }
+    dropEvent(ev);
+};
+
+const onTouchend = ev => {
+    const dX = Math.abs(touchState.deltaX);
+    const dY = Math.abs(touchState.deltaY);
+
+    if (touchState.isDoubleTap && dX <= TOUCH_GESTURE_DISTANCE && dY <= TOUCH_GESTURE_DISTANCE) {
+        dropEvent(ev);
+        toggleFullscreen();
+    } else if (touchState.isHorizontal && dX > TOUCH_GESTURE_DISTANCE && Date.now() - touchState.last < TOUCH_MAX_DELAY) {
+        switch (touchState.deltaX > 0) {
+        case true:
+            dropEvent(ev);
+            prev();
+            break;
+        default:
+            dropEvent(ev);
+            next();
+        }
+    }
+    dom(doc)
+        .off('touchmove', onTouchmove)
+        .off('touchend', onTouchend);
+};
+
 const enter = () => {
     setLabels([]);
-    dom('#pv-container').clr();
+    dom('#pv-container')
+        .on('touchstart', onTouchstart)
+        .clr();
     dom('#pv-overlay').show();
     dom(win).on('keydown', onKeydown);
     updateGui();
@@ -159,7 +256,9 @@ const enter = () => {
 
 const exit = () => {
     setLabels([]);
-    dom('#pv-container').clr();
+    dom('#pv-container')
+        .off('touchstart', onTouchstart)
+        .clr();
     dom('#pv-overlay').hide();
     dom(win).off('keydown', onKeydown);
 };
@@ -235,7 +334,7 @@ Session.prototype = {
 const register = (types, load, adjust) => {
     const initItem = item => {
         if (item.$view && includes(types, item.type)) {
-            item.$view.find('a').on('click', ev => {
+            const onclick = ev => {
                 ev.preventDefault();
 
                 const matchedItems = compact(dom('#items .item').map(el => {
@@ -245,11 +344,22 @@ const register = (types, load, adjust) => {
 
                 session = Session(matchedItems, matchedItems.indexOf(item), load, adjust);
                 enter();
-            });
+            };
+
+            if (item.click_callback) {
+                item.$view.find('a').off('click', item.click_callback);
+            }
+            item.click_callback = onclick;
+            item.click_callback.type = item.type;
+            item.$view.find('a').on('click', onclick);
+        }
+        else if (item.$view && item.click_callback && includes(types, item.click_callback.type)) {
+            item.$view.find('a').off('click', item.click_callback);
         }
     };
 
     event.sub('view.changed', added => each(added, initItem));
+    event.sub('item.changed', changed => initItem(changed));
 };
 
 const init = () => {
@@ -284,12 +394,16 @@ const init = () => {
         .on('load', updateGui);
 };
 
-module.exports = {
+const Preview = {
     setLabels,
     register,
     get item() {
         return session && session.item;
-    }
+    },
+    controlsType:'default',
+    setControlType
 };
+
+module.exports = Preview;
 
 init();

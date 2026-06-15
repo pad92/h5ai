@@ -5,7 +5,7 @@ const TPL_TOPBAR =
         `<div id="topbar">
             <div id="toolbar"></div>
             <div id="flowbar"></div>
-            <a id="backlink" href="https://larsjung.de/h5ai/" title="powered by h5ai - https://larsjung.de/h5ai/">
+            <a id="backlink" href="https://github.com/manti-X/h5ai/" title="powered by h5ai - https://github.com/manti-X/h5ai/">
                 <div>powered</div>
                 <div>by h5ai</div>
             </a>
