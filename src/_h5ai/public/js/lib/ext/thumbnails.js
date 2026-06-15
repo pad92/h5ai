@@ -49,6 +49,7 @@ const queueItem = (queue, item) => {
         },
         callback_type: filetype => {
             if (filetype && item.$view) {
+                // eslint-disable-next-line no-console
                 console.log(`Updated type for ${item.label}: ${item.type}->${filetype}`);
                 item.type = filetype;
                 event.pub('item.changed', item);
