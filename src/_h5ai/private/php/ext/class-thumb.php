@@ -200,30 +200,43 @@ class Thumb {
         return null;
     }
 
+    private function ext_to_type($path) {
+        $name = basename($path);
+        foreach ($this->context->get_types() as $key => $values) {
+            if (!isset($values['glob'])) {
+                continue;
+            }
+            foreach ($values['glob'] as $pattern) {
+                $regex = '/^' . str_replace('\*', '.*', preg_quote($pattern, '/')) . '$/i';
+                if (preg_match($regex, $name)) {
+                    return $key;
+                }
+            }
+        }
+        return 'file';
+    }
+
     private function capture($handler) {
         if ($this->attempt >= count(array_keys(self::HANDLED_TYPES))) {
             return false;
         }
         ++$this->attempt;
         if ($handler === 'file') {
-            if ($this->setup->get('HAS_PHP_FILEINFO')) {
+            $type = $this->ext_to_type($this->source_path);
+            if ($type === 'file' && $this->setup->get('HAS_PHP_FILEINFO')) {
                 $type = $this->type->mime_to_type(
                     Util::get_mimetype($this->source_path));
-                $handler = self::type_to_handler($type);
-                $this->type->name = $type;
-
-                if ($handler === 'file') {
-                    return false;
-                }
-                return $this->capture($handler);
             }
-            else {
-                $this->type->name = 'file';
+            $handler = self::type_to_handler($type);
+            $this->type->name = $type;
+
+            if ($handler === 'file') {
                 return false;
             }
+            return $this->capture($handler);
         }
         else if ($handler === 'img') {
-            if ($this->setup->get('HAS_PHP_EXIF')) {
+            if ($this->setup->get('HAS_PHP_EXIF') && !in_array($this->type->name, ['img-raw', 'img-svg', 'img-webp'])) {
                 $exiftype = exif_imagetype($this->source_path);
                 if (!$exiftype) {
                     return $this->capture('file');
@@ -505,7 +518,7 @@ class Thumb {
                     $tmp = explode(".", $label);
                     $ext = end($tmp);
                     if (!empty($ext)
-                        && array_search($ext, self::IMG_EXT) !== false) {
+                        && array_search(strtolower($ext), self::IMG_EXT) !== false) {
                         $extracted = fopen(
                             "php://temp/maxmemory:". 2 * 1024 * 1024, 'r+');
                         fwrite($extracted, $za->getFromIndex($i));
@@ -533,7 +546,7 @@ class Thumb {
                 $label = $entry->getName();
                 $tmp = explode(".", $label);
                 $ext = end($tmp);
-                if (!empty($ext) && array_search($ext, self::IMG_EXT) !== false) {
+                if (!empty($ext) && array_search(strtolower($ext), self::IMG_EXT) !== false) {
                     $stream = $entry->getStream();
                     if ($stream !== false) {
                         $extracted = fopen(

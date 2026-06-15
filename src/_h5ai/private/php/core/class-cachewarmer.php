@@ -90,10 +90,12 @@ class TypeHelper {
         if (is_array($types)) {
             foreach ($types as $type => $patterns) {
                 $parts = [];
-                foreach ($patterns as $pattern) {
-                    $escaped = preg_quote($pattern, '/');
-                    $escaped = str_replace('\\*', '.*', $escaped);
-                    $parts[] = '(' . $escaped . ')';
+                if (isset($patterns['glob'])) {
+                    foreach ($patterns['glob'] as $pattern) {
+                        $escaped = preg_quote($pattern, '/');
+                        $escaped = str_replace('\\*', '.*', $escaped);
+                        $parts[] = '(' . $escaped . ')';
+                    }
                 }
                 if (!empty($parts)) {
                     $this->regexps[$type] = '/^(' . implode('|', $parts) . ')$/i';
