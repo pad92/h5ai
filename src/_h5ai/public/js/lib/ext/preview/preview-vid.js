@@ -92,17 +92,23 @@ const addUnloadFn = el => {
         }
         try {
             el.pause();
-        } catch (e) {/* ignore */}
+        } catch {
+            /* ignore */
+        }
 
         if (el.tagName.toLowerCase() === 'movi-player' && typeof el.unload === 'function') {
             try {
                 el.unload();
-            } catch (e) {/* ignore */}
+            } catch {
+                /* ignore */
+            }
         } else {
             try {
                 el.src = '';
                 el.load();
-            } catch (e) {/* ignore */}
+            } catch {
+                /* ignore */
+            }
         }
     };
 };
@@ -154,11 +160,6 @@ const loadMoviVideo = item => {
 const load = item => {
     return loadMoviPlayerScript()
         .then(() => {
-            if (!global.window.crossOriginIsolated) {
-                // eslint-disable-next-line no-console
-                console.warn('Cross-origin isolation headers missing. Falling back to standard <video>.');
-                return loadNativeVideo(item);
-            }
             return loadMoviVideo(item);
         })
         .catch(err => {

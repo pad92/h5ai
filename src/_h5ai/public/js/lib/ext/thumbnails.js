@@ -5,7 +5,7 @@ const allsettings = require('../core/settings');
 
 const settings = Object.assign({
     enabled: false,
-    img: ['img-bmp', 'img-gif', 'img-ico', 'img-jpg', 'img-png'],
+    img: ['img-bmp', 'img-gif', 'img-ico', 'img-jpg', 'img-png', 'img-webp'],
     mov: ['vid-avi', 'vid-flv', 'vid-mkv', 'vid-mov', 'vid-mp4', 'vid-mpg', 'vid-webm'],
     doc: ['x-pdf', 'x-ps'],
     delay: 1,

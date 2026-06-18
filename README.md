@@ -1,16 +1,15 @@
-# h5ai
+# h5ai (pad92 fork)
 
-[![license][license-img]][github] [![web][web-img]][web] [![github][github-img]][github]
+[![license][license-img]][github] [![github][github-img]][github]
 
-A modern HTTP web server index for Apache httpd, lighttpd, and nginx.
+A modern HTTP web server index for Apache httpd, lighttpd, and nginx. This repository is a detached fork of the original h5ai project, which is no longer maintained.
 
 
 ## Important
 
 * Do **not** install any files from the `src` folder, they need to be
   preprocessed to work correctly!
-* Find a preprocessed package and detailed install instructions on the
-  [project page][web].
+* Find a preprocessed package on the [GitHub releases page][github-releases].
 * For bug reports and feature requests please use [issues][github-issues].
 
 
@@ -20,8 +19,8 @@ A modern HTTP web server index for Apache httpd, lighttpd, and nginx.
 * PHP `7.0.0+`
 * Web server (Apache httpd, lighttpd, nginx, cherokee, etc.)
 * PHP extensions (depending on enabled features):
-  * `GD` (required for default image thumbnails)
-  * `Imagick` (recommended for optimized high-performance image resizing)
+  * `GD` (required for default WebP image thumbnails, WebP support must be enabled)
+  * `Imagick` (recommended for optimized high-performance image resizing, WebP support must be enabled)
   * `exif` (recommended for EXIF rotation and fast thumbnail extraction)
 * Command-line helpers (optional):
   * `ffmpeg` or `avconv` (for video thumbnails)
@@ -35,8 +34,7 @@ A modern HTTP web server index for Apache httpd, lighttpd, and nginx.
 
 ## Build
 
-There are installation ready packages for the latest [releases][release] and
-[dev builds][develop]. But to build **h5ai** yourself either `git clone` or
+There are installation ready packages on the [GitHub releases page][github-releases]. But to build **h5ai** yourself either `git clone` or
 download the repository. From within the root folder run the following
 commands to find a fresh zipball in folder `build` (tested on linux only,
 might work on other configurations):
@@ -83,15 +81,12 @@ THE SOFTWARE.
 too. Exceptions are some [Material Design icons][material-design-icons] (CC BY 4.0) and [movi-player][movi-player] (Apache-2.0).
 
 
-[web]: https://larsjung.de/h5ai/
-[github]: https://github.com/lrsjng/h5ai
-[github-issues]: https://github.com/lrsjng/h5ai/issues
-[release]: https://release.larsjung.de/h5ai/
-[develop]: https://release.larsjung.de/h5ai/develop/
+[github]: https://github.com/pad92/h5ai
+[github-issues]: https://github.com/pad92/h5ai/issues
+[github-releases]: https://github.com/pad92/h5ai/releases
 [node]: https://nodejs.org
 [material-design-icons]: https://github.com/google/material-design-icons
 [movi-player]: https://github.com/mrujjwalg/movi-player
 
 [license-img]: https://img.shields.io/badge/license-MIT-a0a060.svg?style=flat-square
-[web-img]: https://img.shields.io/badge/web-larsjung.de/h5ai-a0a060.svg?style=flat-square
-[github-img]: https://img.shields.io/badge/github-lrsjng/h5ai-a0a060.svg?style=flat-square
+[github-img]: https://img.shields.io/badge/github-pad92/h5ai-a0a060.svg?style=flat-square

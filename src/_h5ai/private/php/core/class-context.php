@@ -247,11 +247,27 @@ class Context {
 
     public function get_thumbs($requests) {
         $hrefs = [];
-        $height = $this->options['thumbnails']['size'] ?? 240;
-        $width = floor($height * (4 / 3));
+        $default_height = $this->options['thumbnails']['size'] ?? 240;
+        $default_width = floor($default_height * (4 / 3));
+        $preview_size = $this->options['preview-img']['size'] ?? 1000;
 
         foreach ($requests as $req) {
             $thumb = new Thumb($this);
+            $width = $default_width;
+            $height = $default_height;
+
+            if (isset($req['width']) && isset($req['height'])) {
+                $req_width = intval($req['width']);
+                $req_height = intval($req['height']);
+
+                // Only allow the default thumbnail size or the configured preview-img size
+                if (($req_width === $default_width && $req_height === $default_height) ||
+                    ($req_width === $preview_size && $req_height === 0)) {
+                    $width = $req_width;
+                    $height = $req_height;
+                }
+            }
+
             $hrefs[] = $thumb->thumb($req['type'], $req['href'], $width, $height);
         }
 

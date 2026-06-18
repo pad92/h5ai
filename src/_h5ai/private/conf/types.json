@@ -80,6 +80,9 @@
     "img-png": [
         "*.png"
     ],
+    "img-webp": [
+        "*.webp"
+    ],
     "img-raw": [
         "*.3fr",
         "*.arw",

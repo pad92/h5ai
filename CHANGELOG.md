@@ -1,6 +1,15 @@
 # Changelog
 
 
+## v1.0.0 - *2026-06-18*
+
+* add support for WebP format in preview and file view
+* switch generated thumbnail format to WebP
+* migrate build system from ghu to Gulp
+* detach fork from the original unmaintained project and update repository URLs
+* force the use of movi-player for video previews by bypassing the cross-origin isolation check
+
+
 ## v0.30.0-pad92.8 - *2026-06-14*
 
 * integrate Pull Request #765 for improved video thumbnail generation and prevention of thumbnail DoS exploit

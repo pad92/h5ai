@@ -15,7 +15,9 @@ const createLabel = sequence => {
     sequence = sequence.replace(reEndsWithSlash, '');
     try {
         sequence = decodeURIComponent(sequence);
-    } catch (e) {/* skip */ }
+    } catch {
+        /* skip */
+    }
     return sequence;
 };
 

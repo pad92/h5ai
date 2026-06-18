@@ -62,7 +62,7 @@ class Thumb
             return null;
         }
 
-        $name = 'thumb-' . sha1($source_path) . '-' . $width . 'x' . $height . '.jpg';
+        $name = 'thumb-' . sha1($source_path) . '-' . $width . 'x' . $height . '.webp';
         $thumb_path = $this->thumbs_path . '/' . $name;
         $thumb_href = $this->thumbs_href . '/' . $name;
 
@@ -77,7 +77,7 @@ class Thumb
                 $image = new Image($thumb_path);
                 $image->normalize_exif_orientation($source_path);
                 $image->thumb($width, $height);
-                $image->save_dest_jpeg($thumb_path, 80);
+                $image->save_dest_webp($thumb_path, 80);
             } else {
                 $imagick_success = false;
                 if (class_exists('Imagick')) {
@@ -103,7 +103,7 @@ class Thumb
                             $im->cropThumbnailImage($width, $height);
                         }
 
-                        $im->setImageFormat('jpeg');
+                        $im->setImageFormat('webp');
                         $im->setImageCompressionQuality(80);
                         $im->stripImage();
                         $im->writeImage($thumb_path);
@@ -118,7 +118,7 @@ class Thumb
                 if (!$imagick_success) {
                     $image = new Image($source_path);
                     $image->thumb($width, $height);
-                    $image->save_dest_jpeg($thumb_path, 80);
+                    $image->save_dest_webp($thumb_path, 80);
                 }
             }
         }
@@ -132,7 +132,7 @@ class Thumb
             return null;
         }
 
-        $capture_path = $this->thumbs_path . '/capture-' . sha1($source_path) . '.jpg';
+        $capture_path = $this->thumbs_path . '/capture-' . sha1($source_path) . '.webp';
 
         if (!file_exists($capture_path) || filemtime($source_path) >= filemtime($capture_path)) {
             $movtype = ($type === 'mov') ? true : false;
@@ -237,6 +237,8 @@ class Image
             $this->source = @imagecreatefrompng($this->source_file);
         } elseif ($this->type === IMAGETYPE_GIF) {
             $this->source = @imagecreatefromgif($this->source_file);
+        } elseif (defined('IMAGETYPE_WEBP') && $this->type === IMAGETYPE_WEBP) {
+            $this->source = @imagecreatefromwebp($this->source_file);
         } else {
             $this->source = @imagecreatefromstring(file_get_contents($this->source_file));
         }
@@ -246,6 +248,14 @@ class Image
     {
         if (!is_null($this->dest)) {
             @imagejpeg($this->dest, $filename, $quality);
+            @chmod($filename, 0775);
+        }
+    }
+    
+    public function save_dest_webp($filename, $quality = 80)
+    {
+        if (!is_null($this->dest)) {
+            @imagewebp($this->dest, $filename, $quality);
             @chmod($filename, 0775);
         }
     }

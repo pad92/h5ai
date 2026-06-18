@@ -61,11 +61,14 @@ class Setup {
         $this->set('HAS_PHP_EXIF', function_exists('exif_thumbnail'));
 
         $has_php_jpeg = false;
+        $has_php_webp = false;
         if (function_exists('gd_info')) {
             $infos = gd_info();
             $has_php_jpeg = array_key_exists('JPEG Support', $infos) && $infos['JPEG Support'];
+            $has_php_webp = array_key_exists('WebP Support', $infos) && $infos['WebP Support'];
         }
         $this->set('HAS_PHP_JPEG', $has_php_jpeg);
+        $this->set('HAS_PHP_WEBP', $has_php_webp);
     }
 
     private function add_app_metadata() {
@@ -159,6 +162,7 @@ class Setup {
                 'PHP_ARCH',
                 'HAS_PHP_EXIF',
                 'HAS_PHP_JPEG',
+                'HAS_PHP_WEBP',
 
                 'SERVER_NAME',
                 'SERVER_VERSION',

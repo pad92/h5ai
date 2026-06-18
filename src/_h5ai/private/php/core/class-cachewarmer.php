@@ -20,7 +20,7 @@ class CacheWarmer {
         $this->type_helper = new TypeHelper($types_data);
 
         // Thumbnail settings
-        $this->thumbnails_enabled = $this->context->query_option('thumbnails.enabled', false) && $this->setup->get('HAS_PHP_JPEG');
+        $this->thumbnails_enabled = $this->context->query_option('thumbnails.enabled', false) && $this->setup->get('HAS_PHP_WEBP');
         if ($this->thumbnails_enabled) {
             $this->thumb_instance = new Thumb($this->context);
             $this->size = intval($this->context->query_option('thumbnails.size', 100));

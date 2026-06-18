@@ -252,7 +252,7 @@
     "preview-img": {
         "enabled": true,
         "size": 1000,
-        "types": ["img", "img-bmp", "img-gif", "img-ico", "img-jpg", "img-png", "img-raw", "img-svg"]
+        "types": ["img", "img-bmp", "img-gif", "img-ico", "img-jpg", "img-png", "img-raw", "img-svg", "img-webp"]
     },
 
     /*
@@ -375,7 +375,7 @@
     */
     "thumbnails": {
         "enabled": true,
-        "img": ["img-bmp", "img-gif", "img-ico", "img-jpg", "img-png", "img-raw"],
+        "img": ["img-bmp", "img-gif", "img-ico", "img-jpg", "img-png", "img-raw", "img-webp"],
         "mov": ["vid-avi", "vid-flv", "vid-mkv", "vid-mov", "vid-mp4", "vid-mpg", "vid-webm"],
         "doc": ["x-pdf", "x-ps"],
         "delay": 1,
