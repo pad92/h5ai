@@ -15,6 +15,7 @@ class Context {
     private $setup;
     private $options;
     private $passhash;
+    private $types;
 
     public function __construct($session, $request, $setup) {
         $this->session = $session;
@@ -49,7 +50,10 @@ class Context {
     }
 
     public function get_types() {
-        return Json::load($this->setup->get('CONF_PATH') . '/types.json');
+        if (!isset($this->types)) {
+            $this->types = Json::load($this->setup->get('CONF_PATH') . '/types.json');
+        }
+        return $this->types;
     }
 
     public function login_admin($pass) {
@@ -101,7 +105,6 @@ class Context {
     }
 
     public function is_hidden($name) {
-        // always hide
         if ($name === '.' || $name === '..') {
             return true;
         }
@@ -188,18 +191,20 @@ class Context {
         $cache = [];
         $folder = Item::get($this, $this->to_path($href), $cache);
 
-        // add content of subfolders
-        if ($what >= 2 && $folder !== null) {
+        if ($what >= 3 && $folder !== null) {
             foreach ($folder->get_content($cache) as $item) {
                 $item->get_content($cache);
             }
             $folder = $folder->get_parent($cache);
         }
 
-        // add content of this folder and all parent folders
-        while ($what >= 1 && $folder !== null) {
+        while ($what >= 2 && $folder !== null) {
             $folder->get_content($cache);
             $folder = $folder->get_parent($cache);
+        }
+        
+        if ($what == 1 && $folder !== null) {
+            $folder->get_content($cache);
         }
 
         uasort($cache, ['Item', 'cmp']);
@@ -208,6 +213,40 @@ class Context {
             $result[] = $item->to_json_object();
         }
 
+        include_once(__DIR__ . '/../ext/class-thumb.php');
+        include_once(__DIR__ . '/../ext/class-cachedb.php');
+
+        $db = new CacheDB($this->setup);
+        $height = $this->options['thumbnails']['size'] ?? 240;
+        $width = floor($height * (4 / 3));
+        $supported_formats = ['png', 'jpg', 'jpeg', 'webp'];
+
+        foreach ($result as &$item_obj) {
+            if (isset($item_obj['managed'])) {
+                $folder_path = $this->to_path($item_obj['href']);
+                $thumb_dir = $folder_path . '/_thumb';
+
+                if (is_dir($thumb_dir)) {
+                    $files = @scandir($thumb_dir);
+                    if ($files) {
+                        foreach ($files as $file) {
+                            $extension = strtolower(pathinfo($file, PATHINFO_EXTENSION));
+                            if (in_array($extension, $supported_formats)) {
+                                $image_source_path = $thumb_dir . '/' . $file;
+                                $thumb_gen = new Thumb($this, $image_source_path, 'img', $db);
+                                $thumb_href = $thumb_gen->thumb($width, $height);
+
+                                if ($thumb_href) {
+                                    $item_obj['thumbSquare'] = $thumb_href;
+                                    $item_obj['thumbRational'] = $thumb_href;
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
         return $result;
     }
 

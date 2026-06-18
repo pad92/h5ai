@@ -57,14 +57,29 @@ const updateGui = () => {
     const docEl = win.document.documentElement;
     const winWidth = docEl.clientWidth;
     const winHeight = docEl.clientHeight;
-    const margin = isFullscreen ? 0 : 20;
-    const barHeight = isFullscreen ? 0 : 48;
+
+    const isImage = session && session.item && session.item.type && session.item.type.indexOf('img') === 0;
+
+    let margin = isFullscreen ? 0 : 20;
+    let barHeight = isFullscreen ? 0 : 48;
+
+    let width = winWidth - 2 * margin;
+    let height = winHeight - 2 * margin - barHeight;
+    let left = margin;
+    let top = margin;
+
+    if (isImage && !isFullscreen) {
+        width = Math.round(winWidth * 0.8);
+        height = Math.round(winHeight * 0.8) - barHeight;
+        left = Math.round(winWidth * 0.1);
+        top = Math.round(winHeight * 0.1);
+    }
 
     dom('#pv-container').css({
-        width: winWidth - 2 * margin + 'px',
-        height: winHeight - 2 * margin - barHeight + 'px',
-        left: margin + 'px',
-        top: margin + 'px'
+        width: width + 'px',
+        height: height + 'px',
+        left: left + 'px',
+        top: top + 'px'
     });
 
     dom('#pv-spinner').css({
