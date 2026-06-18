@@ -60,8 +60,8 @@ const updateGui = () => {
 
     const isImage = session && session.item && session.item.type && session.item.type.indexOf('img') === 0;
 
-    let margin = isFullscreen ? 0 : 20;
-    let barHeight = isFullscreen ? 0 : 48;
+    const margin = isFullscreen ? 0 : 20;
+    const barHeight = isFullscreen ? 0 : 48;
 
     let width = winWidth - 2 * margin;
     let height = winHeight - 2 * margin - barHeight;
