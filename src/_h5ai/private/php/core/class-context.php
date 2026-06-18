@@ -214,9 +214,7 @@ class Context {
         }
 
         include_once(__DIR__ . '/../ext/class-thumb.php');
-        include_once(__DIR__ . '/../ext/class-cachedb.php');
 
-        $db = new CacheDB($this->setup);
         $height = $this->options['thumbnails']['size'] ?? 240;
         $width = floor($height * (4 / 3));
         $supported_formats = ['png', 'jpg', 'jpeg', 'webp'];
@@ -233,8 +231,9 @@ class Context {
                             $extension = strtolower(pathinfo($file, PATHINFO_EXTENSION));
                             if (in_array($extension, $supported_formats)) {
                                 $image_source_path = $thumb_dir . '/' . $file;
-                                $thumb_gen = new Thumb($this, $image_source_path, 'img', $db);
-                                $thumb_href = $thumb_gen->thumb($width, $height);
+                                $thumb_gen = new Thumb($this);
+                                $image_source_href = $this->to_href($image_source_path, false);
+                                $thumb_href = $thumb_gen->thumb('img', $image_source_href, $width, $height);
 
                                 if ($thumb_href) {
                                     $item_obj['thumbSquare'] = $thumb_href;
