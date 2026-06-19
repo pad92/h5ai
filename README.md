@@ -1,20 +1,16 @@
-# h5ai
+# h5ai (pad92 fork)
 
-[![license][license-img]][github] [![Donate][kofi-img]][kofi]
+[![license][license-img]][github] [![github][github-img]][github]
 
-A HTTP web server index for Apache httpd, lighttpd, and nginx.
-
-**This is a fork of [lrsjng's h5ai][original], which appears to be no longer maintained.**
+A modern HTTP web server index for Apache httpd, lighttpd, and nginx. This repository is a detached fork of the original h5ai project, which is no longer maintained.
 
 
 ## Important
 
 * Do **not** install any files from the `src` folder, they need to be
   preprocessed to work correctly!
-* Find detailed install instructions on the [wiki][wiki].
+* Find a preprocessed package on the [GitHub releases page][github-releases].
 * For bug reports and feature requests please use [issues][github-issues].
-* Requires at least **PHP 7.0.0+**
-* Tested with **PHP 8.4.0** and **nginx**
 
 
 ## Requirements
@@ -23,8 +19,8 @@ A HTTP web server index for Apache httpd, lighttpd, and nginx.
 * PHP `7.0.0+`
 * Web server (Apache httpd, lighttpd, nginx, cherokee, etc.)
 * PHP extensions (depending on enabled features):
-  * `GD` (required for default image thumbnails)
-  * `Imagick` (recommended for optimized high-performance image resizing)
+  * `GD` (required for default WebP image thumbnails, WebP support must be enabled)
+  * `Imagick` (recommended for optimized high-performance image resizing, WebP support must be enabled)
   * `exif` (recommended for EXIF rotation and fast thumbnail extraction)
 * Command-line helpers (optional):
   * `ffmpeg` or `avconv` (for video thumbnails)
@@ -38,9 +34,10 @@ A HTTP web server index for Apache httpd, lighttpd, and nginx.
 
 ## Build
 
-There are installation ready packages for the latest [releases][release]. But to build **h5ai** yourself either `git clone` or
+There are installation ready packages on the [GitHub releases page][github-releases]. But to build **h5ai** yourself either `git clone` or
 download the repository. From within the root folder run the following
-commands to find a fresh zipball in folder `build`. Requires **[`node 18.18.0`][node]** or **higher** to work.
+commands to find a fresh zipball in folder `build` (tested on linux only,
+might work on other configurations):
 
 ~~~sh
 > npm install
@@ -48,23 +45,9 @@ commands to find a fresh zipball in folder `build`. Requires **[`node 18.18.0`][
 ~~~
 
 
-## Configuration & Administration
+## Configuration
 
-* For detailed information on configuring **h5ai**, including options, file types, and localization, see the [Configuration Guide](doc/configuration.md).
-* For detailed information on the diagnostic page, password setup, and troubleshooting system utilities, see the [Administration Guide](doc/administration.md).
-
-
-## Optional Dependencies
-
-* FFmpeg/FFprobe or AVconv/AVprobe
-* gm (GraphicsMagick) or convert (ImageMagick)
-* PHP FileInfo module
-* PHP Sqlite3 module
-* PHP Zip module
-* PHP [Rar][RAR-Module] module
-* du
-* tar
-* zip
+For detailed information on configuring **h5ai**, including options, file types, and localization, see the [Configuration Guide](doc/configuration.md).
 
 
 ## License
@@ -98,18 +81,12 @@ THE SOFTWARE.
 too. Exceptions are some [Material Design icons][material-design-icons] (CC BY 4.0) and [movi-player][movi-player] (Apache-2.0).
 
 
-[original]: https://github.com/lrsjng/h5ai
-[github]: https://github.com/pad92/h5ai/
+[github]: https://github.com/pad92/h5ai
 [github-issues]: https://github.com/pad92/h5ai/issues
-[release]: https://github.com/pad92/h5ai/releases
+[github-releases]: https://github.com/pad92/h5ai/releases
 [node]: https://nodejs.org
 [material-design-icons]: https://github.com/google/material-design-icons
 [movi-player]: https://github.com/mrujjwalg/movi-player
-[wiki]: https://github.com/pad92/h5ai/wiki/h5ai-wiki
-[RAR-Module]: https://pecl.php.net/package/rar
-[kofi]: https://ko-fi.com/bakaloli
 
 [license-img]: https://img.shields.io/badge/license-MIT-a0a060.svg?style=flat-square
-[web-img]: https://img.shields.io/badge/web-larsjung.de/h5ai-a0a060.svg?style=flat-square
-[github-img]: https://img.shields.io/badge/github-lrsjng/h5ai-a0a060.svg?style=flat-square
-[kofi-img]: https://img.shields.io/badge/Ko--fi-FF5E5B?logo=ko-fi&logoColor=white
+[github-img]: https://img.shields.io/badge/github-pad92/h5ai-a0a060.svg?style=flat-square

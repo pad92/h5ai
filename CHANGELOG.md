@@ -1,6 +1,14 @@
 # Changelog
 
 
+## v1.1.2 - *2026-06-19*
+
+* **Version Display & Repository Migration**:
+    * Added dynamic display of the h5ai version inside the topbar backlink.
+    * Migrated all repository links globally from `manti-X` to `pad92`.
+    * Added comprehensive diagnostic and administration documentation under `doc/administration.md`.
+
+
 ## v1.1.1 - *2026-06-19*
 
 * **Infinite Recursion & Loop Prevention**:
