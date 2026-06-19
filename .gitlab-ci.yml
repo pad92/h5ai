@@ -102,11 +102,8 @@ create_release:
     - CLEAN_VERSION=$(echo "$VERSION" | sed 's/^v//')
     - echo "Extracting release notes for $CLEAN_VERSION (from tag $VERSION)..."
     - |
-      # Extract notes between ## [CLEAN_VERSION] and the next ## header
-      sed -n "/## \[$CLEAN_VERSION\]/,/## \[/p" CHANGELOG.md > release_notes.txt
-      # Delete first and last line to exclude the headers themselves
-      sed -i '1d' release_notes.txt
-      sed -i '$d' release_notes.txt
+      # Extract notes between ## v$CLEAN_VERSION (or ## $CLEAN_VERSION) and the next ## header
+      awk -v ver="$CLEAN_VERSION" '{ gsub(/\r$/, "") } /^## / { if ($2 == "v"ver || $2 == ver) flag=1; else flag=0; next } flag' CHANGELOG.md > release_notes.txt
     - |
       if [ ! -s release_notes.txt ]; then
         echo "No specific notes found in CHANGELOG.md for $VERSION." > release_notes.txt
