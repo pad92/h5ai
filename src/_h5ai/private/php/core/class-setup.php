@@ -155,13 +155,12 @@ class Setup {
     public function to_jsono($as_admin = false) {
         $keys = [
             'PUBLIC_HREF',
-            'ROOT_HREF'
+            'ROOT_HREF',
+            'VERSION'
         ];
 
         if ($as_admin) {
             $keys = array_merge($keys, [
-                'VERSION',
-
                 'PHP_VERSION',
                 'MIN_PHP_VERSION',
                 'PHP_ARCH',

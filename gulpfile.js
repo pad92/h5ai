@@ -50,14 +50,16 @@ const WEBPACK_CFG = {
 };
 
 let version = pkg.version;
-try {
-    const hashes = execSync(`git rev-list v${pkg.version}..HEAD`, {encoding: 'utf8'}).split(/\r?\n/).filter(x => x);
-    if (hashes.length) {
-        const counter = ('000' + hashes.length).substr(-3);
-        const hash = hashes[0].substr(0, 7);
-        version += `+${counter}~${hash}`;
-    }
-} catch { /* ignore error */ }
+if (!isProduction) {
+    try {
+        const hashes = execSync(`git rev-list v${pkg.version}..HEAD`, {encoding: 'utf8'}).split(/\r?\n/).filter(x => x);
+        if (hashes.length) {
+            const counter = ('000' + hashes.length).substr(-3);
+            const hash = hashes[0].substr(0, 7);
+            version += `+${counter}~${hash}`;
+        }
+    } catch { /* ignore error */ }
+}
 
 const comment = `${pkg.name} v${version} - ${pkg.homepage}`;
 const comment_js = `/* ${comment} */\n`;
