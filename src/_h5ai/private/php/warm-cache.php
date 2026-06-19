@@ -5,7 +5,7 @@ if (php_sapi_name() !== 'cli') {
 }
 
 // Define variables to mock the web server environment
-define('H5AI_VERSION', '1.1.1');
+define('H5AI_VERSION', '1.1.2');
 define('MIN_PHP_VERSION', '7.0.0');
 
 $_SERVER['REQUEST_METHOD'] = 'GET';
