@@ -1,6 +1,32 @@
 # Changelog
 
 
+## v1.1.0 - *2026-06-19*
+
+* **Modern Audio Player Redesign**:
+    * Redesigned audio preview panel with a modern glassmorphic look, including progress/volume bars, track info, and playback queue.
+    * Enabled persistent audio playback while navigating directories (continuous play across folders).
+    * Integrated a playback queue supporting auto-play, skip, previous, shuffle, loop, and toggle queue list view.
+* **Code Optimization & Security**:
+    * Optimized folder size caching initialization to run contextually, improving performance.
+    * Secured SQLite3 CacheDB queries by escaping parameters.
+    * Reduced archive download segment size to 64KiB for smoother streaming.
+    * Suppressed warning outputs on path context regex matching.
+* **CI/CD & Security Auditing**:
+    * Created a GitLab CI/CD configuration to automate linting (`eslint`), unit testing (`scar`), building release ZIP packages (`gulp release`), publishing release packages, and creating GitLab Releases.
+    * Integrated Trivy filesystem scans (`trivy fs`) into the GitLab CI/CD pipeline and added a local `scan` target in the `Makefile` with optimized directory exclusions (`.npm_cache`, `node_modules`, `build`).
+
+
+
+## v1.0.0 - *2026-06-18*
+
+* **Gulp Migration & Thumbnail Improvements**:
+    * Migrated the build system from ghu to gulp and added WebP support to the thumbnail module.
+    * Limited image preview to 80% of screen size.
+    * Resolved CacheDB not found runtime error and fixed `is_readable` checks in the filesize module.
+    * Fixed ESLint warnings.
+
+
 ## v0.33.0-pad92.1 - *2026-06-15*
 
 * **Upstream Sync & Modernization**: Merged `manti-X` changes (Gulp build, ESLint flat config, WebP thumbnails, touch gestures, SQLite3 CacheDB).
