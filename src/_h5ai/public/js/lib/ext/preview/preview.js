@@ -257,6 +257,11 @@ const enter = () => {
 
 const exit = () => {
     setLabels([]);
+    each(dom('#pv-container *'), el => {
+        if (typeof el.unload === 'function') {
+            el.unload();
+        }
+    });
     dom('#pv-container')
         .off('touchstart', onTouchstart)
         .clr();
