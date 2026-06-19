@@ -98,8 +98,8 @@ const addTests = () => {
     );
 
     addTest(
-        'Image thumbs', 'PHP GD extension with JPEG support available',
-        setup.HAS_PHP_JPEG
+        'Image thumbs', 'PHP GD extension with WebP support available',
+        setup.HAS_PHP_WEBP
     );
 
     addTest(

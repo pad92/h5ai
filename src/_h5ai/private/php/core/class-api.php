@@ -91,7 +91,7 @@ class Api {
 
         if ($this->request->query('thumbs', false)) {
             Util::json_fail(Util::ERR_DISABLED, 'thumbnails disabled', !$this->context->query_option('thumbnails.enabled', false));
-            Util::json_fail(Util::ERR_UNSUPPORTED, 'thumbnails not supported', !$this->setup->get('HAS_PHP_JPEG'));
+            Util::json_fail(Util::ERR_UNSUPPORTED, 'thumbnails not supported', !$this->setup->get('HAS_PHP_WEBP'));
             $thumbs = $this->request->query_array('thumbs');
             [$response['thumbs'], $response['filetypes']] = $this->context->get_thumbs($thumbs);
         }

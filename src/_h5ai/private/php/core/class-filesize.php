@@ -90,10 +90,13 @@ class Filesize {
 
     private function read_dir($path) {
         $paths = [];
-        if (is_dir($path)) {
-            foreach (scandir($path) as $name) {
-                if ($name !== '.' && $name !== '..') {
-                    $paths[] = $path . '/' . $name;
+        if (is_dir($path) && is_readable($path)) {
+            $files = @scandir($path);
+            if (is_array($files)) {
+                foreach ($files as $name) {
+                    if ($name !== '.' && $name !== '..') {
+                        $paths[] = $path . '/' . $name;
+                    }
                 }
             }
         }
