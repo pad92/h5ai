@@ -78,15 +78,15 @@ publish:
   script:
     - VERSION=$CI_COMMIT_TAG
     - CLEAN_VERSION=$(echo "$VERSION" | sed 's/^v//')
-    - ZIP_FILE="build/h5ai-${CLEAN_VERSION}.zip"
+    - ZIP_FILE=$(ls build/h5ai-*.zip | head -n 1)
     - |
-      if [ ! -f "$ZIP_FILE" ]; then
-        echo "Error: Zip file $ZIP_FILE not found."
+      if [ -z "$ZIP_FILE" ] || [ ! -f "$ZIP_FILE" ]; then
+        echo "Error: No zip file found matching build/h5ai-*.zip"
         echo "Available files in build/:"
         ls -la build/
         exit 1
       fi
-    - echo "Uploading $ZIP_FILE to GitLab Package Registry..."
+    - echo "Uploading $ZIP_FILE to GitLab Package Registry as h5ai-${CLEAN_VERSION}.zip..."
     - |
       curl --header "JOB-TOKEN: $CI_JOB_TOKEN" \
         --upload-file "$ZIP_FILE" \
