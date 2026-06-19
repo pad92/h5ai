@@ -77,14 +77,15 @@ class CacheDB {
 
         $stmt->bindValue(':id', $hash, SQLITE3_TEXT);
 
+        $escaped_type = SQLite3::escapeString($type);
         $typeid = $this->conn->querySingle(
-            'SELECT id FROM types WHERE type = \''. $type .'\';');
+            'SELECT id FROM types WHERE type = \'' . $escaped_type . '\';');
         if (!$typeid) {
             // New type, then get back its index from the types table.
             $this->conn->exec(
-                'INSERT INTO types VALUES (NULL, \''. $type .'\');');
+                'INSERT INTO types VALUES (NULL, \'' . $escaped_type . '\');');
             $typeid = $this->conn->querySingle(
-                'SELECT id FROM types WHERE type = \''. $type .'\';');
+                'SELECT id FROM types WHERE type = \'' . $escaped_type . '\';');
         }
         $stmt->bindValue(':typeid', $typeid, SQLITE3_INTEGER);
         $stmt->bindValue(':err', $error, SQLITE3_INTEGER);

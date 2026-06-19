@@ -113,9 +113,10 @@ class Filesize {
             return $size;
         }
 
+        Filesize::init_persistent_cache();
+
         foreach ($this->read_dir($path) as $p) {
             if (is_dir($p)) {
-                Filesize::init_persistent_cache();
                 if (array_key_exists($p, Filesize::$persistent_cache)) {
                     $entry = Filesize::$persistent_cache[$p];
                     if (Filesize::is_cache_entry_valid($entry)) {

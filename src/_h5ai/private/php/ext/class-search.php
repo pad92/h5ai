@@ -17,7 +17,7 @@ class Search {
             $names = $this->context->read_dir($root);
             foreach ($names as $name) {
                 $path = $root . '/' . $name;
-                if (preg_match($re, @basename($path))) {
+                if (@preg_match($re, @basename($path))) {
                     $paths[] = $path;
                 }
                 if (@is_dir($path)) {
@@ -32,7 +32,7 @@ class Search {
         $cache = [];
         $root = $this->context->to_path($href);
         $paths = $this->get_paths($root, $pattern, $ignorecase);
-        $items = array_map(function ($path) {
+        $items = array_map(function ($path) use (&$cache) {
             return Item::get($this->context, $path, $cache)->to_json_object();
         }, $paths);
         return $items;

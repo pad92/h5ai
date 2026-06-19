@@ -111,7 +111,7 @@ class Context {
 
         foreach ($this->query_option('view.hidden', []) as $re) {
             $re = Util::wrap_pattern($re);
-            if (preg_match($re, $name)) {
+            if (@preg_match($re, $name)) {
                 return true;
             }
         }

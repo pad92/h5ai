@@ -3,7 +3,7 @@
 class Archive {
     const NULL_BYTE = "\0";
 
-    private static $SEGMENT_SIZE = 16777216;  // 1024 * 1024 * 16 = 16MiB
+    private static $SEGMENT_SIZE = 65536;  // 64KiB
     private static $TAR_PASSTHRU_CMD = 'cd [ROOTDIR] && tar --no-recursion -c -- [DIRS] [FILES]';
     private static $ZIP_PASSTHRU_CMD = 'cd [ROOTDIR] && zip - -- [FILES]';
 
