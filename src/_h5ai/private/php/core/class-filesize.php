@@ -103,7 +103,16 @@ class Filesize {
         return $paths;
     }
 
-    private function php_filesize($path, $recursive = false, &$dirs = []) {
+    private function php_filesize($path, $recursive = false, &$dirs = [], &$visited = []) {
+        $real_path = realpath($path);
+        if ($real_path === false) {
+            $real_path = $path;
+        }
+        if (in_array($real_path, $visited)) {
+            return 0;
+        }
+        $visited[] = $real_path;
+
         $size = @filesize($path);
 
         if (!is_dir($path)) {
@@ -119,7 +128,7 @@ class Filesize {
         Filesize::init_persistent_cache();
 
         foreach ($this->read_dir($path) as $p) {
-            if (is_dir($p)) {
+            if (is_dir($p) && !is_link($p)) {
                 if (array_key_exists($p, Filesize::$persistent_cache)) {
                     $entry = Filesize::$persistent_cache[$p];
                     if (Filesize::is_cache_entry_valid($entry)) {
@@ -132,7 +141,7 @@ class Filesize {
                 }
 
                 $sub_dirs = [];
-                $sub_size = $this->php_filesize($p, true, $sub_dirs);
+                $sub_size = $this->php_filesize($p, true, $sub_dirs, $visited);
                 $size += $sub_size;
 
                 Filesize::set_persistent_cache_entry($p, $sub_size, $sub_dirs);

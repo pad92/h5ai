@@ -1,6 +1,7 @@
 <?php
 
-class CacheWarmer {
+class CacheWarmer
+{
     private $context;
     private $setup;
     private $type_helper;
@@ -11,7 +12,8 @@ class CacheWarmer {
     private $doc_types;
     private $thumbnails_enabled;
 
-    public function __construct($context) {
+    public function __construct($context)
+    {
         $this->context = $context;
         $this->setup = $context->get_setup();
 
@@ -30,25 +32,36 @@ class CacheWarmer {
         }
     }
 
-    public function warm() {
+    public function warm()
+    {
         $root_path = $this->setup->get('ROOT_PATH');
         $this->warm_path($root_path);
     }
 
-    private function warm_path($path) {
+    private function warm_path($path, &$visited = [])
+    {
+        $real_path = realpath($path);
+        if ($real_path === false) {
+            $real_path = $path;
+        }
+        if (in_array($real_path, $visited)) {
+            return;
+        }
+        $visited[] = $real_path;
+
         if (!is_dir($path) || !$this->context->is_managed_path($path)) {
             return;
         }
 
         // Get direct files using context's read_dir so we respect hidden filters
         $files = $this->context->read_dir($path);
-        
+
         foreach ($files as $file) {
             $child_path = $path . '/' . $file;
-            if (is_dir($child_path)) {
+            if (is_dir($child_path) && !is_link($child_path)) {
                 // Recursive warm of subdirectory
-                $this->warm_path($child_path);
-            } else {
+                $this->warm_path($child_path, $visited);
+            } else if (!is_dir($child_path)) {
                 // If it is a file, check if we need to generate thumbnails
                 if ($this->thumbnails_enabled) {
                     $type = $this->type_helper->getType($file);
@@ -83,10 +96,12 @@ class CacheWarmer {
     }
 }
 
-class TypeHelper {
+class TypeHelper
+{
     private $regexps = [];
 
-    public function __construct($types) {
+    public function __construct($types)
+    {
         if (is_array($types)) {
             foreach ($types as $type => $patterns) {
                 $parts = [];
@@ -104,7 +119,8 @@ class TypeHelper {
         }
     }
 
-    public function getType($name) {
+    public function getType($name)
+    {
         foreach ($this->regexps as $type => $regex) {
             if (preg_match($regex, $name)) {
                 return $type;

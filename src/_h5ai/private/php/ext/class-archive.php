@@ -153,9 +153,9 @@ class Archive {
                 $real_file = $this->context->to_path($href);
                 $archived_file = preg_replace('!^' . preg_quote(Util::normalize_path($this->base_path, true)) . '!', '', $real_file);
 
-                if (is_dir($real_file)) {
+                if (is_dir($real_file) && !is_link($real_file)) {
                     $this->add_dir($real_file, $archived_file);
-                } else {
+                } else if (!is_dir($real_file)) {
                     $this->add_file($real_file, $archived_file);
                 }
             }
@@ -168,7 +168,16 @@ class Archive {
         }
     }
 
-    private function add_dir($real_dir, $archived_dir) {
+    private function add_dir($real_dir, $archived_dir, &$visited = []) {
+        $real_path = realpath($real_dir);
+        if ($real_path === false) {
+            $real_path = $real_dir;
+        }
+        if (in_array($real_path, $visited)) {
+            return;
+        }
+        $visited[] = $real_path;
+
         if ($this->context->is_managed_path($real_dir)) {
             $this->dirs[$real_dir] = $archived_dir;
 
@@ -177,9 +186,9 @@ class Archive {
                 $real_file = $real_dir . '/' . $file;
                 $archived_file = $archived_dir . '/' . $file;
 
-                if (is_dir($real_file)) {
-                    $this->add_dir($real_file, $archived_file);
-                } else {
+                if (is_dir($real_file) && !is_link($real_file)) {
+                    $this->add_dir($real_file, $archived_file, $visited);
+                } else if (!is_dir($real_file)) {
                     $this->add_file($real_file, $archived_file);
                 }
             }

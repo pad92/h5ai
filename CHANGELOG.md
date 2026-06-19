@@ -1,6 +1,14 @@
 # Changelog
 
 
+## v1.1.1 - *2026-06-19*
+
+* **Infinite Recursion & Loop Prevention**:
+    * Implemented loop detection and symbolic link checks in recursive directory scans.
+    * Prevented PHP-FPM pool exhaustion by skipping directory symlinks (`!is_link()`) during recursive file size calculation, cache warming, folder searching, and zip archiving.
+    * Added visited realpath tracking to prevent loop traversals in deep or circular folder structures.
+
+
 ## v1.1.0 - *2026-06-19*
 
 * **Modern Audio Player Redesign**:
