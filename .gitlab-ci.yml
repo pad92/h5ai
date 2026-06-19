@@ -40,7 +40,7 @@ build:
     - npm run build
   artifacts:
     paths:
-      - build/
+      - build/h5ai-*.zip
     expire_in: 1 day
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
