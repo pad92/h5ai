@@ -1,6 +1,14 @@
 # Changelog
 
 
+## v1.1.3 - *2026-06-19*
+
+* **Version Display & Build Optimization**:
+    * Displayed the h5ai version dynamically in the info page header, page backlink, and toolbar backlink.
+    * Adjusted build versioning logic to append commit counter/hash only for non-production builds.
+    * Fixed the release notes extraction logic in CI/CD pipeline to properly parse headers with prefix/prefix-less versions.
+
+
 ## v1.1.2 - *2026-06-19*
 
 * **Version Display & Repository Migration**:
