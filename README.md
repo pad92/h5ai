@@ -48,9 +48,10 @@ commands to find a fresh zipball in folder `build`. Requires **[`node 18.18.0`][
 ~~~
 
 
-## Configuration
+## Configuration & Administration
 
-For detailed information on configuring **h5ai**, including options, file types, and localization, see the [Configuration Guide](doc/configuration.md).
+* For detailed information on configuring **h5ai**, including options, file types, and localization, see the [Configuration Guide](doc/configuration.md).
+* For detailed information on the diagnostic page, password setup, and troubleshooting system utilities, see the [Administration Guide](doc/administration.md).
 
 
 ## Optional Dependencies
@@ -98,13 +99,13 @@ too. Exceptions are some [Material Design icons][material-design-icons] (CC BY 4
 
 
 [original]: https://github.com/lrsjng/h5ai
-[github]: https://github.com/manti-X/h5ai/
-[github-issues]: https://github.com/manti-X/h5ai/issues
-[release]: https://github.com/manti-X/h5ai/releases
+[github]: https://github.com/pad92/h5ai/
+[github-issues]: https://github.com/pad92/h5ai/issues
+[release]: https://github.com/pad92/h5ai/releases
 [node]: https://nodejs.org
 [material-design-icons]: https://github.com/google/material-design-icons
 [movi-player]: https://github.com/mrujjwalg/movi-player
-[wiki]: https://github.com/manti-X/h5ai/wiki/h5ai-wiki
+[wiki]: https://github.com/pad92/h5ai/wiki/h5ai-wiki
 [RAR-Module]: https://pecl.php.net/package/rar
 [kofi]: https://ko-fi.com/bakaloli
 

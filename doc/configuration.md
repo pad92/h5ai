@@ -2,6 +2,9 @@
 
 All configuration files for **h5ai** are located in the `_h5ai/private/conf/` directory. This guide explains how to customize and configure the application by modifying these files.
 
+> [!NOTE]
+> For information on server requirements, permissions, command line utilities, and the diagnostic Info Page, see the [Administration Guide](administration.md).
+
 ## Files Overview
 
 - **`options.json`**: The main configuration file containing display options, enabled extensions, and general behavior settings.
