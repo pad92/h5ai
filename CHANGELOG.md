@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.1.6 - *2026-06-21*
+
+* **Tree State & Cache Enhancements**:
+    * Preserved existing tree node state when fetching, and rebuilt the tree from its root on location refresh events to prevent collapses.
+    * Improved caching by moving no-cache HTTP headers from `json_exit` to the directory listing API response only.
+    * Defaulted `ROOT_PATH` to the parent of `H5AI_PATH` instead of the hardcoded `/share` when `H5AI_ROOT_PATH` is unset.
+    * Added tracking for `item.isContentFetched` after fetching directory contents.
+* **Styling & Type Mapping Improvements**:
+    * Cleaned up dark theme details view CSS rules and removed unnecessary `!important` declarations.
+    * Expanded type mappings, adding `csv`, `kotlin`, `sql`, `swift`, `ts`, `avif`, and other common file extensions to `types.json` and `options.json`.
+
+
 ## v1.1.5 - *2026-06-20*
 
 * **Cache & Refresh Fixes**:
