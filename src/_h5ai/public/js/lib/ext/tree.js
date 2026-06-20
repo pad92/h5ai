@@ -168,6 +168,7 @@ const init = () => {
     updateSettings();
 
     event.sub('location.changed', onLocationChanged);
+    event.sub('location.refreshed', onLocationChanged);
 };
 
 init();

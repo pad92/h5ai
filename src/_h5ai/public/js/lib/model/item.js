@@ -137,9 +137,6 @@ const Item = absHref => {
     if (split.parent) {
         inst.parent = getItem(split.parent);
         inst.parent.content[inst.absHref] = inst;
-        if (keys(inst.parent.content).length > 1) {
-            inst.parent.isContentFetched = true;
-        }
     }
 
     return inst;

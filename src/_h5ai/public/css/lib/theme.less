@@ -228,8 +228,13 @@ body[data-theme="dark"] select {
 body[data-theme="dark"] #search input,
 body[data-theme="dark"] #filter input {
     color: @col-text-primary-white;
-    background: transparent;
+    background: @col-grey-900;
     border: none;
+}
+
+body[data-theme="dark"] #search.pending input,
+body[data-theme="dark"] #filter.pending input {
+    color: @col-text-disabled-white;
 }
 
 body[data-theme="dark"] #search input::placeholder,
