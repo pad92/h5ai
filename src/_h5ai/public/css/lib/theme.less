@@ -181,6 +181,22 @@ body[data-theme="dark"] #view .item:hover {
     background: rgb(255, 255, 255, 0.03);
 }
 
+body[data-theme="dark"] #view.view-details .item {
+    &:nth-child(even) {
+        background: lighten(@col-grey-900, 1.5%);
+    }
+
+    &:hover {
+        background: lighten(@col-grey-900, 4%) !important;
+    }
+}
+
+body[data-theme="dark"] #view .item:hover .label,
+body[data-theme="dark"] #view .item:hover .date,
+body[data-theme="dark"] #view .item:hover .size {
+    color: @col-text-hover;
+}
+
 body[data-theme="dark"] #view .item .label,
 body[data-theme="dark"] #view .item .date,
 body[data-theme="dark"] #view .item .size {
@@ -226,7 +242,7 @@ body[data-theme="dark"] a:visited {
 }
 
 body[data-theme="dark"] a:hover {
-    color: @col-link-hover;
+    color: lighten(@col-link, 15%);
 }
 
 body[data-theme="dark"] .notification {
@@ -273,7 +289,7 @@ body[data-theme="dark"] #content-footer a {
 
 body[data-theme="dark"] #content-header a:hover,
 body[data-theme="dark"] #content-footer a:hover {
-    color: @col-link-hover;
+    color: lighten(@col-link, 15%);
 }
 
 body[data-theme="dark"] #content-header code,

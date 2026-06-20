@@ -69,10 +69,15 @@
         overflow: hidden;
         border-bottom: 1px solid rgb(0,0,0,0.07);
 
+        &:nth-child(even) {
+            background: @col-grey-50;
+        }
+
         &:hover {
             .raised;
 
             z-index: 1;
+            background: @col-grey-100 !important;
         }
 
         &:last-child {
