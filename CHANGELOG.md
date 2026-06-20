@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.1.5 - *2026-06-20*
+
+* **Cache & Refresh Fixes**:
+    * Resolved aggressive caching of directory data by adding HTTP cache control headers to API responses.
+    * Fixed folder list refresh issues by ensuring the tree view updates upon location refresh events.
+    * Fixed a bug in the item model that marked parent content as fully fetched prematurely, causing stale directory listings.
+    * Restored search and filter input colors and visibility in dark mode.
+
+
 ## v1.1.4 - *2026-06-20*
 
 * **Zebra Striping & Dark Mode Hover Fixes**:
