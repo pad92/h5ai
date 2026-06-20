@@ -52,7 +52,7 @@ Once logged in, the page displays a series of checks categorized into core featu
 * **h5ai version**: Checks if the running version matches an official release format.
 * **Index file found**: Verifies that your web server directory index configuration includes `_h5ai/public/index.php`.
 * **Options/Types parsable**: Confirms that [options.json](../src/_h5ai/private/conf/options.json) and [types.json](../src/_h5ai/private/conf/types.json) contain valid JSON.
-* **Server software**: Detects if your web server is Apache, Lighttpd, Nginx, or Cherokee.
+* **Server software**: Detects if your web server is Apache, Lighttpd, Nginx, Cherokee, or Angie.
 * **PHP version**: Checks that PHP is at least version `7.0.0` or higher.
 * **PHP arch**: Checks if PHP is running as `64-bit`. A 64-bit PHP runtime is required to display files and folder sizes greater than 2GB correctly.
 
@@ -79,6 +79,7 @@ Once logged in, the page displays a series of checks categorized into core featu
 ### Utility Checks
 
 * **Zip/Rar module**: Checks for PHP `Zip` and `Rar` extensions. Required for on-the-fly archive previewing.
+* **SQLite3 module**: Checks for PHP `sqlite3` extension. Required for caching failed thumbnail/archive parsing states.
 * **Shell tar / Shell zip**: Checks if system commands `tar` and `zip` are available. Recommended for fast packaged downloads.
 * **Shell du**: Checks if system command `du` is available. Required if foldersize calculation type is set to `"shell-du"` in `options.json`.
 

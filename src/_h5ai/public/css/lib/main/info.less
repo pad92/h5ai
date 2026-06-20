@@ -1,5 +1,4 @@
 #root.info {
-
     #content {
         flex: 1 1 auto;
         order: 50;
@@ -19,9 +18,10 @@
 
     #header a {
         .eased-transition;
+
         font-size: 4em;
         font-weight: 300;
-        margin: 0.8em 0 0 0;
+        margin: 0.8em 0 0;
         color: @col-text;
         text-decoration: none;
 
@@ -38,23 +38,9 @@
         }
     }
 
-    #support {
-        margin: 24px auto;
-        padding: 18px 0 6px 0;
-        width: 292px;
-        background: @col-back-panel;
-        border: 1px solid @col-border;
-        border-radius: 4px;
-
-        input[type="image"] {
-            border: 0;
-            width: 100px;
-            padding: 12px 48px;
-        }
-    }
-
     #pass {
         .el-input;
+
         display: inline-block;
         margin: 8px;
         padding: 0 12px;
@@ -65,6 +51,7 @@
 
     #login, #logout {
         .el-button;
+
         display: inline-block;
         margin: 8px;
         padding: 0 12px;
@@ -86,15 +73,17 @@
 
         .test {
             background: @col-back-paper;
-            margin: 12px 0 0 0;
-            padding: 8px 12px 12px 12px;
+            margin: 12px 0 0;
+            padding: 8px 12px 12px;
             border-bottom: 1px solid @col-border;
         }
+
         .label {
             display: inline-block;
             width: 250px;
             font-size: 1.4em;
         }
+
         .result {
             display: inline-block;
             width: 250px;
@@ -105,12 +94,14 @@
             &.passed {
                 color: @col-okay;
             }
+
             &.failed {
                 color: @col-error;
             }
         }
+
         .info {
-            margin: 4px 0 0 0;
+            margin: 4px 0 0;
         }
     }
 }

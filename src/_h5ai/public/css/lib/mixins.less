@@ -6,21 +6,22 @@
     visibility: hidden;
 }
 
-.clearfix:before,
-.clearfix:after {
+.clearfix::before,
+.clearfix::after {
     content: " ";
     display: table;
 }
-.clearfix:after {
+
+.clearfix::after {
     clear: both;
 }
 
 .raised {
-    box-shadow: 0 1px 10px 0 rgba(0,0,0,0.5);
+    box-shadow: 0 1px 10px 0 rgb(0,0,0,0.5);
 }
 
 .popup {
-    box-shadow: 0 1px 20px 0 rgba(0,0,0,0.5);
+    box-shadow: 0 1px 20px 0 rgb(0,0,0,0.5);
 }
 
 .rounded {
@@ -40,24 +41,26 @@
 .flex-base {
     display: flex;
     flex-wrap: nowrap;
-    justify-content: flex-start;
-    align-content: flex-start;
+    place-content: flex-start flex-start;
     align-items: stretch;
 }
 
 .flex-column {
     .flex-base;
+
     flex-direction: column;
 }
 
 .flex-row {
     .flex-base;
+
     flex-direction: row;
 }
 
 .el-button {
     .rounded;
     .eased-transition;
+
     color: @col-text-primary-white;
     background: @col-blue-400;
     cursor: pointer;
@@ -71,8 +74,7 @@
 .el-input {
     .rounded;
     .clear-appearance;
-    background: @col-back-paper;
-    border: none;
+
     outline: none;
     background: @col-back-panel;
     border: 1px solid @col-border;

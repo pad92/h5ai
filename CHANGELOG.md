@@ -1,6 +1,17 @@
 # Changelog
 
 
+## v1.1.4 - *2026-06-20*
+
+* **Dark Mode & Styling Improvements**:
+    * Fixed styling overrides for admin password box `#pass` in dark mode by correcting broken CSS selectors.
+    * Added proper visibility and color styling for password box placeholder in dark mode.
+* **Less Files Linting**:
+    * Integrated Stylelint config to enforce formatting and coding standards on Less files.
+    * Cleaned up and automatically formatted all Less stylesheets, resolving 261 style issues.
+    * Removed obsolete vendor-prefixed properties from text preview stylesheets.
+
+
 ## v1.1.3 - *2026-06-19*
 
 * **Version Display & Build Optimization**:

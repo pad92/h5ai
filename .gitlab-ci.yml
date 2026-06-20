@@ -75,9 +75,14 @@ publish:
   image: curlimages/curl:latest
   rules:
     - if: $CI_COMMIT_TAG
+    - if: $CI_COMMIT_BRANCH == "master"
   script:
-    - VERSION=$CI_COMMIT_TAG
-    - CLEAN_VERSION=$(echo "$VERSION" | sed 's/^v//')
+    - |
+      if [ -n "$CI_COMMIT_TAG" ]; then
+        CLEAN_VERSION=$(echo "$CI_COMMIT_TAG" | sed 's/^v//')
+      elif [ "$CI_COMMIT_BRANCH" = "master" ]; then
+        CLEAN_VERSION="master"
+      fi
     - ZIP_FILE=$(ls build/h5ai-*.zip | head -n 1)
     - |
       if [ -z "$ZIP_FILE" ] || [ ! -f "$ZIP_FILE" ]; then
@@ -91,6 +96,13 @@ publish:
       curl --header "JOB-TOKEN: $CI_JOB_TOKEN" \
         --upload-file "$ZIP_FILE" \
         "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/h5ai/${CLEAN_VERSION}/h5ai-${CLEAN_VERSION}.zip"
+    - |
+      if [ -n "$CI_COMMIT_TAG" ]; then
+        echo "Uploading $ZIP_FILE to GitLab Package Registry as latest/h5ai-latest.zip..."
+        curl --header "JOB-TOKEN: $CI_JOB_TOKEN" \
+          --upload-file "$ZIP_FILE" \
+          "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/h5ai/latest/h5ai-latest.zip"
+      fi
 
 create_release:
   stage: release

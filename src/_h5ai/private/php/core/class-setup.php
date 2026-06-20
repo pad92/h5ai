@@ -74,6 +74,7 @@ class Setup {
 
         $this->set('HAS_PHP_ZIP', extension_loaded('zip'));
         $this->set('HAS_PHP_RAR', extension_loaded('rar'));
+        $this->set('HAS_PHP_SQLITE3', extension_loaded('sqlite3'));
     }
 
     private function add_app_metadata() {
@@ -94,7 +95,7 @@ class Setup {
 
         $this->set('SERVER_NAME', $server_name);
         $this->set('SERVER_VERSION', $server_version);
-        $this->set('HAS_SERVER', in_array($server_name, ['apache', 'lighttpd', 'nginx', 'cherokee']));
+        $this->set('HAS_SERVER', in_array($server_name, ['apache', 'lighttpd', 'nginx', 'cherokee', 'angie']));
     }
 
     private function add_paths() {
@@ -170,6 +171,7 @@ class Setup {
                 'HAS_PHP_FILEINFO',
                 'HAS_PHP_ZIP',
                 'HAS_PHP_RAR',
+                'HAS_PHP_SQLITE3',
 
                 'SERVER_NAME',
                 'SERVER_VERSION',

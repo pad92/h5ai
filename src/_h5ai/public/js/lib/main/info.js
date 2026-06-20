@@ -22,17 +22,6 @@ const loginTpl =
                 Change it in '_h5ai/private/conf/options.json'.
             </div>
         </div>`;
-const supportTpl =
-    `<div id="support">
-        Show your support with a donation!
-        <div class="kofi">
-            <a href="https://ko-fi.com/bakaloli" target="_blank">
-                <img src="https://storage.ko-fi.com/cdn/kofi5.png" 
-                     alt="Buy me a coffee at ko-fi.com" 
-                     style="width:180px; height:auto;"/>
-            </a>
-        </div>
-    </div>`;
 const setup = config.setup;
 
 
@@ -73,7 +62,7 @@ const addTests = () => {
     );
 
     addTest(
-        'Server software', 'Server is one of apache, lighttpd, nginx or cherokee',
+        'Server software', 'Server is one of apache, lighttpd, nginx, cherokee or angie',
         setup.HAS_SERVER, setup.SERVER_NAME + ' ' + setup.SERVER_VERSION
     );
 
@@ -115,6 +104,11 @@ const addTests = () => {
     addTest(
         'Rar module', 'PHP Rar extension is available',
         setup.HAS_PHP_RAR
+    );
+
+    addTest(
+        'SQLite3 module', 'PHP SQLite3 extension is available',
+        setup.HAS_PHP_SQLITE3
     );
 
     addTest(
@@ -171,10 +165,6 @@ const onKeydown = ev => {
     }
 };
 
-const addSupport = () => {
-    dom(supportTpl).appTo('#content');
-};
-
 const addLogin = () => {
     dom(loginTpl).appTo('#content');
 
@@ -193,7 +183,6 @@ const addLogin = () => {
 };
 
 const init = () => {
-    addSupport();
     addLogin();
     addTests();
 };

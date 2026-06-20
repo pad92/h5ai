@@ -2,7 +2,9 @@
 
 [![license][license-img]][github] [![github][github-img]][github]
 
-A modern HTTP web server index for Apache httpd, lighttpd, and nginx. This repository is a detached fork of the original h5ai project, which is no longer maintained.
+A modern HTTP web server index for Apache httpd, lighttpd, nginx, and Angie. 
+
+This repository is a **detached fork** of the original **[h5ai](https://github.com/lrsjng/h5ai)** project by Lars Jung, which is no longer maintained. This fork aims to keep the project alive by updating dependencies, applying bug fixes, and maintaining compatibility with modern PHP environments.
 
 
 ## Important
@@ -17,7 +19,7 @@ A modern HTTP web server index for Apache httpd, lighttpd, and nginx. This repos
 
 ### Runtime (Server-side)
 * PHP `7.0.0+`
-* Web server (Apache httpd, lighttpd, nginx, cherokee, etc.)
+* Web server (Apache httpd, lighttpd, nginx, cherokee, Angie, etc.)
 * PHP extensions (depending on enabled features):
   * `GD` (required for default WebP image thumbnails, WebP support must be enabled)
   * `Imagick` (recommended for optimized high-performance image resizing, WebP support must be enabled)

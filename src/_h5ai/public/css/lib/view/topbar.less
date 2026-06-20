@@ -1,9 +1,9 @@
 #topbar {
     .flex-row;
+
     overflow: hidden;
     flex: 0 0 auto;
     order: 1;
-
     background: @col-back-panel;
     border-bottom: 1px solid @col-border;
     z-index: 1;
@@ -17,6 +17,7 @@
 
     .tool {
         .eased-transition;
+
         display: inline-block;
         cursor: pointer;
 
@@ -42,8 +43,8 @@
 
 #backlink {
     .eased-transition;
+
     display: block;
-    overflow: hidden;
     flex: 0 0 auto;
     order: 99;
     text-align: center;
@@ -56,10 +57,12 @@
         cursor: pointer;
         text-decoration: none;
     }
+
     &:hover {
         color: @col-text-hover;
         background: @col-back-hover;
     }
+
     &:focus {
         outline: 0;
     }

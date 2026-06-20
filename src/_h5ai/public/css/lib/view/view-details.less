@@ -1,7 +1,6 @@
 #view.view-details {
 
     .view-details-sized(@size) {
-
         .item {
             .label, .date, .size {
                 line-height: @size + 14px;
@@ -29,13 +28,14 @@
         position: relative;
         white-space: nowrap;
         display: list-item;
-        border-bottom: 1px solid rgba(0,0,0,0.07);
+        border-bottom: 1px solid rgb(0,0,0,0.07);
         border-radius: 2px 2px 0 0;
 
         .label, .date, .size {
             .eased-transition;
+
             line-height: 24px;
-            padding: 0px 8px 16px 8px;
+            padding: 0 8px 16px;
             opacity: 0.4;
             outline: 0;
 
@@ -67,10 +67,11 @@
 
     .item {
         overflow: hidden;
-        border-bottom: 1px solid rgba(0,0,0,0.07);
+        border-bottom: 1px solid rgb(0,0,0,0.07);
 
         &:hover {
             .raised;
+
             z-index: 1;
         }
 
@@ -88,7 +89,8 @@
 
         .thumb {
             .rounded;
-            box-shadow: 0 0 1px 0 rgba(0,0,0,0.2);
+
+            box-shadow: 0 0 1px 0 rgb(0,0,0,0.2);
         }
     }
 
@@ -116,9 +118,11 @@
         .label {
             margin-right: 4px;
         }
+
         .date {
             display: none;
         }
+
         .size {
             display: none;
         }
@@ -128,6 +132,7 @@
         .label {
             margin-right: 64px;
         }
+
         .date {
             display: none;
         }
