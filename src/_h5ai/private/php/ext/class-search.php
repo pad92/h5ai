@@ -23,6 +23,9 @@ class Search {
             if ($ignorecase) {
                 $re .= 'i';
             }
+            if (@preg_match($re, '') === false) {
+                return [];
+            }
             $names = $this->context->read_dir($root);
             foreach ($names as $name) {
                 $path = $root . '/' . $name;

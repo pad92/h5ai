@@ -111,6 +111,7 @@ const fetchContent = absHref => {
                     });
                 }
 
+                item.isContentFetched = true;
                 resolve(item);
             });
         }

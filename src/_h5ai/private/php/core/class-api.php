@@ -28,6 +28,8 @@ class Api {
         $base_href = $this->request->query('baseHref');
         $hrefs = $this->request->query('hrefs', '');
 
+        $as = preg_replace('/[^\w.\-]/', '_', $as);
+
         $archive = new Archive($this->context);
 
         set_time_limit(0);
@@ -96,6 +98,9 @@ class Api {
             [$response['thumbs'], $response['filetypes']] = $this->context->get_thumbs($thumbs);
         }
 
+        header('Cache-Control: no-cache, no-store, must-revalidate');
+        header('Pragma: no-cache');
+        header('Expires: 0');
         Util::json_exit($response);
     }
 

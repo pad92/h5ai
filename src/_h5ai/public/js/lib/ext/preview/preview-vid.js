@@ -2,8 +2,6 @@ const {dom} = require('../../util');
 const allsettings = require('../../core/settings');
 const preview = require('./preview');
 
-preview.setControlType('vid');
-
 const settings = Object.assign({
     enabled: false,
     autoplay: true,
@@ -160,6 +158,7 @@ const loadMoviVideo = item => {
 };
 
 const load = item => {
+    preview.setControlType('vid');
     return loadMoviPlayerScript()
         .then(() => {
             if (!global.window.crossOriginIsolated) {

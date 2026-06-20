@@ -1,6 +1,6 @@
 const rawMarked = require('marked');
 const marked = typeof rawMarked === 'function' ? rawMarked : rawMarked.parse;
-const {each, dom} = require('../util');
+const {each, dom, sanitizeHtml} = require('../util');
 const server = require('../server');
 const event = require('../core/event');
 const allsettings = require('../core/settings');
@@ -21,7 +21,7 @@ const update = (data, key) => {
         if (type === 'md' || type === 'txt-md' || type === 'markdown') {
             content = marked(content);
         }
-        $el.html(content).show();
+        $el.html(sanitizeHtml(content)).show();
     } else {
         $el.hide();
     }

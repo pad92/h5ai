@@ -117,8 +117,17 @@ const update = item => {
     return $html;
 };
 
+const findRoot = item => {
+    while (item.parent) {
+        item = item.parent;
+    }
+    return item;
+};
+
 const fetchTree = item => {
-    item._treeState = 'open';
+    if (!item._treeState || item._treeState === 'none' || item._treeState === 'unknown') {
+        item._treeState = 'open';
+    }
     return item.fetchContent().then(() => {
         if (item.parent) {
             return fetchTree(item.parent);
@@ -142,6 +151,11 @@ const onLocationChanged = item => {
         dom('#tree').clr().app(update(root));
         updateSettings();
     });
+};
+
+const onLocationRefreshed = item => {
+    const root = findRoot(item);
+    dom('#tree').clr().app(update(root));
 };
 
 const init = () => {
@@ -168,7 +182,7 @@ const init = () => {
     updateSettings();
 
     event.sub('location.changed', onLocationChanged);
-    event.sub('location.refreshed', onLocationChanged);
+    event.sub('location.refreshed', onLocationRefreshed);
 };
 
 init();

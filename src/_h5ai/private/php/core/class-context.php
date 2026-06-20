@@ -57,7 +57,7 @@ class Context {
     }
 
     public function login_admin($pass) {
-        $this->session->set(Context::$AS_ADMIN_SESSION_KEY, strcasecmp(hash('sha512', $pass), $this->passhash) === 0);
+        $this->session->set(Context::$AS_ADMIN_SESSION_KEY, hash_equals(strtolower($this->passhash), hash('sha512', $pass)));
         return $this->session->get(Context::$AS_ADMIN_SESSION_KEY);
     }
 
@@ -337,10 +337,12 @@ class Context {
         $fonts_mono = $this->query_option('view.fontsMono', []);
         $html = '<style class="x-head">';
         if (sizeof($fonts) > 0) {
-            $html .= '#root,input,select{font-family:"' . implode('","', $fonts) . '"!important}';
+            $escaped = array_map(function($f) { return str_replace(['\\', '"'], ['\\\\', '\\"'], $f); }, $fonts);
+            $html .= '#root,input,select{font-family:"' . implode('","', $escaped) . '"!important}';
         }
         if (sizeof($fonts_mono) > 0) {
-            $html .= 'pre,code{font-family:"' . implode('","', $fonts_mono) . '"!important}';
+            $escaped = array_map(function($f) { return str_replace(['\\', '"'], ['\\\\', '\\"'], $f); }, $fonts_mono);
+            $html .= 'pre,code{font-family:"' . implode('","', $escaped) . '"!important}';
         }
         $html .= '</style>';
         return $html;
@@ -351,10 +353,10 @@ class Context {
         $styles = $this->query_option('resources.styles', []);
         $html = '';
         foreach ($styles as $href) {
-            $html .= '<link rel="stylesheet" href="' . $this->prefix_x_head_href($href) . '" class="x-head">';
+            $html .= '<link rel="stylesheet" href="' . htmlspecialchars($this->prefix_x_head_href($href), ENT_QUOTES, 'UTF-8') . '" class="x-head">';
         }
         foreach ($scripts as $href) {
-            $html .= '<script src="' . $this->prefix_x_head_href($href) . '" class="x-head"></script>';
+            $html .= '<script src="' . htmlspecialchars($this->prefix_x_head_href($href), ENT_QUOTES, 'UTF-8') . '" class="x-head"></script>';
         }
         $html .= $this->get_fonts_html();
         return $html;

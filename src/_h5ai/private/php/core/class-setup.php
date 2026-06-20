@@ -54,7 +54,7 @@ class Setup {
         $this->set('REQUEST_HREF', parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH));
         $this->set('SCRIPT_NAME', $_SERVER['SCRIPT_NAME']);
         $this->set('SERVER_SOFTWARE', $_SERVER['SERVER_SOFTWARE']);
-        $this->set('HTTP_USER_AGENT', $_SERVER['HTTP_USER_AGENT']);
+        $this->set('HTTP_USER_AGENT', $_SERVER['HTTP_USER_AGENT'] ?? '');
     }
 
     private function add_php_checks() {
@@ -108,10 +108,7 @@ class Setup {
         $this->set('H5AI_PATH', Util::normalize_path(dirname(dirname(dirname(dirname(__FILE__)))), false));
 
         $this->set('ROOT_HREF', Util::normalize_path(dirname($this->get('H5AI_HREF')), true));
-        $root_path = getenv('H5AI_ROOT_PATH');
-        if ($root_path === false) {
-            $root_path = '/share';
-        }
+        $root_path = getenv('H5AI_ROOT_PATH') ?: dirname($this->get('H5AI_PATH'));
         $this->set('ROOT_PATH', Util::normalize_path($root_path, false));
 
         $this->set('PUBLIC_HREF', Util::normalize_path($this->get('H5AI_HREF') . '/public/', true));

@@ -1,4 +1,4 @@
-const {dom} = require('../../util');
+const {dom, escapeHtml} = require('../../util');
 const allsettings = require('../../core/settings');
 const preview = require('./preview');
 const EXIF = require('exif-js');
@@ -139,22 +139,22 @@ const buildExifHtml = (tags, label) => {
 
     let html = '<div class="exif-header">Photo Details</div>';
 
-    html += `<div class="exif-item"><span class="exif-icon">📄</span><span class="exif-value">${label}</span></div>`;
+    html += `<div class="exif-item"><span class="exif-icon">📄</span><span class="exif-value">${escapeHtml(label)}</span></div>`;
 
     if (camera) {
-        html += `<div class="exif-item"><span class="exif-icon">📷</span><span class="exif-value">${camera}</span></div>`;
+        html += `<div class="exif-item"><span class="exif-icon">📷</span><span class="exif-value">${escapeHtml(camera)}</span></div>`;
     }
 
     if (lens) {
-        html += `<div class="exif-item"><span class="exif-icon">🔍</span><span class="exif-value">${lens}</span></div>`;
+        html += `<div class="exif-item"><span class="exif-icon">🔍</span><span class="exif-value">${escapeHtml(lens)}</span></div>`;
     }
 
     if (date) {
-        html += `<div class="exif-item"><span class="exif-icon">📅</span><span class="exif-value">${date}</span></div>`;
+        html += `<div class="exif-item"><span class="exif-icon">📅</span><span class="exif-value">${escapeHtml(date)}</span></div>`;
     }
 
     if (gpsLink) {
-        html += `<div class="exif-item"><span class="exif-icon">📍</span><span class="exif-value"><a href="${gpsLink}" target="_blank">View on Google Maps</a></span></div>`;
+        html += `<div class="exif-item"><span class="exif-icon">📍</span><span class="exif-value"><a href="${escapeHtml(gpsLink)}" target="_blank">View on Google Maps</a></span></div>`;
     }
 
     if (focalLength || aperture || shutterSpeed || iso) {

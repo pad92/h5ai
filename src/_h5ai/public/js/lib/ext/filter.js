@@ -36,7 +36,13 @@ const filterItems = (pattern = '') => {
 
     $filter.addCls('pending');
 
-    const re = new RegExp(pattern, settings.ignorecase ? 'i' : '');
+    let re;
+    try {
+        re = new RegExp(pattern, settings.ignorecase ? 'i' : '');
+    } catch {
+        $filter.rmCls('pending');
+        return;
+    }
     const items = filter(location.getItem().content, item => re.test(item.label));
 
     $filter.rmCls('pending');

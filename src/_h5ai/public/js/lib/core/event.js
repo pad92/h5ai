@@ -11,6 +11,12 @@ const sub = (topic, listener) => {
     }
 };
 
+const unsub = (topic, listener) => {
+    if (isStr(topic) && subscriptions[topic]) {
+        subscriptions[topic] = subscriptions[topic].filter(l => l !== listener);
+    }
+};
+
 const pub = (topic, ...args) => {
     // console.log(topic, args);
     if (isStr(topic) && subscriptions[topic]) {
@@ -24,5 +30,6 @@ dom(global.window).on('resize', () => pub('resize'));
 
 module.exports = {
     sub,
+    unsub,
     pub
 };

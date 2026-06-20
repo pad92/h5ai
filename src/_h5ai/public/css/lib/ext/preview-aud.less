@@ -4,16 +4,16 @@
     left: 0;
     right: 0;
     height: 90px;
-    background: rgb(255, 255, 255, 0.75);
+    background: rgba(255, 255, 255, 0.75);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
-    border-top: 1px solid rgb(0, 0, 0, 0.08);
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
     display: flex;
     align-items: center;
     justify-content: space-between;
     padding: 0 24px;
     z-index: 9999;
-    box-shadow: 0 -10px 30px rgb(0, 0, 0, 0.05);
+    box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.05);
     transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.3s, border-color 0.3s;
     transform: translateY(100%);
     color: #212121;
@@ -45,7 +45,7 @@
             align-items: center;
             justify-content: center;
             color: #fff;
-            box-shadow: 0 4px 12px rgb(0, 0, 0, 0.1);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
             flex-shrink: 0;
 
             .ap-cover-img {
@@ -115,7 +115,7 @@
 
                 &:hover {
                     opacity: 1;
-                    background: rgb(0, 0, 0, 0.05);
+                    background: rgba(0, 0, 0, 0.05);
                 }
 
                 &:active {
@@ -133,12 +133,12 @@
                     width: 38px;
                     height: 38px;
                     opacity: 1;
-                    box-shadow: 0 3px 8px rgb(66, 165, 245, 0.3);
+                    box-shadow: 0 3px 8px rgba(66, 165, 245, 0.3);
 
                     &:hover {
                         transform: scale(1.05);
                         background: darken(#42a5f5, 5%);
-                        box-shadow: 0 4px 12px rgb(66, 165, 245, 0.4);
+                        box-shadow: 0 4px 12px rgba(66, 165, 245, 0.4);
                     }
 
                     &:active {
@@ -205,7 +205,7 @@
                     left: 0;
                     right: 0;
                     height: 4px;
-                    background: rgb(0, 0, 0, 0.08);
+                    background: rgba(0, 0, 0, 0.08);
                     border-radius: 2px;
                     transition: height 0.15s;
                     pointer-events: none;
@@ -249,7 +249,7 @@
                         cursor: pointer;
                         opacity: 0;
                         transition: transform 0.15s, opacity 0.15s;
-                        box-shadow: 0 1px 4px rgb(0,0,0,0.2);
+                        box-shadow: 0 1px 4px rgba(0,0,0,0.2);
                     }
                 }
             }
@@ -294,7 +294,7 @@
                     left: 0;
                     right: 0;
                     height: 4px;
-                    background: rgb(0, 0, 0, 0.08);
+                    background: rgba(0, 0, 0, 0.08);
                     border-radius: 2px;
                     transition: height 0.15s;
                     pointer-events: none;
@@ -381,42 +381,42 @@
 
             &:hover {
                 opacity: 1;
-                background: rgb(0,0,0,0.05);
+                background: rgba(0,0,0,0.05);
             }
 
             &.active {
                 opacity: 1;
                 color: #42a5f5;
-                background: rgb(66, 165, 245, 0.08);
+                background: rgba(66, 165, 245, 0.08);
             }
         }
     }
 }
 
 body[data-theme="dark"] #audio-player-bar {
-    background: rgb(26, 26, 26, 0.8);
-    border-top-color: rgb(255, 255, 255, 0.08);
-    box-shadow: 0 -10px 30px rgb(0, 0, 0, 0.2);
+    background: rgba(26, 26, 26, 0.8);
+    border-top-color: rgba(255, 255, 255, 0.08);
+    box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.2);
     color: #fff;
 
     .ap-track-info .ap-track-cover {
-        box-shadow: 0 4px 12px rgb(0, 0, 0, 0.3);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     }
 
     .ap-progress-bar-container .ap-progress-slider-wrapper .ap-progress-track {
-        background: rgb(255, 255, 255, 0.12);
+        background: rgba(255, 255, 255, 0.12);
     }
 
     .ap-extra-controls .ap-volume-container .ap-volume-slider-wrapper .ap-volume-track {
-        background: rgb(255, 255, 255, 0.12);
+        background: rgba(255, 255, 255, 0.12);
     }
 
     .ap-controls-container .ap-control-buttons .ap-btn:hover {
-        background: rgb(255, 255, 255, 0.08);
+        background: rgba(255, 255, 255, 0.08);
     }
 
     .ap-extra-controls .ap-btn-queue:hover {
-        background: rgb(255, 255, 255, 0.08);
+        background: rgba(255, 255, 255, 0.08);
     }
 }
 
@@ -426,11 +426,11 @@ body[data-theme="dark"] #audio-player-bar {
     right: 0;
     width: 380px;
     height: calc(100% - 90px);
-    background: rgb(255, 255, 255, 0.85);
+    background: rgba(255, 255, 255, 0.85);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
-    border-left: 1px solid rgb(0, 0, 0, 0.08);
-    box-shadow: -10px 0 30px rgb(0, 0, 0, 0.05);
+    border-left: 1px solid rgba(0, 0, 0, 0.08);
+    box-shadow: -10px 0 30px rgba(0, 0, 0, 0.05);
     z-index: 9998;
     display: flex;
     flex-direction: column;
@@ -448,7 +448,7 @@ body[data-theme="dark"] #audio-player-bar {
         justify-content: space-between;
         align-items: center;
         padding: 20px 24px;
-        border-bottom: 1px solid rgb(0, 0, 0, 0.06);
+        border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 
         h3 {
             margin: 0;
@@ -473,7 +473,7 @@ body[data-theme="dark"] #audio-player-bar {
                 transition: all 0.2s;
 
                 &:hover {
-                    background: rgb(239, 83, 80, 0.08);
+                    background: rgba(239, 83, 80, 0.08);
                 }
             }
 
@@ -508,7 +508,7 @@ body[data-theme="dark"] #audio-player-bar {
         }
 
         &::-webkit-scrollbar-thumb {
-            background: rgb(0, 0, 0, 0.15);
+            background: rgba(0, 0, 0, 0.15);
             border-radius: 3px;
         }
     }
@@ -529,7 +529,7 @@ body[data-theme="dark"] #audio-player-bar {
             margin-bottom: 4px;
 
             &:hover {
-                background: rgb(0, 0, 0, 0.04);
+                background: rgba(0, 0, 0, 0.04);
 
                 .aq-item-remove {
                     opacity: 0.7;
@@ -537,7 +537,7 @@ body[data-theme="dark"] #audio-player-bar {
             }
 
             &.active {
-                background: rgb(66, 165, 245, 0.08);
+                background: rgba(66, 165, 245, 0.08);
                 color: #42a5f5;
 
                 .aq-item-name {
@@ -614,7 +614,7 @@ body[data-theme="dark"] #audio-player-bar {
 
                 &:hover {
                     opacity: 1 !important;
-                    background: rgb(239, 83, 80, 0.08);
+                    background: rgba(239, 83, 80, 0.08);
                 }
 
                 svg {
@@ -627,26 +627,26 @@ body[data-theme="dark"] #audio-player-bar {
 }
 
 body[data-theme="dark"] .audio-queue-panel {
-    background: rgb(26, 26, 26, 0.85);
-    border-left-color: rgb(255, 255, 255, 0.08);
-    box-shadow: -10px 0 30px rgb(0, 0, 0, 0.2);
+    background: rgba(26, 26, 26, 0.85);
+    border-left-color: rgba(255, 255, 255, 0.08);
+    box-shadow: -10px 0 30px rgba(0, 0, 0, 0.2);
     color: #fff;
 
     .aq-header {
-        border-bottom-color: rgb(255, 255, 255, 0.06);
+        border-bottom-color: rgba(255, 255, 255, 0.06);
     }
 
     .aq-list-container::-webkit-scrollbar-thumb {
-        background: rgb(255, 255, 255, 0.15);
+        background: rgba(255, 255, 255, 0.15);
     }
 
     .aq-list .aq-item {
         &:hover {
-            background: rgb(255, 255, 255, 0.04);
+            background: rgba(255, 255, 255, 0.04);
         }
 
         &.active {
-            background: rgb(66, 165, 245, 0.1);
+            background: rgba(66, 165, 245, 0.1);
         }
     }
 }
@@ -665,8 +665,8 @@ body[data-theme="dark"] .audio-queue-panel {
     pointer-events: none;
 
     .ap-row-btn {
-        background: rgb(255, 255, 255, 0.9);
-        border: 1px solid rgb(0,0,0,0.08);
+        background: rgba(255, 255, 255, 0.9);
+        border: 1px solid rgba(0,0,0,0.08);
         border-radius: 50%;
         width: 28px;
         height: 28px;
@@ -676,7 +676,7 @@ body[data-theme="dark"] .audio-queue-panel {
         cursor: pointer;
         padding: 0;
         color: #212121;
-        box-shadow: 0 2px 5px rgb(0,0,0,0.05);
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
         transition: all 0.2s;
         pointer-events: auto;
 
@@ -684,7 +684,7 @@ body[data-theme="dark"] .audio-queue-panel {
             transform: scale(1.08);
             background: #fff;
             color: #42a5f5;
-            box-shadow: 0 3px 8px rgb(0,0,0,0.1);
+            box-shadow: 0 3px 8px rgba(0,0,0,0.1);
         }
 
         &:active {
@@ -703,8 +703,8 @@ body[data-theme="dark"] .audio-queue-panel {
 }
 
 body[data-theme="dark"] .ap-item-actions .ap-row-btn {
-    background: rgb(40, 40, 40, 0.9);
-    border-color: rgb(255,255,255,0.08);
+    background: rgba(40, 40, 40, 0.9);
+    border-color: rgba(255,255,255,0.08);
     color: #fff;
 
     &:hover {

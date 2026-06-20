@@ -6,7 +6,7 @@ const init = () => {
 
     const set = content => {
         if (content) {
-            $el.html(content).show();
+            $el.text(content).show();
         } else {
             $el.hide();
         }
