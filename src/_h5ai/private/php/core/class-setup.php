@@ -108,7 +108,11 @@ class Setup {
         $this->set('H5AI_PATH', Util::normalize_path(dirname(dirname(dirname(dirname(__FILE__)))), false));
 
         $this->set('ROOT_HREF', Util::normalize_path(dirname($this->get('H5AI_HREF')), true));
-        $this->set('ROOT_PATH', Util::normalize_path(dirname($this->get('H5AI_PATH')), false));
+        $root_path = getenv('H5AI_ROOT_PATH');
+        if ($root_path === false) {
+            $root_path = Util::normalize_path(dirname($this->get('H5AI_PATH')), false);
+        }
+        $this->set('ROOT_PATH', Util::normalize_path($root_path, false));
 
         $this->set('PUBLIC_HREF', Util::normalize_path($this->get('H5AI_HREF') . '/public/', true));
         $this->set('PUBLIC_PATH', Util::normalize_path($this->get('H5AI_PATH') . '/public/', false));

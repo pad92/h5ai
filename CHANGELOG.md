@@ -1,6 +1,14 @@
 # Changelog
 
 
+## v1.1.5 - *2026-06-20*
+
+* **Zebra Striping & Dark Mode Hover Fixes**:
+    * Added alternating row background colors (zebra striping) in details view list for improved legibility.
+    * Fixed dark mode link hover color tone-on-tone illegibility (links turned black on hover, now turn to a soft light blue).
+    * Added text color hover transitions for file and folder items in dark mode (items now highlight in light blue on mouse hover, matching light theme behavior).
+
+
 ## v1.1.4 - *2026-06-20*
 
 * **Dark Mode & Styling Improvements**:
