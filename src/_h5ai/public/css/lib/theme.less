@@ -182,12 +182,14 @@ body[data-theme="dark"] #view .item:hover {
 }
 
 body[data-theme="dark"] #view.view-details .item {
+    border-bottom: none;
+
     &:nth-child(even) {
-        background: lighten(@col-grey-900, 1.5%);
+        background: lighten(@col-grey-900, 3%);
     }
 
     &:hover {
-        background: lighten(@col-grey-900, 4%) !important;
+        background: lighten(@col-grey-900, 6%) !important;
     }
 }
 

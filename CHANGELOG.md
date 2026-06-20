@@ -1,16 +1,11 @@
 # Changelog
 
-
-## v1.1.5 - *2026-06-20*
+## v1.1.4 - *2026-06-20*
 
 * **Zebra Striping & Dark Mode Hover Fixes**:
     * Added alternating row background colors (zebra striping) in details view list for improved legibility.
     * Fixed dark mode link hover color tone-on-tone illegibility (links turned black on hover, now turn to a soft light blue).
     * Added text color hover transitions for file and folder items in dark mode (items now highlight in light blue on mouse hover, matching light theme behavior).
-
-
-## v1.1.4 - *2026-06-20*
-
 * **Dark Mode & Styling Improvements**:
     * Fixed styling overrides for admin password box `#pass` in dark mode by correcting broken CSS selectors.
     * Added proper visibility and color styling for password box placeholder in dark mode.
@@ -18,7 +13,6 @@
     * Integrated Stylelint config to enforce formatting and coding standards on Less files.
     * Cleaned up and automatically formatted all Less stylesheets, resolving 261 style issues.
     * Removed obsolete vendor-prefixed properties from text preview stylesheets.
-
 
 ## v1.1.3 - *2026-06-19*
 
