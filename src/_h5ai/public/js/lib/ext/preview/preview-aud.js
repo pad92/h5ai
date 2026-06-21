@@ -638,7 +638,7 @@ const initUI = () => {
     <div id="audio-player-bar">
         <div class="ap-track-info">
             <div class="ap-track-cover" id="ap-cover-gradient">
-                <img class="ap-cover-img" id="ap-cover-img" style="display: none;" alt="cover"/>
+                <img class="ap-cover-img hidden" id="ap-cover-img" alt="cover"/>
                 <svg id="ap-cover-fallback" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
             </div>
             <div class="ap-track-details">
