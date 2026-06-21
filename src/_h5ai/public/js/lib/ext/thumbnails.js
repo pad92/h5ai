@@ -44,8 +44,20 @@ const queueItem = (queue, item) => {
         href: item.absHref,
         callback: src => {
             if (src && item.$view) {
-                item.thumbRational = src;
-                item.$view.find('.icon img').addCls('thumb').attr('src', src);
+                const $img = item.$view.find('.icon img');
+                const origSrc = $img.attr('src');
+                const testImg = new global.window.Image();
+                testImg.onload = () => {
+                    item.thumbRational = src;
+                    $img.addCls('thumb').attr('src', src);
+                };
+                testImg.onerror = () => {
+                    $img.rmCls('thumb');
+                    if (origSrc) {
+                        $img.attr('src', origSrc);
+                    }
+                };
+                testImg.src = src;
             }
         },
         callback_type: filetype => {

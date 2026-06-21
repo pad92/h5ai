@@ -159,8 +159,13 @@ const getEmbeddedCover = url => {
                     const picDataOffset = descEnd;
                     const picDataSize = frameDataOffset + frameSize - picDataOffset;
 
-                    if (picDataSize > 0) {
+                    if (picDataSize > 10) {
                         const pictureData = arr.subarray(picDataOffset, picDataOffset + picDataSize);
+                        const isJpeg = pictureData[0] === 0xFF && pictureData[1] === 0xD8;
+                        const isPng = pictureData[0] === 0x89 && pictureData[1] === 0x50;
+                        if (!isJpeg && !isPng) {
+                            return null;
+                        }
                         const blob = new global.window.Blob([pictureData], {type: mimeType});
                         return global.window.URL.createObjectURL(blob);
                     }
@@ -272,15 +277,12 @@ const renderQueue = () => {
     queue.forEach((item, idx) => {
         const isActive = idx === currentIndex;
         const coverUrl = getTrackCover(item);
-        const hasCover = !!coverUrl;
+        const gradient = getGradientForTrack(item.label);
 
         const $li = dom(`
             <li class="aq-item ${isActive ? 'active' : ''}">
-                <div class="aq-item-cover" style="${hasCover ? '' : 'background: ' + getGradientForTrack(item.label)}">
-                    ${hasCover ?
-                        `<img src="${coverUrl}" class="aq-cover-img" style="width: 100%; height: 100%; object-fit: cover;" alt="cover"/>` :
-                        '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>'
-                    }
+                <div class="aq-item-cover" style="background: ${gradient}">
+                    <svg class="aq-cover-fallback" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
                 </div>
                 <div class="aq-item-details">
                     <p class="aq-item-name"></p>
@@ -291,6 +293,19 @@ const renderQueue = () => {
                 </button>
             </li>
         `);
+
+        if (coverUrl) {
+            const $cover = $li.find('.aq-item-cover');
+            const img = new global.window.Image();
+            img.onload = () => {
+                $cover.find('.aq-cover-fallback').rm();
+                $cover.css({background: 'none'});
+                const $img = dom('<img class="aq-cover-img" style="width: 100%; height: 100%; object-fit: cover;" alt="cover"/>');
+                $img.attr('src', coverUrl);
+                $cover.app($img);
+            };
+            img.src = coverUrl;
+        }
 
         $li.find('.aq-item-name').text(item.label);
         $li.find('.aq-item-folder').text(item.parent ? item.parent.label : 'Folder');
@@ -373,28 +388,59 @@ const clearQueue = () => {
     renderQueue();
 };
 
+const showCoverFallback = item => {
+    const $img = dom('#ap-cover-img');
+    const $fallback = dom('#ap-cover-fallback');
+    $img.hide().attr('src', '');
+    $fallback.show();
+    dom('#ap-cover-gradient').css({background: getGradientForTrack(item.label)});
+};
+
+const loadCoverImage = (item, url, isFallback) => {
+    const $img = dom('#ap-cover-img');
+    const $fallback = dom('#ap-cover-fallback');
+    const img = new global.window.Image();
+
+    img.onload = () => {
+        if (!currentTrack || currentTrack.absHref !== item.absHref) {
+            return;
+        }
+        $img.attr('src', url).show();
+        $fallback.hide();
+        dom('#ap-cover-gradient').css({background: 'none'});
+    };
+    img.onerror = () => {
+        if (!currentTrack || currentTrack.absHref !== item.absHref) {
+            return;
+        }
+        if (!isFallback) {
+            if (item.embeddedCoverUrl === url) {
+                item.embeddedCoverUrl = 'none';
+            }
+            const fallback = getTrackCover(item);
+            if (fallback && fallback !== url) {
+                loadCoverImage(item, fallback, true);
+                return;
+            }
+        }
+        showCoverFallback(item);
+    };
+    img.src = url;
+};
+
 const updateCoverUI = (item, coverUrl) => {
     if (!currentTrack || currentTrack.absHref !== item.absHref) {
         return;
     }
 
-    const $img = dom('#ap-cover-img');
-    const $fallback = dom('#ap-cover-fallback');
-
     if (coverUrl && coverUrl !== 'none') {
-        $img.attr('src', coverUrl).show();
-        $fallback.hide();
-        dom('#ap-cover-gradient').css({background: 'none'});
+        loadCoverImage(item, coverUrl);
     } else {
         const folderCover = getTrackCover(item);
         if (folderCover) {
-            $img.attr('src', folderCover).show();
-            $fallback.hide();
-            dom('#ap-cover-gradient').css({background: 'none'});
+            loadCoverImage(item, folderCover);
         } else {
-            $img.hide().attr('src', '');
-            $fallback.show();
-            dom('#ap-cover-gradient').css({background: getGradientForTrack(item.label)});
+            showCoverFallback(item);
         }
     }
 };
