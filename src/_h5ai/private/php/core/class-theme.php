@@ -1,29 +1,24 @@
 <?php
 
 class Theme {
-    private static $EXTENSIONS = ['svg', 'png', 'jpg', 'jpeg', 'webp'];
-    private $context;
+    private const EXTENSIONS = ['svg', 'png', 'jpg', 'jpeg', 'webp'];
 
-    public function __construct($context) {
-        $this->context = $context;
-    }
+    public function __construct(private readonly Context $context) {}
 
-    public function get_icons() {
+    public function get_icons(): array {
         $public_path = $this->context->get_setup()->get('PUBLIC_PATH');
         $theme = $this->context->query_option('view.theme', '-NONE-');
         $theme_path = $public_path . '/images/themes/' . $theme;
 
         $icons = [];
+        if (!is_dir($theme_path)) {
+            return $icons;
+        }
 
-        if (is_dir($theme_path)) {
-            if ($dir = opendir($theme_path)) {
-                while (($name = readdir($dir)) !== false) {
-                    $path_parts = pathinfo($name);
-                    if (in_array(strtolower(@$path_parts['extension']), Theme::$EXTENSIONS)) {
-                        $icons[$path_parts['filename']] = $theme . '/' . $name;
-                    }
-                }
-                closedir($dir);
+        foreach (self::EXTENSIONS as $ext) {
+            foreach (glob($theme_path . '/*.' . $ext) as $file) {
+                $parts = pathinfo($file);
+                $icons[$parts['filename']] = $theme . '/' . $parts['basename'];
             }
         }
 

@@ -18,7 +18,7 @@ This repository is a **detached fork** of the original **[h5ai](https://github.c
 ## Requirements
 
 ### Runtime (Server-side)
-* PHP `7.0.0+`
+* PHP `8.4.0+`
 * Web server (Apache httpd, lighttpd, nginx, cherokee, Angie, etc.)
 * PHP extensions (depending on enabled features):
   * `GD` (required for default WebP image thumbnails, WebP support must be enabled)

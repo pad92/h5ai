@@ -1,26 +1,25 @@
 <?php
 
 class Api {
-    private $context;
-    private $request;
-    private $setup;
+    private readonly Request $request;
+    private readonly Setup $setup;
 
-    public function __construct($context) {
-        $this->context = $context;
+    public function __construct(private readonly Context $context) {
         $this->request = $context->get_request();
         $this->setup = $context->get_setup();
     }
 
-    public function apply() {
+    public function apply(): never {
         $action = $this->request->query('action');
         $supported = ['download', 'get', 'login', 'logout'];
-        Util::json_fail(Util::ERR_UNSUPPORTED, 'unsupported action', !in_array($action, $supported));
+        Util::json_fail(Util::ERR_UNSUPPORTED, 'unsupported action', !in_array($action, $supported, true));
 
         $methodname = 'on_' . $action;
         $this->$methodname();
+        exit;
     }
 
-    private function on_download() {
+    private function on_download(): never {
         Util::json_fail(Util::ERR_DISABLED, 'download disabled', !$this->context->query_option('download.enabled', false));
 
         $as = $this->request->query('as');
@@ -43,7 +42,7 @@ class Api {
         exit;
     }
 
-    private function on_get() {
+    private function on_get(): never {
         $response = [];
 
         foreach (['langs', 'options', 'types'] as $name) {
@@ -58,8 +57,7 @@ class Api {
         }
 
         if ($this->request->query_boolean('theme', false)) {
-            $theme = new Theme($this->context);
-            $response['theme'] = $theme->get_icons();
+            $response['theme'] = new Theme($this->context)->get_icons();
         }
 
         if ($this->request->query('items', false)) {
@@ -71,14 +69,12 @@ class Api {
         if ($this->request->query('custom', false)) {
             Util::json_fail(Util::ERR_DISABLED, 'custom disabled', !$this->context->query_option('custom.enabled', false));
             $href = $this->request->query('custom');
-            $custom = new Custom($this->context);
-            $response['custom'] = $custom->get_customizations($href);
+            $response['custom'] = new Custom($this->context)->get_customizations($href);
         }
 
         if ($this->request->query('l10n', false)) {
             Util::json_fail(Util::ERR_DISABLED, 'l10n disabled', !$this->context->query_option('l10n.enabled', false));
-            $iso_codes = $this->request->query_array('l10n');
-            $iso_codes = array_filter($iso_codes);
+            $iso_codes = array_filter($this->request->query_array('l10n'));
             $response['l10n'] = $this->context->get_l10n($iso_codes);
         }
 
@@ -87,8 +83,7 @@ class Api {
             $href = $this->request->query('search.href');
             $pattern = $this->request->query('search.pattern');
             $ignorecase = $this->request->query_boolean('search.ignorecase', false);
-            $search = new Search($this->context);
-            $response['search'] = $search->get_items($href, $pattern, $ignorecase);
+            $response['search'] = new Search($this->context)->get_items($href, $pattern, $ignorecase);
         }
 
         if ($this->request->query('thumbs', false)) {
@@ -104,12 +99,12 @@ class Api {
         Util::json_exit($response);
     }
 
-    private function on_login() {
+    private function on_login(): never {
         $pass = $this->request->query('pass');
         Util::json_exit(['asAdmin' => $this->context->login_admin($pass)]);
     }
 
-    private function on_logout() {
+    private function on_logout(): never {
         Util::json_exit(['asAdmin' => $this->context->logout_admin()]);
     }
 }

@@ -9,24 +9,24 @@ class Util {
     const NO_DEFAULT = 'NO_*@+#?!_DEFAULT';
     const RE_DELIMITER = '@';
 
-    public static function normalize_path($path, $trailing_slash = false) {
+    public static function normalize_path(string $path, bool $trailing_slash = false): string {
         $path = preg_replace('#[\\\\/]+#', '/', $path);
         return preg_match('#^(\w:)?/$#', $path) ? $path : (rtrim($path, '/') . ($trailing_slash ? '/' : ''));
     }
 
-    public static function json_exit($obj = []) {
+    public static function json_exit(array $obj = []): never {
         header('Content-type: application/json;charset=utf-8');
         echo json_encode($obj);
         exit;
     }
 
-    public static function json_fail($err, $msg = '', $cond = true) {
+    public static function json_fail(string $err, string $msg = '', bool $cond = true): void {
         if ($cond) {
             Util::json_exit(['err' => $err, 'msg' => $msg]);
         }
     }
 
-    public static function array_query($array, $keypath = '', $default = Util::NO_DEFAULT) {
+    public static function array_query(array $array, string $keypath = '', mixed $default = Util::NO_DEFAULT): mixed {
         $value = $array;
 
         $keys = array_filter(explode('.', $keypath));
@@ -40,34 +40,24 @@ class Util {
         return $value;
     }
 
-    public static function starts_with($sequence, $head) {
-        return substr($sequence, 0, strlen($head)) === $head;
-    }
-
-    public static function ends_with($sequence, $tail) {
-        $len = strlen($tail);
-        return $len === 0 ? true : substr($sequence, -$len) === $tail;
-    }
-
-    public static function wrap_pattern($pattern) {
+    public static function wrap_pattern(string $pattern): string {
         return Util::RE_DELIMITER . str_replace(Util::RE_DELIMITER, '\\' . Util::RE_DELIMITER, $pattern) . Util::RE_DELIMITER;
     }
 
-    public static function passthru_cmd($cmd) {
+    public static function passthru_cmd(string $cmd): int {
         $rc = null;
         passthru($cmd, $rc);
         return $rc;
     }
 
-    public static function exec_cmdv($cmdv, $capture = false, $redirect = false) {
-        $cmd = implode(' ', array_map('escapeshellarg', $cmdv));
+    public static function exec_cmdv(array $cmdv, bool $capture = false, bool $redirect = false): array|string|false {
+        $cmd = implode(' ', array_map(escapeshellarg(...), $cmdv));
 
         if ($redirect) {
-            // Redirect stderr to stdout (notably for ffmpeg)
-            $cmd .= ' 2>&1'; // This cannot be shellarg-escaped
+            $cmd .= ' 2>&1';
         }
 
-        if ($capture){
+        if ($capture) {
             $lines = [];
             $rc = null;
             exec($cmd, $lines, $rc);
@@ -76,28 +66,28 @@ class Util {
         return exec($cmd);
     }
 
-    public static function exec_0($cmd) {
+    public static function exec_0(string $cmd): bool {
         $lines = [];
         $rc = null;
         try {
             @exec($cmd, $lines, $rc);
             return $rc === 0;
-        } catch (Exception $e) {}
+        } catch (\Exception) {}
         return false;
     }
 
-    public static function proc_open_cmdv($cmdv, &$output, &$error) {
-        $cmd = implode(' ', array_map('escapeshellarg', $cmdv));
+    public static function proc_open_cmdv(array $cmdv, mixed &$output, mixed &$error): int {
+        $cmd = implode(' ', array_map(escapeshellarg(...), $cmdv));
 
-        $descriptorspec = array(
-            0 => array("pipe", "r"),  // stdin is a pipe that the child will read from
-            1 => array("pipe", "w"),  // stdout is a pipe that the child will write to
-            2 => array("pipe", "w")   // stderr is a pipe the child will write to
-        );
+        $descriptorspec = [
+            0 => ['pipe', 'r'],
+            1 => ['pipe', 'w'],
+            2 => ['pipe', 'w'],
+        ];
         $process = proc_open($cmd, $descriptorspec, $pipes);
 
         if (is_resource($process)) {
-            fclose($pipes[0]);  // We usually don't need stdin
+            fclose($pipes[0]);
 
             if (is_resource($output)) {
                 stream_copy_to_stream($pipes[1], $output);
@@ -109,30 +99,23 @@ class Util {
             $error = stream_get_contents($pipes[2]);
             fclose($pipes[2]);
 
-            $exit_code = proc_close($process);
-            return $exit_code;
+            return proc_close($process);
         }
         return -1;
     }
 
-    public static function filesize($context, $path) {
+    public static function filesize(Context $context, string $path): ?int {
         $withFoldersize = $context->query_option('foldersize.enabled', false);
         $withDu = $context->get_setup()->get('HAS_CMD_DU') && $context->query_option('foldersize.type', null) === 'shell-du';
         return Filesize::getCachedSize($path, $withFoldersize, $withDu);
     }
 
-    public static function get_mimetype($source_path) {
-        if (class_exists('finfo')) {
-            $finfo = new finfo(FILEINFO_MIME_TYPE);
-            return $finfo->file($source_path);
-        }
-        if (function_exists('mime_content_type')) {
-            return mime_content_type($source_path);
-        }
-        return 'application/octet-stream';
+    public static function get_mimetype(string $source_path): string {
+        $finfo = new \finfo(FILEINFO_MIME_TYPE);
+        return $finfo->file($source_path) ?: 'application/octet-stream';
     }
 
-    public static function log($log_msg, $filename = __DIR__."/../../cache/debug.log") {
-        file_put_contents($filename, date('Y-m-d H:i:s')." ". $log_msg . PHP_EOL, FILE_APPEND);
+    public static function log(string $log_msg, string $filename = __DIR__ . '/../../cache/debug.log'): void {
+        file_put_contents($filename, date('Y-m-d H:i:s') . ' ' . $log_msg . PHP_EOL, FILE_APPEND);
     }
 }

@@ -1,5 +1,21 @@
 # Changelog
 
+## v1.2.0 - *2026-06-21*
+
+* **PHP 8.4 Minimum Version**:
+    * Raised minimum PHP version from `7.0.0` to `8.4.0`.
+    * Modernized all PHP classes with typed/readonly properties, constructor promotion, return types, and union types.
+    * Adopted modern PHP idioms: `match` expressions, `str_starts_with()`/`str_ends_with()`/`str_contains()`, first-class callable syntax, `never` return type, `CommentStyle` enum, `\GdImage` type hints.
+    * Leveraged PHP 8.4 array functions (`array_any()`, `array_all()`, `array_find()`) for cleaner iteration patterns.
+* **Performance Optimizations**:
+    * Faster tar checksum with `unpack('C*')`, `FilesystemIterator` for directory reads, `glob()` for file listing, compile-time `__DIR__` resolution, vectorized `str_replace()`, and cached store lookups in hot loops.
+* **Code Cleanup**:
+    * Removed dead code (`Util::starts_with/ends_with` wrappers, unnecessary `method_exists()`, redundant checks), factored duplicated SQLite PRAGMA, and simplified helper methods.
+* **Bug Fixes**:
+    * Fixed audio cover art not displaying in player bar (inline `display: none` conflicted with CSS class toggle).
+    * Implemented image loading verification for thumbnails and audio cover art.
+
+
 ## v1.1.7 - *2026-06-21*
 
 * **Audio Preview & Thumbnails**:

@@ -1,20 +1,16 @@
 <?php
 
 class Session {
-    private static $KEY_PREFIX = '__H5AI__';
-    private $store;
+    private const KEY_PREFIX = '__H5AI__';
 
-    public function __construct(&$store) {
-        $this->store = &$store;
+    public function __construct(private array &$store) {}
+
+    public function set(string $key, mixed $value): void {
+        $this->store[self::KEY_PREFIX . $key] = $value;
     }
 
-    public function set($key, $value) {
-        $key = Session::$KEY_PREFIX . $key;
-        $this->store[$key] = $value;
-    }
-
-    public function get($key, $default = null) {
-        $key = Session::$KEY_PREFIX . $key;
-        return array_key_exists($key, $this->store) ? $this->store[$key] : $default;
+    public function get(string $key, mixed $default = null): mixed {
+        $prefixed = self::KEY_PREFIX . $key;
+        return $this->store[$prefixed] ?? $default;
     }
 }

@@ -1,11 +1,10 @@
 <?php
 
 class Setup {
-    private $store;
-    private $refresh;
+    private array $store = [];
+    private readonly bool $refresh;
 
-    public function __construct($refresh = false) {
-        $this->store = [];
+    public function __construct(bool $refresh = false) {
         $this->refresh = $refresh;
 
         $this->add_globals_and_envs();
@@ -16,19 +15,12 @@ class Setup {
         $this->add_sys_cmd_checks();
     }
 
-    private function set($key, $value) {
+    private function set(string $key, string|bool $value): void {
         if (array_key_exists($key, $this->store)) {
             Logger::log('setup key already taken', [
                 'key' => $key,
                 'value' => $value,
-                'found' => $this->store[$key]
-            ]);
-            exit;
-        }
-        if (!is_string($value) && !is_bool($value)) {
-            Logger::log('setup value neither string nor boolean', [
-                'key' => $key,
-                'value' => $value
+                'found' => $this->store[$key],
             ]);
             exit;
         }
@@ -36,7 +28,7 @@ class Setup {
         $this->store[$key] = $value;
     }
 
-    public function get($key) {
+    public function get(string $key): string|bool {
         if (!array_key_exists($key, $this->store)) {
             Logger::log('setup key not found', ['key' => $key]);
             exit;
@@ -45,7 +37,7 @@ class Setup {
         return $this->store[$key];
     }
 
-    private function add_globals_and_envs() {
+    private function add_globals_and_envs(): void {
         $this->set('PHP_VERSION', PHP_VERSION);
         $this->set('MIN_PHP_VERSION', MIN_PHP_VERSION);
         $this->set('PHP_ARCH', (PHP_INT_SIZE * 8) . '-bit');
@@ -57,40 +49,39 @@ class Setup {
         $this->set('HTTP_USER_AGENT', $_SERVER['HTTP_USER_AGENT'] ?? '');
     }
 
-    private function add_php_checks() {
+    private function add_php_checks(): void {
         $this->set('HAS_PHP_EXIF', function_exists('exif_thumbnail'));
 
         $has_php_jpeg = false;
         $has_php_webp = false;
         if (function_exists('gd_info')) {
             $infos = gd_info();
-            $has_php_jpeg = array_key_exists('JPEG Support', $infos) && $infos['JPEG Support'];
-            $has_php_webp = (array_key_exists('WebP Support', $infos) && $infos['WebP Support']) || (array_key_exists('Webp Support', $infos) && $infos['Webp Support']);
+            $has_php_jpeg = !empty($infos['JPEG Support']);
+            $has_php_webp = !empty($infos['WebP Support']) || !empty($infos['Webp Support']);
         }
         $this->set('HAS_PHP_JPEG', $has_php_jpeg);
         $this->set('HAS_PHP_WEBP', $has_php_webp);
 
         $this->set('HAS_PHP_FILEINFO', extension_loaded('fileinfo'));
-
         $this->set('HAS_PHP_ZIP', extension_loaded('zip'));
         $this->set('HAS_PHP_RAR', extension_loaded('rar'));
         $this->set('HAS_PHP_SQLITE3', extension_loaded('sqlite3'));
     }
 
-    private function add_app_metadata() {
+    private function add_app_metadata(): void {
         $this->set('NAME', 'h5ai');
         $this->set('VERSION', H5AI_VERSION);
         $this->set('FILE_PREFIX', '_h5ai');
     }
 
-    private function add_server_metadata_and_check() {
+    private function add_server_metadata_and_check(): void {
         $server_software = $this->get('SERVER_SOFTWARE');
-        $server_name = null;
-        $server_version = null;
+        $server_name = '';
+        $server_version = '';
 
         if ($server_software && preg_match('#^(.*?)(?:/(.*?))?(?: |$)#', strtolower($server_software), $matches)) {
             $server_name = $matches[1];
-            $server_version = count($matches) > 2 ? $matches[2] : '';
+            $server_version = $matches[2] ?? '';
         }
 
         $this->set('SERVER_NAME', $server_name);
@@ -98,14 +89,14 @@ class Setup {
         $this->set('HAS_SERVER', in_array($server_name, ['apache', 'lighttpd', 'nginx', 'cherokee', 'angie']));
     }
 
-    private function add_paths() {
+    private function add_paths(): void {
         $script_name = $this->get('SCRIPT_NAME');
         if ($this->get('SERVER_NAME') === 'lighttpd') {
             $script_name = preg_replace('#^.*?//#', '/', $script_name);
         }
 
         $this->set('H5AI_HREF', Util::normalize_path(dirname(dirname($script_name)), true));
-        $this->set('H5AI_PATH', Util::normalize_path(dirname(dirname(dirname(dirname(__FILE__)))), false));
+        $this->set('H5AI_PATH', Util::normalize_path(dirname(__DIR__, 3), false));
 
         $this->set('ROOT_HREF', Util::normalize_path(dirname($this->get('H5AI_HREF')), true));
         $root_path = getenv('H5AI_ROOT_PATH') ?: dirname($this->get('H5AI_PATH'));
@@ -125,23 +116,21 @@ class Setup {
         $this->set('HAS_WRITABLE_CACHE_PRV', @is_writable($this->get('CACHE_PRV_PATH')));
     }
 
-    private function add_sys_cmd_checks() {
+    private function add_sys_cmd_checks(): void {
         $cmds_cache_path = Util::normalize_path($this->get('CACHE_PRV_PATH') . '/cmds.json', false);
 
         $cmds = Json::load($cmds_cache_path);
-        if (sizeof($cmds) === 0 || $this->refresh) {
+        if (count($cmds) === 0 || $this->refresh) {
             $cmds['command'] = Util::exec_0('command -v command');
             $cmds['which'] = Util::exec_0('which which') || Util::exec_0('which which.exe');
             $cmds['where'] = Util::exec_0('where where.exe');
 
-            $cmd = false;
-            if ($cmds['command']) {
-                $cmd = 'command -v';
-            } elseif ($cmds['which']) {
-                $cmd = 'which';
-            } elseif ($cmds['where']) {
-                $cmd = 'where';
-            }
+            $cmd = match (true) {
+                $cmds['command'] => 'command -v',
+                $cmds['which'] => 'which',
+                $cmds['where'] => 'where',
+                default => false,
+            };
 
             foreach (['avconv', 'avprobe', 'convert', 'du', 'ffmpeg', 'ffprobe', 'gm', 'tar', 'zip'] as $c) {
                 $cmds[$c] = ($cmd !== false) && (Util::exec_0($cmd . ' ' . $c) || Util::exec_0($cmd . ' ' . $c . '.exe'));
@@ -154,15 +143,12 @@ class Setup {
         }
     }
 
-    public function to_jsono($as_admin = false) {
-        $keys = [
-            'PUBLIC_HREF',
-            'ROOT_HREF',
-            'VERSION'
-        ];
+    public function to_jsono(bool $as_admin = false): array {
+        $keys = ['PUBLIC_HREF', 'ROOT_HREF', 'VERSION'];
 
         if ($as_admin) {
-            $keys = array_merge($keys, [
+            $keys = [
+                ...$keys,
                 'PHP_VERSION',
                 'MIN_PHP_VERSION',
                 'PHP_ARCH',
@@ -173,24 +159,20 @@ class Setup {
                 'HAS_PHP_ZIP',
                 'HAS_PHP_RAR',
                 'HAS_PHP_SQLITE3',
-
                 'SERVER_NAME',
                 'SERVER_VERSION',
                 'HAS_SERVER',
-
                 'INDEX_HREF',
-
                 'HAS_WRITABLE_CACHE_PUB',
                 'HAS_WRITABLE_CACHE_PRV',
-
                 'HAS_CMD_AVCONV',
                 'HAS_CMD_CONVERT',
                 'HAS_CMD_DU',
                 'HAS_CMD_FFMPEG',
                 'HAS_CMD_GM',
                 'HAS_CMD_TAR',
-                'HAS_CMD_ZIP'
-            ]);
+                'HAS_CMD_ZIP',
+            ];
         }
 
         $jsono = ['AS_ADMIN' => $as_admin];

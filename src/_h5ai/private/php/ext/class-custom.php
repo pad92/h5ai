@@ -1,17 +1,14 @@
 <?php
 
 class Custom {
-    private static $EXTENSIONS = ['html', 'md'];
-    private $context;
+    private const EXTENSIONS = ['html', 'md'];
 
-    public function __construct($context) {
-        $this->context = $context;
-    }
+    public function __construct(private readonly Context $context) {}
 
-    private function read_custom_file($path, $name, &$content, &$type) {
+    private function read_custom_file(string $path, string $name, ?string &$content, ?string &$type): void {
         $file_prefix = $this->context->get_setup()->get('FILE_PREFIX');
 
-        foreach (Custom::$EXTENSIONS as $ext) {
+        foreach (self::EXTENSIONS as $ext) {
             $file = $path . '/' . $file_prefix . '.' . $name . '.' . $ext;
             if (is_readable($file)) {
                 $content = file_get_contents($file);
@@ -21,21 +18,20 @@ class Custom {
         }
     }
 
-    public function get_customizations($href) {
+    public function get_customizations(string $href): array {
+        $empty = [
+            'header' => ['content' => null, 'type' => null],
+            'footer' => ['content' => null, 'type' => null],
+        ];
+
         if (!$this->context->query_option('custom.enabled', false)) {
-            return [
-                'header' => ['content' => null, 'type' => null],
-                'footer' => ['content' => null, 'type' => null]
-            ];
+            return $empty;
         }
 
         $root_path = $this->context->get_setup()->get('ROOT_PATH');
         $path = $this->context->to_path($href);
         if (!$this->context->is_managed_path($path)) {
-            return [
-                'header' => ['content' => null, 'type' => null],
-                'footer' => ['content' => null, 'type' => null]
-            ];
+            return $empty;
         }
 
         $header = null;
@@ -60,20 +56,12 @@ class Custom {
             if ($parent_path === $path) {
                 break;
             }
-
-            // Stop once we reach the root
-            if (
-                $this->context->query_option('custom.stopSearchingAtRoot', true) &&
-                $path === $this->context->get_setup()->get('ROOT_PATH')
-            ) {
-                break;
-            }
             $path = $parent_path;
         }
 
         return [
             'header' => ['content' => $header, 'type' => $header_type],
-            'footer' => ['content' => $footer, 'type' => $footer_type]
+            'footer' => ['content' => $footer, 'type' => $footer_type],
         ];
     }
 }

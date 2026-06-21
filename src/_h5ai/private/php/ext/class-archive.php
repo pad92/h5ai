@@ -3,20 +3,17 @@
 class Archive {
     const NULL_BYTE = "\0";
 
-    private static $SEGMENT_SIZE = 65536;  // 64KiB
-    private static $TAR_PASSTHRU_CMD = 'cd [ROOTDIR] && tar --no-recursion -c -- [DIRS] [FILES]';
-    private static $ZIP_PASSTHRU_CMD = 'cd [ROOTDIR] && zip - -- [FILES]';
+    private static int $SEGMENT_SIZE = 65536;
+    private static string $TAR_PASSTHRU_CMD = 'cd [ROOTDIR] && tar --no-recursion -c -- [DIRS] [FILES]';
+    private static string $ZIP_PASSTHRU_CMD = 'cd [ROOTDIR] && zip - -- [FILES]';
 
-    private $context;
-    private $base_path;
-    private $dirs;
-    private $files;
+    private string $base_path;
+    private array $dirs = [];
+    private array $files = [];
 
-    public function __construct($context) {
-        $this->context = $context;
-    }
+    public function __construct(private readonly Context $context) {}
 
-    public function output($type, $base_href, $hrefs) {
+    public function output(string $type, string $base_href, string|array $hrefs): bool {
         $this->base_path = $this->context->to_path($base_href);
         if (!$this->context->is_managed_path($this->base_path)) {
             return false;
@@ -28,44 +25,43 @@ class Archive {
         $this->add_hrefs($hrefs);
 
         if (count($this->dirs) === 0 && count($this->files) === 0) {
-            if ($type === 'php-tar') {
-                $this->add_dir($this->base_path, '/');
-            } else {
-                $this->add_dir($this->base_path, '.');
-            }
+            $this->add_dir($this->base_path, $type === 'php-tar' ? '/' : '.');
         }
 
-        if ($type === 'php-tar') {
-            return $this->php_tar($this->dirs, $this->files);
-        } elseif ($type === 'shell-tar') {
-            return $this->shell_cmd(Archive::$TAR_PASSTHRU_CMD);
-        } elseif ($type === 'shell-zip') {
-            return $this->shell_cmd(Archive::$ZIP_PASSTHRU_CMD);
-        }
-        return false;
+        return match ($type) {
+            'php-tar' => $this->php_tar($this->dirs, $this->files),
+            'shell-tar' => $this->shell_cmd(self::$TAR_PASSTHRU_CMD),
+            'shell-zip' => $this->shell_cmd(self::$ZIP_PASSTHRU_CMD),
+            default => false,
+        };
     }
 
-    private function shell_cmd($cmd) {
-        $cmd = str_replace('[ROOTDIR]', escapeshellarg($this->base_path), $cmd);
-        $cmd = str_replace('[DIRS]', count($this->dirs) ? implode(' ', array_map('escapeshellarg', $this->dirs)) : '', $cmd);
-        $cmd = str_replace('[FILES]', count($this->files) ? implode(' ', array_map('escapeshellarg', $this->files)) : '', $cmd);
+    private function shell_cmd(string $cmd): bool {
+        $cmd = str_replace(
+            ['[ROOTDIR]', '[DIRS]', '[FILES]'],
+            [
+                escapeshellarg($this->base_path),
+                $this->dirs ? implode(' ', array_map(escapeshellarg(...), $this->dirs)) : '',
+                $this->files ? implode(' ', array_map(escapeshellarg(...), $this->files)) : '',
+            ],
+            $cmd,
+        );
         try {
             Util::passthru_cmd($cmd);
-        } catch (Exception $err) {
+        } catch (\Exception) {
             return false;
         }
         return true;
     }
 
-    private function php_tar($dirs, $files) {
+    private function php_tar(array $dirs, array $files): bool {
         $filesizes = [];
         $total_size = 512 * count($dirs);
         foreach (array_keys($files) as $real_file) {
             $size = filesize($real_file);
-
             $filesizes[$real_file] = $size;
             $total_size += 512 + $size;
-            if ($size % 512 != 0) {
+            if ($size % 512 !== 0) {
                 $total_size += 512 - ($size % 512);
             }
         }
@@ -82,15 +78,15 @@ class Archive {
             echo $this->php_tar_header($archived_file, $size, @filemtime($real_file), 0);
             $this->print_file($real_file);
 
-            if ($size % 512 != 0) {
-                echo str_repeat(Archive::NULL_BYTE, 512 - ($size % 512));
+            if ($size % 512 !== 0) {
+                echo str_repeat(self::NULL_BYTE, 512 - ($size % 512));
             }
         }
 
         return true;
     }
 
-    private function php_tar_header($filename, $size, $mtime, $type) {
+    private function php_tar_header(string $filename, int $size, int|false $mtime, int $type): string {
         $name = substr(basename($filename), -99);
         $prefix = substr(Util::normalize_path(dirname($filename)), -154);
         if ($prefix === '.') {
@@ -98,35 +94,33 @@ class Archive {
         }
 
         $header =
-            str_pad($name, 100, Archive::NULL_BYTE)  // filename [100]
-            . '0000755' . Archive::NULL_BYTE  // file mode [8]
-            . '0000000' . Archive::NULL_BYTE  // uid [8]
-            . '0000000' . Archive::NULL_BYTE  // gid [8]
-            . str_pad(decoct($size), 11, '0', STR_PAD_LEFT) . Archive::NULL_BYTE  // file size [12]
-            . str_pad(decoct($mtime), 11, '0', STR_PAD_LEFT) . Archive::NULL_BYTE  // file modification time [12]
-            . '        '  // checksum [8]
-            . str_pad($type, 1)  // file type [1]
-            . str_repeat(Archive::NULL_BYTE, 100)  // linkname [100]
-            . 'ustar' . Archive::NULL_BYTE  // magic [6]
-            . '00'  // version [2]
-            . str_repeat(Archive::NULL_BYTE, 80)  // uname, gname, defmajor, devminor [32 + 32 + 8 + 8]
-            . str_pad($prefix, 155, Archive::NULL_BYTE)  // filename [155]
-            . str_repeat(Archive::NULL_BYTE, 12);  // fill [12]
+            str_pad($name, 100, self::NULL_BYTE)
+            . '0000755' . self::NULL_BYTE
+            . '0000000' . self::NULL_BYTE
+            . '0000000' . self::NULL_BYTE
+            . str_pad(decoct($size), 11, '0', STR_PAD_LEFT) . self::NULL_BYTE
+            . str_pad(decoct($mtime), 11, '0', STR_PAD_LEFT) . self::NULL_BYTE
+            . '        '
+            . str_pad($type, 1)
+            . str_repeat(self::NULL_BYTE, 100)
+            . 'ustar' . self::NULL_BYTE
+            . '00'
+            . str_repeat(self::NULL_BYTE, 80)
+            . str_pad($prefix, 155, self::NULL_BYTE)
+            . str_repeat(self::NULL_BYTE, 12);
         assert(strlen($header) === 512);
 
-        // checksum
-        $checksum = array_sum(array_map('ord', str_split($header)));
-        $checksum = str_pad(decoct($checksum), 6, '0', STR_PAD_LEFT) . Archive::NULL_BYTE . ' ';
+        $checksum = array_sum(unpack('C*', $header));
+        $checksum = str_pad(decoct($checksum), 6, '0', STR_PAD_LEFT) . self::NULL_BYTE . ' ';
         $header = substr_replace($header, $checksum, 148, 8);
 
         return $header;
     }
 
-    private function print_file($file) {
-        // Send file content in segments to not hit PHP's memory limit (default: 128M)
+    private function print_file(string $file): void {
         if ($fd = fopen($file, 'rb')) {
             while (!feof($fd)) {
-                print fread($fd, Archive::$SEGMENT_SIZE);
+                print fread($fd, self::$SEGMENT_SIZE);
                 @ob_flush();
                 @flush();
             }
@@ -134,9 +128,9 @@ class Archive {
         }
     }
 
-    private function add_hrefs($hrefs) {
+    private function add_hrefs(string|array $hrefs): void {
         if (!is_array($hrefs)) {
-            $hrefs = array($hrefs);
+            $hrefs = [$hrefs];
         }
 
         foreach ($hrefs as $href) {
@@ -149,48 +143,45 @@ class Archive {
             $n = basename($href);
 
             if ($this->context->is_managed_href($d) && !$this->context->is_hidden($n)) {
-
                 $real_file = $this->context->to_path($href);
                 $archived_file = preg_replace('!^' . preg_quote(Util::normalize_path($this->base_path, true)) . '!', '', $real_file);
 
                 if (is_dir($real_file) && !is_link($real_file)) {
                     $this->add_dir($real_file, $archived_file);
-                } else if (!is_dir($real_file)) {
+                } elseif (!is_dir($real_file)) {
                     $this->add_file($real_file, $archived_file);
                 }
             }
         }
     }
 
-    private function add_file($real_file, $archived_file) {
+    private function add_file(string $real_file, string $archived_file): void {
         if (is_readable($real_file)) {
             $this->files[$real_file] = $archived_file;
         }
     }
 
-    private function add_dir($real_dir, $archived_dir, &$visited = []) {
-        $real_path = realpath($real_dir);
-        if ($real_path === false) {
-            $real_path = $real_dir;
-        }
-        if (in_array($real_path, $visited)) {
+    private function add_dir(string $real_dir, string $archived_dir, array &$visited = []): void {
+        $real_path = realpath($real_dir) ?: $real_dir;
+        if (in_array($real_path, $visited, true)) {
             return;
         }
         $visited[] = $real_path;
 
-        if ($this->context->is_managed_path($real_dir)) {
-            $this->dirs[$real_dir] = $archived_dir;
+        if (!$this->context->is_managed_path($real_dir)) {
+            return;
+        }
 
-            $files = $this->context->read_dir($real_dir);
-            foreach ($files as $file) {
-                $real_file = $real_dir . '/' . $file;
-                $archived_file = $archived_dir . '/' . $file;
+        $this->dirs[$real_dir] = $archived_dir;
 
-                if (is_dir($real_file) && !is_link($real_file)) {
-                    $this->add_dir($real_file, $archived_file, $visited);
-                } else if (!is_dir($real_file)) {
-                    $this->add_file($real_file, $archived_file);
-                }
+        foreach ($this->context->read_dir($real_dir) as $file) {
+            $real_file = $real_dir . '/' . $file;
+            $archived_file = $archived_dir . '/' . $file;
+
+            if (is_dir($real_file) && !is_link($real_file)) {
+                $this->add_dir($real_file, $archived_file, $visited);
+            } elseif (!is_dir($real_file)) {
+                $this->add_file($real_file, $archived_file);
             }
         }
     }

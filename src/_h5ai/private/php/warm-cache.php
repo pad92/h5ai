@@ -6,7 +6,7 @@ if (php_sapi_name() !== 'cli') {
 
 // Define variables to mock the web server environment
 define('H5AI_VERSION', '{{VERSION}}');
-define('MIN_PHP_VERSION', '7.0.0');
+define('MIN_PHP_VERSION', '8.4.0');
 
 $_SERVER['REQUEST_METHOD'] = 'GET';
 $_SERVER['REQUEST_URI'] = '/';
@@ -14,7 +14,7 @@ $_SERVER['SCRIPT_NAME'] = '/_h5ai/public/index.php';
 $_SERVER['SERVER_SOFTWARE'] = 'CLI';
 $_SERVER['HTTP_USER_AGENT'] = 'CLI';
 
-require_once dirname(__FILE__) . '/class-bootstrap.php';
+require_once __DIR__ . '/class-bootstrap.php';
 spl_autoload_register(['Bootstrap', 'autoload']);
 
 $session = new Session($_SESSION);

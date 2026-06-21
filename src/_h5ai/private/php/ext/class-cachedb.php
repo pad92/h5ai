@@ -1,77 +1,53 @@
 <?php
 
 class CacheDB {
-    /* Wrapper around SQLite3 DB to cache failed archive file parsing attempts. */
-    private $setup;
-    private $conn;
-    private $sel_stmt;
-    private $ins_stmt;
-    private $version;
+    private ?SQLite3 $conn = null;
+    private ?SQLite3Stmt $sel_stmt = null;
+    private ?SQLite3Stmt $ins_stmt = null;
+    private int $version;
 
-    public function __construct($setup) {
-        $this->setup = $setup;
+    public function __construct(private readonly Setup $setup) {
         $this->create($setup->get('CACHE_PRV_PATH') . '/thumbs_cache.db');
         $this->setup_version();
     }
 
     public function __destruct() {
-        if (isset($this->conn)) {
-            $this->conn->close();
-        }
+        $this->conn?->close();
     }
 
-    public function create($path) {
+    public function create(string $path): void {
         if (!extension_loaded('sqlite3')) {
-            // error_log("H5AI warning: sqlite3 module not found.");
-            $this->conn = null;
             return;
         }
-        if (file_exists($path)) {
-            $this->conn = new SQLite3($path);
-            $this->conn->exec('PRAGMA journal_mode = WAL;');
-            $this->conn->exec('PRAGMA synchronous = NORMAL;');
-            $this->conn->exec('PRAGMA temp_store = MEMORY;');
-            return;
-        }
+        $is_new = !file_exists($path);
         $db = new SQLite3($path);
-        $db->exec('PRAGMA journal_mode = WAL;');
-        $db->exec('PRAGMA synchronous = NORMAL;');
-        $db->exec('PRAGMA temp_store = MEMORY;');
+        $db->exec('PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA temp_store = MEMORY;');
 
-        // Record handled file types.
-        $db->exec('CREATE TABLE types
- (id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
- type TEXT UNIQUE);');
+        if ($is_new) {
+            $db->exec('CREATE TABLE types (id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, type TEXT UNIQUE);');
 
-        foreach(Thumb::HANDLED_TYPES as $key => $array) {
-            foreach($array as $type) {
-                $db->exec('INSERT OR IGNORE INTO types
- VALUES (NULL, \''. $type .'\');');
+            foreach (Thumb::HANDLED_TYPES as $array) {
+                foreach ($array as $type) {
+                    $db->exec("INSERT OR IGNORE INTO types VALUES (NULL, '{$type}');");
+                }
             }
-        }
 
-        /* Record files that either caused a problem while trying to generate
-        thumbnails, or whose actual type got misdetected from their filename. */
-        $db->exec('CREATE TABLE archives
+            $db->exec('CREATE TABLE archives
  (hashedp TEXT NOT NULL UNIQUE PRIMARY KEY,
- typeid INTEGER,
- error INTEGER,
- ver INTEGER,
- tstamp INTEGER,
+ typeid INTEGER, error INTEGER, ver INTEGER, tstamp INTEGER,
  FOREIGN KEY(typeid) REFERENCES types(id)) WITHOUT ROWID;');
+        }
 
         $this->conn = $db;
     }
 
-    public function insert($hash, $type, $error = null) {
+    public function insert(string $hash, string $type, ?int $error = null): void {
         if (!$this->conn) {
             return;
         }
-        if (!isset($this->ins_stmt)) {
-            // Cache this statement for reuse.
-            $this->ins_stmt = $this->conn->prepare(
-'INSERT OR REPLACE INTO archives VALUES (:id, :typeid, :err, :ver, :time);');
-        }
+        $this->ins_stmt ??= $this->conn->prepare(
+            'INSERT OR REPLACE INTO archives VALUES (:id, :typeid, :err, :ver, :time);');
+
         $stmt = $this->ins_stmt;
         $stmt->reset();
 
@@ -79,33 +55,30 @@ class CacheDB {
 
         $escaped_type = SQLite3::escapeString($type);
         $typeid = $this->conn->querySingle(
-            'SELECT id FROM types WHERE type = \'' . $escaped_type . '\';');
+            "SELECT id FROM types WHERE type = '{$escaped_type}';");
         if (!$typeid) {
-            // New type, then get back its index from the types table.
             $this->conn->exec(
-                'INSERT INTO types VALUES (NULL, \'' . $escaped_type . '\');');
+                "INSERT INTO types VALUES (NULL, '{$escaped_type}');");
             $typeid = $this->conn->querySingle(
-                'SELECT id FROM types WHERE type = \'' . $escaped_type . '\';');
+                "SELECT id FROM types WHERE type = '{$escaped_type}';");
         }
         $stmt->bindValue(':typeid', $typeid, SQLITE3_INTEGER);
         $stmt->bindValue(':err', $error, SQLITE3_INTEGER);
         $stmt->bindValue(':ver', $this->version, SQLITE3_INTEGER);
-        $stmt->bindvalue(':time', time(), SQLITE3_INTEGER);
+        $stmt->bindValue(':time', time(), SQLITE3_INTEGER);
         $stmt->execute();
     }
 
-    public function select($hash) {
+    public function select(string $hash): ?array {
         if (!$this->conn) {
             return [];
         }
-        if (!isset($this->sel_stmt)) {
-            // Cache this statement for reuse, might speed things up.
-            $this->sel_stmt = $this->conn->prepare(
-                'SELECT archives.ver, archives.tstamp, types.type
+        $this->sel_stmt ??= $this->conn->prepare(
+            'SELECT archives.ver, archives.tstamp, types.type
  FROM archives, types
  WHERE hashedp = :id
  and archives.typeid = types.id;');
-        }
+
         $stmt = $this->sel_stmt;
         $stmt->reset();
 
@@ -115,19 +88,14 @@ class CacheDB {
         $row = $res->fetchArray(SQLITE3_ASSOC);
         $res->finalize();
 
-        if ($row) {
-            return $row;
-        }
-        return null;
+        return $row ?: null;
     }
 
-    public function obsolete_entry($row, $mtime) {
+    public function obsolete_entry(array $row, int|false $mtime): bool {
         return ($mtime > $row['tstamp']) || ($this->version !== $row['ver']);
     }
 
-    public function setup_version() {
-        /* Returns an integer representing the available file handlers
-           at the time of failure. */
+    public function setup_version(): int {
         $hash = 0;
         $hash |= $this->setup->get('HAS_PHP_ZIP') ? 0b0001 : 0;
         $hash |= $this->setup->get('HAS_PHP_RAR') ? 0b0010 : 0;
