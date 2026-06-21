@@ -5,6 +5,8 @@ class Thumb {
     const FFPROBE_CMDV = ['ffprobe', '-v', 'warning', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', '[H5AI_SRC]'];
     const AVCONV_CMDV = ['avconv', '-v', 'warning', '-nostdin', '-y', '-hide_banner', '-ss', '[H5AI_DUR]', '-i', '[H5AI_SRC]', '-an', '-vframes', '1', '-f', 'image2', '-'];
     const AVPROBE_CMDV = ['avprobe', '-v', 'warning', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', '[H5AI_SRC]'];
+    const FFMPEG_AUD_CMDV = ['ffmpeg', '-v', 'warning', '-nostdin', '-y', '-hide_banner', '-i', '[H5AI_SRC]', '-an', '-vframes', '1', '-f', 'image2', '-'];
+    const AVCONV_AUD_CMDV = ['avconv', '-v', 'warning', '-nostdin', '-y', '-hide_banner', '-i', '[H5AI_SRC]', '-an', '-vframes', '1', '-f', 'image2', '-'];
     const CONVERT_CMDV = ['convert', '-density', '200', '-quality', '100', '-strip', '[H5AI_SRC][0]', 'WEBP:-'];
     const GM_CONVERT_CMDV = ['gm', 'convert', '-density', '200', '-quality', '100', '-strip', '[H5AI_SRC][0]', 'WEBP:-'];
     const THUMB_CACHE = 'thumbs';
@@ -18,6 +20,7 @@ class Thumb {
         'swf' => ['vid-swf', 'vid-flv'],
         'ar-zip' => ['ar', 'ar-zip', 'ar-cbr'],
         'ar-rar' => ['ar-rar'],
+        'aud' => ['aud'],
         'file' => ['file']
     );
 
@@ -290,6 +293,33 @@ class Thumb {
                 return $this->do_capture($conv_cmd, $timestamp);
             } catch (Exception $e) {
                 return $this->capture('file');
+            }
+        }
+        else if ($handler === 'aud') {
+            if ($this->setup->get('HAS_CMD_FFMPEG')) {
+                $cmdv = self::FFMPEG_AUD_CMDV;
+            } else if ($this->setup->get('HAS_CMD_AVCONV')) {
+                $cmdv = self::AVCONV_AUD_CMDV;
+            } else {
+                return false;
+            }
+            try {
+                foreach ($cmdv as &$arg) {
+                    $arg = str_replace('[H5AI_SRC]', $this->source_path, $arg);
+                }
+                $capture_data = fopen("php://temp/maxmemory:" . 2 * 1024 * 1024, 'r+');
+                $error = null;
+                Util::proc_open_cmdv($cmdv, $capture_data, $error);
+                rewind($capture_data);
+                $content = stream_get_contents($capture_data);
+                if (empty($content)) {
+                    fclose($capture_data);
+                    return false;
+                }
+                rewind($capture_data);
+                return $this->do_capture_img($capture_data);
+            } catch (Exception $e) {
+                return false;
             }
         }
         else if ($handler === 'doc') {

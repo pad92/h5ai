@@ -693,6 +693,9 @@ const initUI = () => {
             <button class="ap-btn ap-btn-queue" id="ap-queue-btn" title="Toggle Queue">
                 <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg>
             </button>
+            <button class="ap-btn ap-btn-close" id="ap-close-btn" title="Stop and close player">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
         </div>
     </div>
     `;
@@ -794,6 +797,12 @@ const initUI = () => {
     });
 
     dom('#aq-clear').on('click', clearQueue);
+
+    dom('#ap-close-btn').on('click', () => {
+        dom('#audio-queue-panel').rmCls('active');
+        dom('#ap-queue-btn').rmCls('active');
+        clearQueue();
+    });
 };
 
 const initAudio = () => {

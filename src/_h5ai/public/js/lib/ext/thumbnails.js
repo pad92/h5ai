@@ -9,14 +9,15 @@ const defaults = {
     mov: ['vid-avi', 'vid-mkv', 'vid-flv', 'vid-swf', 'vid-mov', 'vid-mp4', 'vid-mpg', 'vid-webm', 'vid-wmv', 'vid-ts'],
     doc: ['x-pdf', 'x-ps'],
     ar: ['ar-zip', 'ar-rar'],
+    aud: ['aud'],
     delay: 1,
     exif: false,
     chunksize: 20,
     blocklist: []
 };
-const default_types = defaults.img.concat(defaults.mov, defaults.doc, defaults.ar);
+const default_types = defaults.img.concat(defaults.mov, defaults.doc, defaults.ar, defaults.aud);
 const settings = Object.assign(defaults, allsettings.thumbnails);
-const current_settings = settings.img.concat(settings.mov, settings.doc, settings.ar);
+const current_settings = settings.img.concat(settings.mov, settings.doc, settings.ar, settings.aud);
 settings.blocklist = settings.blocklist.concat(
     difference(default_types, current_settings));
 

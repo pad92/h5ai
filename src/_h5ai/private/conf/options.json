@@ -392,6 +392,7 @@
         "mov": ["vid-avi", "vid-mkv", "vid-flv", "vid-swf", "vid-mov", "vid-mp4", "vid-mpg", "vid-webm", "vid-wmv", "vid-ts"],
         "doc": ["x-pdf", "x-ps"],
         "ar": ["ar-zip", "ar-rar"],
+        "aud": ["aud"],
         "delay": 1,
         "size": 240,
         "seek": 50,

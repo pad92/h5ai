@@ -29,6 +29,7 @@ class CacheWarmer
             $this->img_types = $this->context->query_option('thumbnails.img', []);
             $this->mov_types = $this->context->query_option('thumbnails.mov', []);
             $this->doc_types = $this->context->query_option('thumbnails.doc', []);
+            $this->aud_types = $this->context->query_option('thumbnails.aud', []);
         }
     }
 
@@ -72,6 +73,8 @@ class CacheWarmer
                         $thumb_type = 'mov';
                     } elseif (in_array($type, $this->doc_types)) {
                         $thumb_type = 'doc';
+                    } elseif (in_array($type, $this->aud_types)) {
+                        $thumb_type = 'aud';
                     }
 
                     if ($thumb_type !== null) {
