@@ -1,4 +1,4 @@
-const {each, values, difference} = require('../util');
+const {each, values, difference, filter} = require('../util');
 
 const {request} = require('../server');
 const allsettings = require('./settings');
@@ -102,6 +102,10 @@ const load = () => {
 const refresh = () => {
     const item = getItem();
     const oldItems = values(item.content);
+    const oldProps = {};
+    each(oldItems, i => {
+        oldProps[i.absHref] = {size: i.size, time: i.time};
+    });
 
     event.pub('location.beforeRefresh');
 
@@ -109,8 +113,12 @@ const refresh = () => {
         const newItems = values(item.content);
         const added = difference(newItems, oldItems);
         const removed = difference(oldItems, newItems);
+        const updated = filter(newItems, i => {
+            const old = oldProps[i.absHref];
+            return old && (old.size !== i.size || old.time !== i.time);
+        });
 
-        event.pub('location.refreshed', item, added, removed);
+        event.pub('location.refreshed', item, added, removed, updated);
     });
 };
 

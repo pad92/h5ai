@@ -5,6 +5,8 @@ class Filesize {
     private static $persistent_cache = null;
     private static $persistent_cache_dirty = false;
     private static $persistent_cache_path = null;
+    private static $async_mode = false;
+    private static $stale_paths = [];
 
     private static function init_persistent_cache() {
         if (self::$persistent_cache !== null) {
@@ -62,6 +64,14 @@ class Filesize {
         return $fs->size($path, $withFoldersize, $withDu);
     }
 
+    public static function set_async_mode($enabled) {
+        self::$async_mode = $enabled;
+    }
+
+    public static function get_stale_paths() {
+        return array_unique(self::$stale_paths);
+    }
+
     public static function getCachedSize($path, $withFoldersize, $withDu) {
         if (array_key_exists($path, Filesize::$cache)) {
             return Filesize::$cache[$path];
@@ -76,6 +86,16 @@ class Filesize {
                     Filesize::$cache[$path] = $size;
                     return $size;
                 }
+                if (self::$async_mode) {
+                    $size = $entry['size'];
+                    Filesize::$cache[$path] = $size;
+                    self::$stale_paths[] = $path;
+                    return $size;
+                }
+            } else if (self::$async_mode) {
+                Filesize::$cache[$path] = null;
+                self::$stale_paths[] = $path;
+                return null;
             }
         }
 

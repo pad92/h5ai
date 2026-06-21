@@ -234,7 +234,7 @@ const onLocationChanged = item => {
     setItems(items);
 };
 
-const onLocationRefreshed = (item, added, removed) => {
+const onLocationRefreshed = (item, added, removed, updated) => {
     const add = [];
 
     each(added, child => {
@@ -245,6 +245,15 @@ const onLocationRefreshed = (item, added, removed) => {
 
     setHint('empty');
     changeItems(add, removed);
+
+    if (updated) {
+        each(updated, child => {
+            if (child.$view) {
+                child.$view.find('.size').attr('data-bytes', child.size).text(format.formatSize(child.size));
+                child.$view.find('.date').attr('data-time', child.time).text(format.formatDate(child.time));
+            }
+        });
+    }
 };
 
 const onResize = () => {

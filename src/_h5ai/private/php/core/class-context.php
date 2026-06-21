@@ -188,6 +188,8 @@ class Context {
             return [];
         }
 
+        Filesize::set_async_mode(true);
+
         $cache = [];
         $folder = Item::get($this, $this->to_path($href), $cache);
 
@@ -202,10 +204,12 @@ class Context {
             $folder->get_content($cache);
             $folder = $folder->get_parent($cache);
         }
-        
+
         if ($what == 1 && $folder !== null) {
             $folder->get_content($cache);
         }
+
+        Filesize::set_async_mode(false);
 
         uasort($cache, ['Item', 'cmp']);
         $result = [];
@@ -247,7 +251,19 @@ class Context {
                 }
             }
         }
+        $stale_paths = Filesize::get_stale_paths();
+        if (!empty($stale_paths)) {
+            $this->trigger_folder_refresh($stale_paths);
+        }
+
         return $result;
+    }
+
+    private function trigger_folder_refresh($paths) {
+        $script_path = $this->setup->get('PRIVATE_PATH') . '/php/refresh-cache.php';
+        $args = implode(' ', array_map('escapeshellarg', $paths));
+        $cmd = "nice -n 19 php " . escapeshellarg($script_path) . " " . $args . " > /dev/null 2>&1 &";
+        @exec($cmd);
     }
 
     public function get_langs() {
