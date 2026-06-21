@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.1.7 - *2026-06-21*
+
+* **Audio Preview & Thumbnails**:
+    * Added audio thumbnail generation using ffmpeg/avconv.
+    * Added a close/stop button to the audio player queue interface.
+* **Asynchronous Cache & Refresh**:
+    * Implemented background/asynchronous foldersize calculation and cache warming using a CLI helper script (`refresh-cache.php`).
+    * Added real-time folder item size and date refresh on location refresh events.
+
+
 ## v1.1.6 - *2026-06-21*
 
 * **Tree State & Cache Enhancements**:
