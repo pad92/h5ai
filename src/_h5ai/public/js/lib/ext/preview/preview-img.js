@@ -286,15 +286,21 @@ const load = item => {
         }
     });
 
-    return Promise.resolve(href)
-        .then(h => {
-            return settings.size ? requestSample(h) : h;
-        })
-        .then(h => new Promise(resolve => {
-            const $el = dom(tpl)
-                .on('load', () => resolve($el))
-                .attr('src', h);
-        }));
+    const loadSrc = src => new Promise((resolve, reject) => {
+        const $el = dom(tpl)
+            .on('load', () => resolve($el))
+            .on('error', () => reject($el))
+            .attr('src', src);
+    });
+
+    // Display the original photo. Fall back to a server-generated sample only
+    // when the browser cannot decode the original (e.g. camera RAW formats).
+    return loadSrc(href).catch(() => {
+        if (!settings.size) {
+            throw new Error('unable to load image');
+        }
+        return requestSample(href).then(loadSrc);
+    });
 };
 
 const init = () => {

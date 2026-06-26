@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.2.4 - *2026-06-26*
+
+* **Image preview**: clicking a photo now displays the original full-resolution image instead of a server-generated downscaled sample. The reduced sample is only used as a fallback when the browser cannot decode the original (e.g. camera RAW formats).
+
+
 ## v1.2.3 - *2026-06-26*
 
 * **Image preview**: clicking a photo now opens its preview directly in fullscreen (instead of the windowed 80% view), with the toolbar auto-hiding after a short delay. Other media types keep their previous behaviour and the fullscreen toggle (button / `f` key) still works.
