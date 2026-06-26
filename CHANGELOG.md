@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.2.3 - *2026-06-26*
+
+* **Image preview**: clicking a photo now opens its preview directly in fullscreen (instead of the windowed 80% view), with the toolbar auto-hiding after a short delay. Other media types keep their previous behaviour and the fullscreen toggle (button / `f` key) still works.
+
+
 ## v1.2.2 - *2026-06-26*
 
 * **Folder size performance (`du`)**:

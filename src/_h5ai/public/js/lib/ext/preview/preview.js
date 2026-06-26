@@ -262,11 +262,16 @@ const onTouchend = ev => {
 
 const enter = () => {
     setLabels([]);
+    // Open images directly in fullscreen
+    if (session && session.item && session.item.type && session.item.type.indexOf('img') === 0) {
+        isFullscreen = true;
+    }
     dom('#pv-container')
         .on('touchstart', onTouchstart)
         .clr();
     dom('#pv-overlay').show();
     dom(win).on('keydown', onKeydown);
+    userAlive();
     updateGui();
 };
 
