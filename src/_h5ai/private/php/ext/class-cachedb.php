@@ -4,6 +4,7 @@ class CacheDB {
     private ?SQLite3 $conn = null;
     private ?SQLite3Stmt $sel_stmt = null;
     private ?SQLite3Stmt $ins_stmt = null;
+    private ?SQLite3Stmt $sel_type_stmt = null;
     private int $version;
 
     public function __construct(private readonly Setup $setup) {
@@ -71,7 +72,9 @@ class CacheDB {
     }
 
     private function select_typeid(string $type): ?int {
-        $stmt = $this->conn->prepare('SELECT id FROM types WHERE type = :type;');
+        $this->sel_type_stmt ??= $this->conn->prepare('SELECT id FROM types WHERE type = :type;');
+        $stmt = $this->sel_type_stmt;
+        $stmt->reset();
         $stmt->bindValue(':type', $type, SQLITE3_TEXT);
         $res = $stmt->execute();
         $row = $res->fetchArray(SQLITE3_ASSOC);
@@ -81,7 +84,7 @@ class CacheDB {
 
     public function select(string $hash): ?array {
         if (!$this->conn) {
-            return [];
+            return null;
         }
         $this->sel_stmt ??= $this->conn->prepare(
             'SELECT archives.ver, archives.tstamp, types.type

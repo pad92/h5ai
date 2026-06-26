@@ -13,6 +13,8 @@ class Context {
     private array $options;
     private string $passhash;
     private ?array $types = null;
+    private array $managed_cache = [];
+    private ?array $foldersize_mode = null;
 
     public function __construct(
         private readonly Session $session,
@@ -44,6 +46,15 @@ class Context {
 
     public function query_option(string $keypath = '', mixed $default = null): mixed {
         return Util::array_query($this->options, $keypath, $default);
+    }
+
+    // [$withFoldersize, $withDu] for the current request. Constant per request,
+    // so it is memoized to avoid recomputing it for every listed item.
+    public function foldersize_mode(): array {
+        return $this->foldersize_mode ??= [
+            $this->query_option('foldersize.enabled', false),
+            $this->setup->get('HAS_CMD_DU') && $this->query_option('foldersize.type', null) === 'shell-du',
+        ];
     }
 
     public function get_types(): array {
@@ -147,6 +158,12 @@ class Context {
     }
 
     public function is_managed_path(string $path): bool {
+        // Result is stable within a request but the check is costly (realpath +
+        // walking up to the root), and it runs once per listed sub-folder.
+        return $this->managed_cache[$path] ??= $this->compute_is_managed_path($path);
+    }
+
+    private function compute_is_managed_path(string $path): bool {
         if (!is_dir($path) || str_contains($path, '../') || str_contains($path, '/..') || $path === '..') {
             return false;
         }
@@ -235,31 +252,21 @@ class Context {
         $db = new CacheDB($this->setup);
         $height = $this->options['thumbnails']['size'] ?? 240;
         $width = (int) floor($height * (4 / 3));
-        $supported_formats = ['png', 'jpg', 'jpeg', 'webp'];
 
         foreach ($result as &$item_obj) {
             if (!isset($item_obj['managed'])) {
                 continue;
             }
-            $folder_path = $this->to_path($item_obj['href']);
-            $thumb_dir = $folder_path . '/_thumb';
-
-            if (!is_dir($thumb_dir)) {
-                continue;
-            }
-            $files = @scandir($thumb_dir);
-            if (!$files) {
+            $custom_thumb = Thumb::check_custom_thumb($this->to_path($item_obj['href']));
+            if ($custom_thumb === null) {
                 continue;
             }
 
-            $match = array_find($files, fn(string $file): bool => in_array(strtolower(pathinfo($file, PATHINFO_EXTENSION)), $supported_formats, true));
-            if ($match !== null) {
-                $thumb_gen = new Thumb($this, $thumb_dir . '/' . $match, 'img', $db);
-                $thumb_href = $thumb_gen->thumb($width, $height);
-                if ($thumb_href) {
-                    $item_obj['thumbSquare'] = $thumb_href;
-                    $item_obj['thumbRational'] = $thumb_href;
-                }
+            $thumb_gen = new Thumb($this, $custom_thumb, 'img', $db);
+            $thumb_href = $thumb_gen->thumb($width, $height);
+            if ($thumb_href) {
+                $item_obj['thumbSquare'] = $thumb_href;
+                $item_obj['thumbRational'] = $thumb_href;
             }
         }
         unset($item_obj);

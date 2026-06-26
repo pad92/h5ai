@@ -167,37 +167,60 @@ class Filesize {
         return $lines;
     }
 
-    private function exec_du_all(array $paths): array {
-        $cmdv = ['du', '-sbL', ...$paths];
-        $lines = $this->exec($cmdv);
+    // Single `du -bL` pass over the given paths. Without `-s`, du prints the
+    // cumulative apparent size of every directory it visits, so one process
+    // yields the sizes of the whole subtree of every path at once.
+    // Returns a map [dir_path => size].
+    private function du_tree(array $paths): array {
+        if (empty($paths)) {
+            return [];
+        }
+        $lines = $this->exec(['du', '-bL', ...$paths]);
 
         $sizes = [];
         foreach ($lines as $line) {
-            $parts = preg_split('/[\s]+/', $line, 2);
-            $sizes[$parts[1]] = (int) $parts[0];
+            $parts = preg_split('/\s+/', $line, 2);
+            if (count($parts) === 2) {
+                $sizes[$parts[1]] = (int) $parts[0];
+            }
         }
         return $sizes;
     }
 
-    private function exec_du(string $path): int {
-        return $this->exec_du_all([$path])[$path];
+    // Derive the [dir => mtime] cache-validation map for $path straight from a
+    // du subtree map: du already enumerated every descendant directory, so we
+    // only need to stat directories instead of re-walking the whole tree.
+    private function dirs_from_tree(string $path, array $tree): array {
+        $prefix = $path . '/';
+        $dirs = [];
+        foreach (array_keys($tree) as $dir) {
+            if ($dir === $path || str_starts_with($dir, $prefix)) {
+                $dirs[$dir] = @filemtime($dir);
+            }
+        }
+        if (!isset($dirs[$path])) {
+            $dirs[$path] = @filemtime($path);
+        }
+        return $dirs;
     }
 
-    private function get_all_subdirs(string $path): array {
-        $dirs = [$path => @filemtime($path)];
-        try {
-            $iterator = new RecursiveIteratorIterator(
-                new RecursiveDirectoryIterator($path, RecursiveDirectoryIterator::SKIP_DOTS),
-                RecursiveIteratorIterator::SELF_FIRST,
-            );
-            foreach ($iterator as $item) {
-                if ($item->isDir()) {
-                    $p = Util::normalize_path($item->getPathname(), false);
-                    $dirs[$p] = @filemtime($p);
-                }
-            }
-        } catch (\Exception) {}
-        return $dirs;
+    // Compute and cache folder sizes for several paths with a single du call.
+    public static function refresh_du(array $paths): void {
+        new self()->batch_du($paths);
+    }
+
+    private function batch_du(array $paths): void {
+        $paths = array_values(array_filter($paths, is_dir(...)));
+        if (empty($paths)) {
+            return;
+        }
+        $tree = $this->du_tree($paths);
+        foreach ($paths as $path) {
+            $size = $tree[$path] ?? 0;
+            $dirs = $this->dirs_from_tree($path, $tree);
+            self::set_persistent_cache_entry($path, $size, $dirs);
+            self::$cache[$path] = $size;
+        }
     }
 
     private function size(string $path, bool $withFoldersize = false, bool $withDu = false): ?int {
@@ -207,8 +230,9 @@ class Filesize {
 
         if (is_dir($path) && $withFoldersize) {
             if ($withDu) {
-                $size = $this->exec_du($path);
-                $dirs = $this->get_all_subdirs($path);
+                $tree = $this->du_tree([$path]);
+                $size = $tree[$path] ?? 0;
+                $dirs = $this->dirs_from_tree($path, $tree);
                 self::set_persistent_cache_entry($path, $size, $dirs);
                 return $size;
             }

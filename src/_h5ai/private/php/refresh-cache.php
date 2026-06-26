@@ -28,13 +28,18 @@ if (!$fp || !flock($fp, LOCK_EX | LOCK_NB)) {
     exit(0);
 }
 
-$withFoldersize = $context->query_option('foldersize.enabled', false);
-$withDu = $setup->get('HAS_CMD_DU') && $context->query_option('foldersize.type', null) === 'shell-du';
+[$withFoldersize, $withDu] = $context->foldersize_mode();
 
 $paths = array_slice($argv, 1);
-foreach ($paths as $path) {
-    if (is_dir($path) && $withFoldersize) {
-        Filesize::getSize($path, $withFoldersize, $withDu);
+if ($withFoldersize) {
+    $paths = array_values(array_filter($paths, is_dir(...)));
+    if ($withDu) {
+        // One du process for every stale folder instead of one per folder.
+        Filesize::refresh_du($paths);
+    } else {
+        foreach ($paths as $path) {
+            Filesize::getSize($path, $withFoldersize, $withDu);
+        }
     }
 }
 

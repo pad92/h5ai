@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.2.2 - *2026-06-26*
+
+* **Folder size performance (`du`)**:
+    * Replaced the per-folder `du -sbL` call plus a full PHP re-walk of the same tree with a single `du -bL` pass: one process now yields the cumulative size of the whole subtree, and the cache-validation `mtime` map is derived directly from `du`'s output (directories only) instead of a second `RecursiveDirectoryIterator` traversal.
+    * Background cache refresh (`refresh-cache.php`) now computes all stale folders in a **single batched `du` process** (`Filesize::refresh_du()`) instead of spawning one process per folder.
+    * Dropped the now-redundant `exec_du`, `exec_du_all` and `get_all_subdirs` helpers; hardened `du` output parsing against paths containing spaces and malformed lines.
+* **Other optimizations & cleanup**:
+    * Memoized `Context::is_managed_path()` (was recomputed — `realpath()` + walk to root — once per listed sub-folder per request).
+    * Centralized the `withFoldersize`/`withDu` option lookup in a memoized `Context::foldersize_mode()`, removing the duplicated computation in `Util`, `CacheWarmer` and `refresh-cache.php`.
+    * De-duplicated the custom-thumbnail (`_thumb`) detection: `get_items()` now reuses `Thumb::check_custom_thumb()`, and the supported-format list is a single `Thumb::CUSTOM_THUMB_EXT` constant.
+    * `CacheDB`: cached the `select_typeid` prepared statement, and `select()` consistently returns `null` when SQLite is unavailable.
+
+
 ## v1.2.1 - *2026-06-26*
 
 * **Security Hardening** (addresses Snyk findings and a wider audit):

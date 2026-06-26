@@ -67,8 +67,7 @@ class CacheWarmer {
             }
         }
 
-        $withFoldersize = $this->context->query_option('foldersize.enabled', false);
-        $withDu = $this->setup->get('HAS_CMD_DU') && $this->context->query_option('foldersize.type', null) === 'shell-du';
+        [$withFoldersize, $withDu] = $this->context->foldersize_mode();
         if ($withFoldersize) {
             Filesize::getCachedSize($path, $withFoldersize, $withDu);
         }

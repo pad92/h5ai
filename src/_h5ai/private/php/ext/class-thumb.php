@@ -16,6 +16,8 @@ class Thumb {
     const GM_CONVERT_CMDV = ['gm', 'convert', '-density', '200', '-quality', '100', '-strip', '[H5AI_SRC][0]', 'WEBP:-'];
     const THUMB_CACHE = 'thumbs';
     const IMG_EXT = ['jpg', 'jpe', 'jpeg', 'jp2', 'jpx', 'tiff', 'webp', 'ico', 'png', 'bmp', 'gif'];
+    // Formats accepted for user-provided custom thumbnails in a `_thumb` folder.
+    const CUSTOM_THUMB_EXT = ['png', 'jpg', 'jpeg', 'webp'];
 
     public const HANDLED_TYPES = [
         'img' => ['img', 'img-bmp', 'img-jpg', 'img-gif', 'img-png', 'img-raw', 'img-tiff', 'img-svg', 'img-webp'],
@@ -73,21 +75,19 @@ class Thumb {
         return $this->type;
     }
 
-    private function check_custom_thumb(string $source_path): ?string {
-        $supported_formats = ['png', 'jpg', 'jpeg', 'webp'];
-
+    public static function check_custom_thumb(string $source_path): ?string {
         if (is_dir($source_path)) {
             $thumb_dir = $source_path . '/_thumb';
             if (is_dir($thumb_dir)) {
                 $files = @scandir($thumb_dir);
                 if ($files) {
-                    $match = array_find($files, fn(string $file): bool => in_array(strtolower(pathinfo($file, PATHINFO_EXTENSION)), $supported_formats, true));
+                    $match = array_find($files, fn(string $file): bool => in_array(strtolower(pathinfo($file, PATHINFO_EXTENSION)), self::CUSTOM_THUMB_EXT, true));
                     return $match !== null ? $thumb_dir . '/' . $match : null;
                 }
             }
         } else {
             $fileparts = pathinfo($source_path);
-            $match = array_find($supported_formats, fn(string $format): bool => file_exists($fileparts['dirname'] . '/_thumb/' . $fileparts['filename'] . '.' . $format));
+            $match = array_find(self::CUSTOM_THUMB_EXT, fn(string $format): bool => file_exists($fileparts['dirname'] . '/_thumb/' . $fileparts['filename'] . '.' . $format));
             if ($match !== null) {
                 return $fileparts['dirname'] . '/_thumb/' . $fileparts['filename'] . '.' . $match;
             }
@@ -122,7 +122,7 @@ class Thumb {
         }
 
         $is_directory = is_dir($this->source_path);
-        $custom_thumb_source_path = $this->check_custom_thumb($this->source_path);
+        $custom_thumb_source_path = self::check_custom_thumb($this->source_path);
 
         if ($custom_thumb_source_path) {
             $this->source_path = $custom_thumb_source_path;
