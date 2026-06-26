@@ -99,8 +99,10 @@ const copyPhpAndStatic = () => src([
     .pipe(replace('{{VERSION}}', version))
     .pipe(dest(BUILD));
 
+// Keep conf JSON as strict, comment-free JSON so external tooling (linters,
+// security scanners) can parse the shipped files. h5ai's own parser also
+// accepts comments, but we no longer emit a banner here.
 const copyJson = () => src(`${SRC}/**/conf/*.json`)
-    .pipe(insert.prepend(comment_js))
     .pipe(dest(BUILD));
 
 const copyRootFiles = () => src(`${ROOT}/*.md`)

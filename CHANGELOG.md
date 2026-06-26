@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.2.1 - *2026-06-26*
+
+* **Security Hardening** (addresses Snyk findings and a wider audit):
+    * **XSS**: replaced the hand-rolled blocklist HTML sanitizer with an allowlist-based one (`misc.js`), closing bypasses such as `java\tscript:`, `data:` URIs, `xlink:href`, `srcset` and `style` in rendered Markdown / custom header-footer content.
+    * **SSRF/LFI**: confined `ffmpeg`/`avconv` to local input via `-protocol_whitelist file,crypto,data`, and shipped a restrictive ImageMagick policy (`conf/magick/policy.xml`, activated through `MAGICK_CONFIGURE_PATH`) disabling risky coders (`URL`, `HTTPS`, `MSL`, `SVG`, `MVG`, …) and external delegates.
+    * **Path traversal**: added `realpath()` canonicalization in `is_managed_path()`, ensuring resolved paths stay within the served root and rejecting symlinked directories that escape it.
+    * **Password storage**: `login_admin()` now accepts modern salted `password_hash()` digests (bcrypt/argon2) while keeping backward compatibility with legacy SHA512 hashes.
+    * **Session fixation**: regenerate the session id on admin login and logout.
+    * **SQL**: replaced string-interpolated SQLite statements in `CacheDB` with prepared statements.
+    * **Misc**: skip thumbnail generation for hidden files, and strip CR/LF from log messages to prevent log injection.
+* **Documentation**: documented the new password hashing, the media-processor hardening, and removed comments from `options.json`/`en.json` so they are strict-JSON parseable by external tools.
+
+
 ## v1.2.0 - *2026-06-21*
 
 * **PHP 8.4 Minimum Version**:

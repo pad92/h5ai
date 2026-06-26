@@ -13,4 +13,11 @@ class Session {
         $prefixed = self::KEY_PREFIX . $key;
         return $this->store[$prefixed] ?? $default;
     }
+
+    public function regenerate(): void {
+        // Only meaningful for a real PHP session (no-op in CLI/test context).
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_regenerate_id(true);
+        }
+    }
 }

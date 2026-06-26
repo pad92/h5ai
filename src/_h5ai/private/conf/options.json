@@ -1,24 +1,6 @@
 {
-    /*
-    Password hash.
-
-    SHA512 hash of the info page password, the preset password is the empty string.
-    Online hash generator: http://md5hashing.net/hashing/sha512
-    */
     "passhash": "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e",
 
-
-
-    /*
-    Resources.
-
-    Additional script and style tags added to all pages. Paths not beginning
-    with "http://", "https://" or "/" will be looked up relative to
-    "_h5ai/public/ext/" (no check for existence).
-
-    - scripts: array of strings
-    - styles: array of strings
-    */
     "resources": {
         "scripts": [],
         "styles": [
@@ -26,38 +8,6 @@
         ]
     },
 
-
-
-    /*
-    General view options.
-
-    - binaryPrefix: boolean, set to true uses 1024B=1KiB when formatting file sizes (see http://en.wikipedia.org/wiki/Binary_prefix)
-    - disableSidebar: boolean, hides sidebar and toggle button
-    - fallbackMode: boolean, serve fallback mode
-    - fastBrowsing: boolean, use History API if available (no need to reload the whole page)
-    - fonts: array of strings, fonts to use in regular context
-    - fontsMono: array of strings, fonts to use in monopspaced context
-    - hidden: array of strings, don't list items matching these regular expressions
-    - hideFolders: boolean, hide all folders in the main view
-    - hideIf403: boolean, hide files and folders that are not readable by the server
-    - hideParentFolder: boolean, hide parent folder links in the main view
-    - maxIconSize: number, max size for icons in the main view
-    - modes: array of strings, subset of ["details", "grid", "icons"]
-        the first value indicates the default view mode. If only one value
-        is given the view mode is fixed and the selector buttons are hidden.
-        The user selected view mode is also stored local in modern browsers
-        so that it will be persistent.
-    - modeToggle: boolean, show a view mode toggle in the toolbar, or "next"
-    - setParentFolderLabels: boolean, set parent folder labels to real folder names
-    - sizes: array of numbers
-        the first value indicates the default view size. If only one value
-        is given the view size is fixed and the selector buttons are hidden.
-        The user selected view size is also stored local in modern browsers
-        so that it will be persistent.
-    - theme: string, name of one of the folders in "_h5ai/public/images/themes", defaults to "default"
-    - unmanaged: array of strings, don't manage folders containing one of those files
-    - unmanagedInNewWindow: boolean, open unmanaged links in new window/tab
-    */
     "view": {
         "binaryPrefix": false,
         "disableSidebar": false,
@@ -79,69 +29,25 @@
         "unmanagedInNewWindow": false
     },
 
-
-
-    /*
-    Cache warming configuration.
-
-    - warm_at_startup: boolean, trigger cache warming in background on request
-    - warm_interval: number, interval in seconds between runs (default 86400 = 24h)
-    */
     "cache": {
         "warm_at_startup": true,
         "warm_interval": 86400
     },
 
-
-
-    /*** Extensions (in alphabetical order) ***/
-
-    /*
-    Watch and update current folder content.
-
-    - interval: number, update interval in milliseconds, at least 1000
-    */
     "autorefresh": {
         "enabled": true,
         "interval": 5000
     },
 
-    /*
-    Show a clickable breadcrumb.
-    */
     "crumb": {
         "enabled": true
     },
 
-    /*
-    Allow customized header and footer files.
-    First checks for files "_h5ai.header.html" and "_h5ai.footer.html" in the current directory.
-    If not successful it checks all parent directories (starting in the current directory) for
-    files "_h5ai.headers.html" and "_h5ai.footers.html".
-    Note the different filenames: "header" (only current) - "headers" (current and sub directories)!
-    The file's content will be placed inside a <div/> tag above/below the main content.
-    If a file's extension is ".md" instead of ".html" its content will be interpreted as markdown.
-
-    - stopSearchingAtRoot: boolean, only search for header and footer files until the web root
-        directory. if `false`, will search for header/footer up the entire directory structure,
-        even above the web root
-    */
     "custom": {
         "enabled": true,
         "stopSearchingAtRoot": true
     },
 
-    /*
-    Enable packaged download of selected entries.
-    To select files the "select"-extension needs to be enabled.
-
-    - type: string, "php-tar", "shell-tar" or "shell-zip"
-        "php-tar" uses PHP's PharData class to create a tar archive.
-        "shell-tar" uses the "tar" command line tool to create a tar archive.
-        "shell-zip" uses the "zip" command line tool to create a zip archive. "zip" must be installed (apt install zip).
-    - packageName: string, basename of the download package, null for current filename or foldername
-    - alwaysVisible: boolean, always show download button (defaults to download the current folder)
-    */
     "download": {
         "enabled": true,
         "type": "shell-zip",
@@ -149,19 +55,6 @@
         "alwaysVisible": false
     },
 
-    /*
-    Allow filtering the displayed files and folders in current folder.
-    Checks for substrings.
-
-    If advanced is enabled it checks entries for right order of characters,
-    i.e. "ab" matches "ab", "axb", "xaxbx" but not "ba". Space separated
-    sequences get OR-ed. Searches will be treated as JavaScript regular
-    expressions if you prefix them with "re:".
-
-    - advanced: boolean, use advanced pattern parsing
-    - debounceTime: number, debounce wait time in milliseconds
-    - ignorecase: boolean, ignore case
-    */
     "filter": {
         "enabled": true,
         "advanced": true,
@@ -169,38 +62,16 @@
         "ignorecase": true
     },
 
-    /*
-    Calc the size of folders.
-    This operation is real slow. The calculated sizes differ slightly for both
-    calculation types since "php" only adds the file size, while "shell-du"
-    also adds the sizes for the actual folder files.
-
-    - type: string, "php" (sloooow) or "shell-du" (sloow)
-        "shell-du" must be installed (apt install shell-du).
-    */
     "foldersize": {
         "enabled": true,
         "type": "shell-du"
     },
 
-    /*
-    Adds Google Universial Analytics asynchronous tracking code.
-    see: https://developers.google.com/analytics/devguides/collection/analyticsjs/
-
-    - id: string, account ID
-    */
     "google-analytics-ua": {
         "enabled": false,
         "id": "UA-000000-0"
     },
 
-    /*
-    Enable a generic info side bar.
-
-    - show: boolean, initial visible to first time users
-    - qrcode: boolean, show a QR-Code
-    - qrColor: string, QR-Code fill color
-    */
     "info": {
         "enabled": true,
         "show": false,
@@ -211,66 +82,30 @@
         "qrBackDark": "#212121"
     },
 
-    /*
-    Localization, for example "en", "de" etc. - see "_h5ai/conf/l10n" folder for
-    possible values. Adjust it to your needs. If lang is not found
-    it defaults to "en".
-
-    - lang: string, default language
-    - useBroserLang: boolean, try to use browser language
-    */
     "l10n": {
         "enabled": true,
         "lang": "en",
         "useBrowserLang": true
     },
 
-    /*
-    Adds Piwik tracker javascript code.
-
-    - baseURL: string, do not include the protocol, e.g. "mydomain.tld/piwik"
-    - idSite: number
-    */
     "piwik-analytics": {
         "enabled": false,
         "baseURL": "some/url",
         "idSite": 1
     },
 
-    /*
-    Play a audio preview on click.
-
-    - autoplay: start playing as soon as ready
-    - types: array of strings
-    */
     "preview-aud": {
         "enabled": true,
         "autoplay": true,
         "types": ["aud"]
     },
 
-    /*
-    Show an image preview on click.
-
-    - types: array of strings
-    */
     "preview-img": {
         "enabled": true,
         "size": 1000,
         "types": ["img", "img-bmp", "img-gif", "img-ico", "img-jpg", "img-png", "img-raw", "img-svg", "img-webp"]
     },
 
-    /*
-    Show text file preview on click.
-
-    Available styles are:
-      0: floating text
-      1: fixed width text
-      2: markdown
-      3: syntax highlighting
-
-    - styles: dict string to int, maps types to styles
-    */
     "preview-txt": {
         "enabled": true,
         "styles": {
@@ -306,31 +141,12 @@
         }
     },
 
-    /*
-    Play a video preview on click.
-
-    - autoplay: start playing as soon as ready
-    - types: array of strings
-    */
     "preview-vid": {
         "enabled": true,
         "autoplay": true,
         "types": ["vid-mkv", "vid-mov", "vid-mp4", "vid-mpg", "vid-webm"]
     },
 
-    /*
-    Allow searching files and folders in and below current folder.
-    Checks for substrings.
-
-    If advanced is enabled it checks entries for right order of characters,
-    i.e. "ab" matches "ab", "axb", "xaxbx" but not "ba". Space separated
-    sequences get OR-ed. Searches will be treated as JavaScript regular
-    expressions if you prefix them with "re:".
-
-    - advanced: boolean, use advanced pattern parsing
-    - debounceTime: number, debounce wait time in milliseconds
-    - ignorecase: boolean, ignore case
-    */
     "search": {
         "enabled": true,
         "advanced": true,
@@ -338,29 +154,12 @@
         "ignorecase": true
     },
 
-    /*
-    Make entries selectable.
-    At the moment only needed for packaged download.
-
-    - clickndrag: boolean, allow first mouse button + drag selection
-    - checkboxes: boolean, show a checkbox on mouse over item
-    */
     "select": {
         "enabled": true,
         "clickndrag": true,
         "checkboxes": true
     },
 
-    /*
-    Default sort order.
-    "column" and "reverse" are locally stored.
-
-    - column: number, 0 for "Name", 1 for "Date", 2 for "Size"
-    - reverse: boolean, false for ascending, true for descending
-    - ignorecase: boolean, compare ignorecase
-    - natural: boolean, use natural sort order
-    - folders: number, where to place folders, 0 for "top", 1 for "in place", 2 for "bottom"
-    */
     "sort": {
         "enabled": true,
         "column": 0,
@@ -370,22 +169,6 @@
         "folders": 0
     },
 
-    /*
-    Show thumbnails for image files. Needs the "/_h5ai/public/cache" folder to be
-    writable for the web Server. Removing a default value from an array of strings
-    results in adding it to the blocklist implicitly.
-
-    - img: array of strings
-    - mov: array of strings
-    - doc: array of strings
-    - ar : array of strings
-    - delay: number, delay in milliseconds after "dom-ready" before thumb-requesting starts
-    - size: number, height in pixel of the generated thumbnails
-    - seek: number, percentage of total video duration to seek into
-    - exif: boolean, use included EXIF thumbs if possible
-    - chunksize: int, number of thumbs per request
-    - blocklist: array of strings, do not generate thumbnails for these types
-    */
     "thumbnails": {
         "enabled": true,
         "img": ["img-bmp", "img-gif", "img-ico", "img-jpg", "img-png", "img-raw", "img-svg", "img-tiff", "img-webp"],
@@ -401,22 +184,10 @@
         "blocklist": []
     },
 
-    /*
-    Replace window title with current breadcrumb.
-    */
     "title": {
         "enabled": true
     },
 
-    /*
-    Show a folder tree.
-    Note that this might affect performance significantly.
-
-    - show: boolean, initial visible to first time users
-    - maxSubfolders: number, max number of subfolders to show in tree
-    - naturalSort: boolean, use natural sort order for folders
-    - ignorecase: boolean, sort ignorecase
-    */
     "tree": {
         "enabled": true,
         "show": true,

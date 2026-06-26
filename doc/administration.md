@@ -76,6 +76,11 @@ Once logged in, the page displays a series of checks categorized into core featu
 * **Video thumbs**: Verifies command line program `ffmpeg` or `avconv` is installed on the host. Required to capture frame previews from videos.
 * **PDF thumbs**: Verifies `convert` (ImageMagick) or `gm` (GraphicsMagick) is installed on the host. Required to generate thumbnails for PDF/postscript documents.
 
+> [!NOTE]
+> **Media-processor hardening (SSRF/LFI).** Because thumbnails are generated from user-supplied files, h5ai applies defense-in-depth against crafted media that tries to make the processor reach the network or read arbitrary local files:
+> - `ffmpeg`/`avconv` are invoked with `-protocol_whitelist file,crypto,data`, blocking remote (e.g. HLS/concat/playlist) fetches.
+> - A restrictive ImageMagick policy is shipped at `_h5ai/private/conf/magick/policy.xml` and activated via the `MAGICK_CONFIGURE_PATH` environment variable (set automatically). It disables risky coders (`URL`, `HTTPS`, `MSL`, `SVG`, `MVG`, `EPHEMERAL`, …) and external delegates. Do not relax this policy unless you fully trust every file served.
+
 ### Utility Checks
 
 * **Zip/Rar module**: Checks for PHP `Zip` and `Rar` extensions. Required for on-the-fly archive previewing.

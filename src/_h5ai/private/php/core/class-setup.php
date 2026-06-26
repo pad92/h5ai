@@ -112,6 +112,15 @@ class Setup {
 
         $this->set('PRIVATE_PATH', Util::normalize_path($this->get('H5AI_PATH') . '/private', false));
         $this->set('CONF_PATH', Util::normalize_path($this->get('PRIVATE_PATH') . '/conf', false));
+
+        // Apply the hardened ImageMagick policy (conf/magick/policy.xml) to both the
+        // Imagick PHP extension and the convert/gm CLI tools used for thumbnails.
+        // Must be set before ImageMagick initializes; Setup is built early in every entry point.
+        $magick_conf = $this->get('CONF_PATH') . '/magick';
+        if (is_dir($magick_conf)) {
+            putenv('MAGICK_CONFIGURE_PATH=' . $magick_conf);
+            $_ENV['MAGICK_CONFIGURE_PATH'] = $magick_conf;
+        }
         $this->set('CACHE_PRV_PATH', Util::normalize_path($this->get('PRIVATE_PATH') . '/cache', false));
         $this->set('HAS_WRITABLE_CACHE_PRV', @is_writable($this->get('CACHE_PRV_PATH')));
     }

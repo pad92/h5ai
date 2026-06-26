@@ -1,12 +1,17 @@
 <?php
 
 class Thumb {
-    const FFMPEG_CMDV = ['ffmpeg', '-v', 'warning', '-nostdin', '-y', '-hide_banner', '-ss', '[H5AI_DUR]', '-i', '[H5AI_SRC]', '-an', '-vframes', '1', '-f', 'image2', '-'];
-    const FFPROBE_CMDV = ['ffprobe', '-v', 'warning', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', '[H5AI_SRC]'];
-    const AVCONV_CMDV = ['avconv', '-v', 'warning', '-nostdin', '-y', '-hide_banner', '-ss', '[H5AI_DUR]', '-i', '[H5AI_SRC]', '-an', '-vframes', '1', '-f', 'image2', '-'];
-    const AVPROBE_CMDV = ['avprobe', '-v', 'warning', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', '[H5AI_SRC]'];
-    const FFMPEG_AUD_CMDV = ['ffmpeg', '-v', 'warning', '-nostdin', '-y', '-hide_banner', '-i', '[H5AI_SRC]', '-an', '-vframes', '1', '-f', 'image2', '-'];
-    const AVCONV_AUD_CMDV = ['avconv', '-v', 'warning', '-nostdin', '-y', '-hide_banner', '-i', '[H5AI_SRC]', '-an', '-vframes', '1', '-f', 'image2', '-'];
+    // '-protocol_whitelist file,crypto,data' confines ffmpeg/avconv to local input and
+    // blocks SSRF/LFI via crafted playlist/concat/HLS files that reference remote (http)
+    // or arbitrary local protocols.
+    const FFMPEG_CMDV = ['ffmpeg', '-v', 'warning', '-nostdin', '-y', '-hide_banner', '-protocol_whitelist', 'file,crypto,data', '-ss', '[H5AI_DUR]', '-i', '[H5AI_SRC]', '-an', '-vframes', '1', '-f', 'image2', '-'];
+    const FFMPEG_SWF_CMDV = ['ffmpeg', '-v', 'warning', '-nostdin', '-y', '-hide_banner', '-protocol_whitelist', 'file,crypto,data', '-i', '[H5AI_SRC]', '-ss', '[H5AI_DUR]', '-an', '-vframes', '1', '-f', 'image2', '-'];
+    const FFPROBE_CMDV = ['ffprobe', '-v', 'warning', '-protocol_whitelist', 'file,crypto,data', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', '[H5AI_SRC]'];
+    const AVCONV_CMDV = ['avconv', '-v', 'warning', '-nostdin', '-y', '-hide_banner', '-protocol_whitelist', 'file,crypto,data', '-ss', '[H5AI_DUR]', '-i', '[H5AI_SRC]', '-an', '-vframes', '1', '-f', 'image2', '-'];
+    const AVCONV_SWF_CMDV = ['avconv', '-v', 'warning', '-nostdin', '-y', '-hide_banner', '-protocol_whitelist', 'file,crypto,data', '-i', '[H5AI_SRC]', '-ss', '[H5AI_DUR]', '-an', '-vframes', '1', '-f', 'image2', '-'];
+    const AVPROBE_CMDV = ['avprobe', '-v', 'warning', '-protocol_whitelist', 'file,crypto,data', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', '[H5AI_SRC]'];
+    const FFMPEG_AUD_CMDV = ['ffmpeg', '-v', 'warning', '-nostdin', '-y', '-hide_banner', '-protocol_whitelist', 'file,crypto,data', '-i', '[H5AI_SRC]', '-an', '-vframes', '1', '-f', 'image2', '-'];
+    const AVCONV_AUD_CMDV = ['avconv', '-v', 'warning', '-nostdin', '-y', '-hide_banner', '-protocol_whitelist', 'file,crypto,data', '-i', '[H5AI_SRC]', '-an', '-vframes', '1', '-f', 'image2', '-'];
     const CONVERT_CMDV = ['convert', '-density', '200', '-quality', '100', '-strip', '[H5AI_SRC][0]', 'WEBP:-'];
     const GM_CONVERT_CMDV = ['gm', 'convert', '-density', '200', '-quality', '100', '-strip', '[H5AI_SRC][0]', 'WEBP:-'];
     const THUMB_CACHE = 'thumbs';
@@ -266,19 +271,16 @@ class Thumb {
     private function capture_swf(): bool {
         if ($this->setup->get('HAS_CMD_FFMPEG')) {
             $probe_cmd = self::FFPROBE_CMDV;
-            $conv_cmd = self::FFMPEG_CMDV;
+            $conv_cmd = self::FFMPEG_SWF_CMDV;
         } elseif ($this->setup->get('HAS_CMD_AVCONV')) {
             $probe_cmd = self::AVPROBE_CMDV;
-            $conv_cmd = self::AVCONV_CMDV;
+            $conv_cmd = self::AVCONV_SWF_CMDV;
         } else {
             return false;
         }
         try {
             $timestamp = $this->compute_duration($probe_cmd, $this->source_path);
-            $conv_cmd[6] = '-i';
-            $conv_cmd[7] = '[H5AI_SRC]';
-            $conv_cmd[8] = '-ss';
-            $conv_cmd[9] = '[H5AI_DUR]';
+            // SWF/FLV needs the seek (-ss) placed after the input (-i); see FFMPEG_SWF_CMDV.
             return $this->do_capture($conv_cmd, $timestamp);
         } catch (\Exception) {
             return $this->capture('file');

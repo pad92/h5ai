@@ -26,9 +26,12 @@ class CacheDB {
         if ($is_new) {
             $db->exec('CREATE TABLE types (id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, type TEXT UNIQUE);');
 
+            $seed = $db->prepare('INSERT OR IGNORE INTO types VALUES (NULL, :type);');
             foreach (Thumb::HANDLED_TYPES as $array) {
                 foreach ($array as $type) {
-                    $db->exec("INSERT OR IGNORE INTO types VALUES (NULL, '{$type}');");
+                    $seed->reset();
+                    $seed->bindValue(':type', $type, SQLITE3_TEXT);
+                    $seed->execute();
                 }
             }
 
@@ -53,20 +56,27 @@ class CacheDB {
 
         $stmt->bindValue(':id', $hash, SQLITE3_TEXT);
 
-        $escaped_type = SQLite3::escapeString($type);
-        $typeid = $this->conn->querySingle(
-            "SELECT id FROM types WHERE type = '{$escaped_type}';");
+        $typeid = $this->select_typeid($type);
         if (!$typeid) {
-            $this->conn->exec(
-                "INSERT INTO types VALUES (NULL, '{$escaped_type}');");
-            $typeid = $this->conn->querySingle(
-                "SELECT id FROM types WHERE type = '{$escaped_type}';");
+            $ins_type = $this->conn->prepare('INSERT INTO types VALUES (NULL, :type);');
+            $ins_type->bindValue(':type', $type, SQLITE3_TEXT);
+            $ins_type->execute();
+            $typeid = $this->select_typeid($type);
         }
         $stmt->bindValue(':typeid', $typeid, SQLITE3_INTEGER);
         $stmt->bindValue(':err', $error, SQLITE3_INTEGER);
         $stmt->bindValue(':ver', $this->version, SQLITE3_INTEGER);
         $stmt->bindValue(':time', time(), SQLITE3_INTEGER);
         $stmt->execute();
+    }
+
+    private function select_typeid(string $type): ?int {
+        $stmt = $this->conn->prepare('SELECT id FROM types WHERE type = :type;');
+        $stmt->bindValue(':type', $type, SQLITE3_TEXT);
+        $res = $stmt->execute();
+        $row = $res->fetchArray(SQLITE3_ASSOC);
+        $res->finalize();
+        return $row ? (int) $row['id'] : null;
     }
 
     public function select(string $hash): ?array {

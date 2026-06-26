@@ -17,14 +17,14 @@ All configuration files for **h5ai** are located in the `_h5ai/private/conf/` di
 
 Located at [options.json](../src/_h5ai/private/conf/options.json).
 
-> [!TIP]
-> Ensure the syntax of `options.json` is valid JSON (except that comments `/* ... */` are supported by h5ai's JSON parser).
+> [!NOTE]
+> `options.json` must be valid strict JSON. While h5ai's internal PHP parser can handle `/* ... */` block comments, external tools (linters, security scanners) may reject them.
 
 ### General Options
 
 | Option / Section | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `passhash` | `string` | `cf83e...` (empty) | SHA512 hash of the password for the h5ai info page (`/_h5ai/public/index.php`). The default value corresponds to an empty string password. |
+| `passhash` | `string` | `cf83e...` (empty) | Hash of the password for the h5ai info page (`/_h5ai/public/index.php`). The default value is the SHA512 of an empty string. **Recommended:** use a modern salted hash generated with PHP `password_hash()` (bcrypt/argon2), e.g. `php -r 'echo password_hash("yourpass", PASSWORD_DEFAULT), "\n";'`. Legacy 128-char SHA512 hex digests are still accepted for backward compatibility. |
 | `resources.scripts` | `array` | `[]` | List of URLs or paths of custom scripts to inject into every page. Paths not starting with `http://`, `https://` or `/` are relative to `_h5ai/public/ext/`. |
 | `resources.styles` | `array` | `["//fonts.googleapis.com/..."]` | List of URLs or paths of custom stylesheets to inject. |
 
@@ -45,10 +45,10 @@ Customize the general look and feel of the index page.
 | `hideIf403` | `boolean` | `true` | Hides files/folders that are unreadable by the web server (avoiding 403 Forbidden errors). |
 | `hideParentFolder` | `boolean` | `false` | Hides the link to navigate to the parent folder. |
 | `maxIconSize` | `number` | `40` | Maximum icon size in pixels. |
-| `modes` | `array` | `["details", "grid", "icons"]` | Enabled view modes. The first one is the default. If only one is specified, the selector is hidden. |
+| `modes` | `array` | `["details", "grid", "icons"]` | Enabled view modes. The first one is the default. If only one is specified, the selector is hidden. The user's selection is stored in browser local storage. |
 | `modeToggle` | `boolean`/`string` | `false` | Shows a toggle button for view modes in the toolbar. Can be `"next"`. |
 | `setParentFolderLabels`| `boolean` | `true` | Shows the actual parent folder name instead of just "Parent Folder". |
-| `sizes` | `array` | `[20, 40, ...]` | List of selectable icon/row sizes. The first one is the default. |
+| `sizes` | `array` | `[20, 40, ...]` | List of selectable icon/row sizes. The first one is the default. If only one is specified, the selector is hidden. The user's selection is stored in browser local storage. |
 | `theme` | `string` | `"comity"` | Name of the folder under `_h5ai/public/images/themes` to use for file icons. |
 | `unmanaged` | `array` | `["index.html", ...]` | If a folder contains any of these files, h5ai will not manage it, allowing default index pages to load instead. |
 | `unmanagedInNewWindow` | `boolean` | `false` | Opens unmanaged folder links in a new window/tab. |
@@ -94,8 +94,11 @@ If the files end in `.md`, they are rendered as Markdown.
 #### `download`
 Allows packaging and downloading of selected directory entries.
 - `enabled` (default: `true`).
-- `type` (default: `"php-tar"`): The type of archiving: `"php-tar"`, `"shell-tar"`, or `"shell-zip"`.
-- `packageName` (default: `null`): The default name of the archive package. If `null`, uses the current directory's name.
+- `type` (default: `"php-tar"`): The type of archiving:
+  - `"php-tar"`: uses PHP's `PharData` class to create a tar archive (no external dependency).
+  - `"shell-tar"`: uses the `tar` command line tool.
+  - `"shell-zip"`: uses the `zip` command line tool (`apt install zip`).
+- `packageName` (default: `null`): The default name of the archive package. If `null`, uses the current file or folder name.
 - `alwaysVisible` (default: `false`): If `true`, the download button is always visible (downloads the entire folder if nothing is selected).
 
 #### `filter`
@@ -180,8 +183,8 @@ Enables checkboxes and select options to choose multiple files.
 #### `sort`
 Defines default sorting criteria.
 - `enabled` (default: `true`).
-- `column` (default: `0`): Sorting column: `0` for Name, `1` for Date, `2` for Size.
-- `reverse` (default: `false`): Set to `true` to sort in descending order.
+- `column` (default: `0`): Sorting column: `0` for Name, `1` for Date, `2` for Size. Stored locally in the browser.
+- `reverse` (default: `false`): Set to `true` to sort in descending order. Stored locally in the browser.
 - `ignorecase` (default: `true`): Ignore case when sorting.
 - `natural` (default: `true`): Use natural sort order (e.g., `2` comes before `10`).
 - `folders` (default: `0`): Where folders are placed: `0` for top, `1` for in place, `2` for bottom.
@@ -191,12 +194,17 @@ Generates preview thumbnails for images, videos, and document files.
 > [!NOTE]
 > For document/video thumbnails, the server requires helper binaries (e.g., `ffmpeg`, `convert`) as listed in the requirements. The `_h5ai/private/cache` directory must also be writable by the web server.
 - `enabled` (default: `true`).
-- `img`, `mov`, `doc`: Arrays of types to generate thumbnails for.
+- `img`: Array of image types to generate thumbnails for.
+- `mov`: Array of video types to generate thumbnails for.
+- `doc`: Array of document types to generate thumbnails for (e.g. PDF).
+- `ar`: Array of archive types to generate thumbnails for.
+- `aud`: Array of audio types to generate thumbnails for (cover art).
 - `delay` (default: `1`): Delay in milliseconds before starting thumbnail generation on page load.
 - `size` (default: `240`): Height in pixels of the generated thumbnails.
 - `seek` (default: `50`): Percentage of total video duration to seek into when generating video thumbnails (requires `ffprobe` or `avprobe`).
 - `exif` (default: `true`): Use embedded EXIF thumbnails if available (faster).
 - `chunksize` (default: `20`): Number of thumbnails requested in a single batch.
+- `blocklist` (default: `[]`): Array of types for which thumbnail generation is explicitly disabled. Removing a type from one of the arrays above (`img`, `mov`, etc.) implicitly adds it to the blocklist.
 
 > [!TIP]
 > **Failed Thumbnail Caching (`CacheDB`)**
@@ -209,6 +217,8 @@ Updates the browser window/tab title with the path of the current folder.
 
 #### `tree`
 Shows a collapsible directory tree sidebar on the left.
+> [!WARNING]
+> Enabling the tree view may significantly affect performance on directories with many subfolders.
 - `enabled` (default: `true`).
 - `show` (default: `true`): Initially visible.
 - `maxSubfolders` (default: `50`): Max number of subfolders to render in the tree structure.
@@ -253,6 +263,9 @@ To configure configurations like `.env` or `.yaml` to render as scripts:
 Located at [l10n/](../src/_h5ai/private/conf/l10n).
 
 This directory contains JSON files named `<language_code>.json` (such as `en.json`, `fr.json`, `de.json`).
+
+> [!NOTE]
+> `en.json` is the reference file — its values are the hardcoded defaults used as a fallback when a key is missing from another language file.
 
 ### Translation Structure
 

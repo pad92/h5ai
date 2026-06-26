@@ -116,6 +116,8 @@ class Util {
     }
 
     public static function log(string $log_msg, string $filename = __DIR__ . '/../../cache/debug.log'): void {
+        // Strip CR/LF to prevent log injection / forged entries from user-influenced paths.
+        $log_msg = str_replace(["\r", "\n"], ' ', $log_msg);
         file_put_contents($filename, date('Y-m-d H:i:s') . ' ' . $log_msg . PHP_EOL, FILE_APPEND);
     }
 }

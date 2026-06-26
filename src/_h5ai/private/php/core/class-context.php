@@ -51,12 +51,33 @@ class Context {
     }
 
     public function login_admin(string $pass): bool {
-        $this->session->set(self::AS_ADMIN_SESSION_KEY, hash_equals(strtolower($this->passhash), hash('sha512', $pass)));
+        $ok = $this->verify_pass($pass);
+        if ($ok) {
+            // Prevent session fixation when elevating privileges.
+            $this->session->regenerate();
+        }
+        $this->session->set(self::AS_ADMIN_SESSION_KEY, $ok);
         return $this->session->get(self::AS_ADMIN_SESSION_KEY);
+    }
+
+    private function verify_pass(string $pass): bool {
+        $stored = $this->passhash;
+        if ($stored === '') {
+            return false;
+        }
+
+        // Legacy unsalted SHA-512 hex digests (includes the default empty-password hash).
+        if (preg_match('/^[a-f0-9]{128}$/i', $stored)) {
+            return hash_equals(strtolower($stored), hash('sha512', $pass));
+        }
+
+        // Modern password_hash() digests (bcrypt/argon2).
+        return password_verify($pass, $stored);
     }
 
     public function logout_admin(): bool {
         $this->session->set(self::AS_ADMIN_SESSION_KEY, false);
+        $this->session->regenerate();
         return $this->session->get(self::AS_ADMIN_SESSION_KEY);
     }
 
@@ -127,6 +148,16 @@ class Context {
 
     public function is_managed_path(string $path): bool {
         if (!is_dir($path) || str_contains($path, '../') || str_contains($path, '/..') || $path === '..') {
+            return false;
+        }
+
+        // Canonicalize and ensure the resolved path stays within the served root.
+        // realpath() also resolves symlinks, so a symlinked directory pointing
+        // outside the root is rejected here.
+        $root_real = realpath($this->setup->get('ROOT_PATH'));
+        $path_real = realpath($path);
+        if ($root_real === false || $path_real === false
+            || ($path_real !== $root_real && !str_starts_with($path_real, $root_real . '/'))) {
             return false;
         }
 
@@ -294,7 +325,7 @@ class Context {
                 continue;
             }
             $path = $this->to_path($req['href']);
-            if (!$this->is_managed_path(dirname($path))) {
+            if (!$this->is_managed_path(dirname($path)) || $this->is_hidden(basename($path))) {
                 $hrefs[] = null;
                 $filetypes[] = null;
                 continue;
