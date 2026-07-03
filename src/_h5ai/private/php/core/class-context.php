@@ -140,12 +140,14 @@ class Context {
         $names = [];
         if (is_dir($path)) {
             foreach (scandir($path) as $name) {
-                if (
-                    $this->is_hidden($name)
-                    || $this->is_hidden($this->to_href($path) . $name)
-                    || (!is_readable($path . '/' . $name) && $this->query_option('view.hideIf403', false))
-                ) {
+                if ($this->is_hidden($name) || $this->is_hidden($this->to_href($path) . $name)) {
                     continue;
+                }
+                if (!is_readable($path . '/' . $name)) {
+                    Util::log('permission denied while listing: ' . $path . '/' . $name);
+                    if ($this->query_option('view.hideIf403', false)) {
+                        continue;
+                    }
                 }
                 $names[] = $name;
             }

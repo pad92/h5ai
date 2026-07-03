@@ -114,9 +114,10 @@ class Util {
         return $finfo->file($source_path) ?: 'application/octet-stream';
     }
 
-    public static function log(string $log_msg, string $filename = __DIR__ . '/../../cache/debug.log'): void {
+    // Diagnostics go to the PHP/web-server error log only: h5ai must not
+    // create any log file of its own.
+    public static function log(string $log_msg): void {
         // Strip CR/LF to prevent log injection / forged entries from user-influenced paths.
-        $log_msg = str_replace(["\r", "\n"], ' ', $log_msg);
-        file_put_contents($filename, date('Y-m-d H:i:s') . ' ' . $log_msg . PHP_EOL, FILE_APPEND);
+        @error_log('h5ai: ' . str_replace(["\r", "\n"], ' ', $log_msg));
     }
 }
