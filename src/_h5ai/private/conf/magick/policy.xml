@@ -7,16 +7,23 @@
   name NMTOKEN #IMPLIED pattern CDATA #IMPLIED rights NMTOKEN #IMPLIED
   stealth NMTOKEN #IMPLIED value CDATA #IMPLIED>
 ]>
-<!--
-  Hardened ImageMagick policy used by h5ai for thumbnail generation.
-  Loaded via the MAGICK_CONFIGURE_PATH environment variable (see Setup::add_paths()),
-  it applies to both the Imagick PHP extension and the `convert`/`gm` CLI tools.
-
-  Goal: prevent SSRF / local file disclosure (the "ImageTragick" class of bugs)
-  when ImageMagick processes user-controllable files. Coders that can reach the
-  network or the filesystem indirectly are disabled.
--->
 <policymap>
+  <!--
+    Hardened ImageMagick policy used by h5ai for thumbnail generation.
+    Loaded via the MAGICK_CONFIGURE_PATH environment variable (see Setup::add_paths()),
+    it applies to both the Imagick PHP extension and the `convert` CLI tool
+    (GraphicsMagick `gm` does not read this file).
+
+    Goal: prevent SSRF / local file disclosure (the "ImageTragick" class of bugs)
+    when ImageMagick processes user-controllable files. Coders that can reach the
+    network or the filesystem indirectly are disabled.
+
+    NOTE: ImageMagick's XML parser rejects the whole file when a comment appears
+    between the DOCTYPE and the root element. Keep every comment INSIDE
+    <policymap>, and verify changes with:
+      MAGICK_CONFIGURE_PATH=/path/to/this/dir magick -list policy
+  -->
+
   <!-- Disallow ImageMagick from reaching out to the network or reading
        arbitrary local files through delegate/coder side channels. -->
   <policy domain="coder" rights="none" pattern="URL" />
@@ -31,18 +38,23 @@
   <policy domain="coder" rights="none" pattern="EPHEMERAL" />
   <policy domain="coder" rights="none" pattern="PLT" />
   <policy domain="coder" rights="none" pattern="XPS" />
-  <policy domain="coder" rights="none" pattern="PS" />
-  <policy domain="coder" rights="none" pattern="PS2" />
-  <policy domain="coder" rights="none" pattern="PS3" />
-  <policy domain="coder" rights="none" pattern="EPS" />
-  <policy domain="coder" rights="none" pattern="PDF" />
-  <policy domain="coder" rights="none" pattern="XPS" />
+
+  <!-- PDF/PostScript stay readable (read-only) so the documented "doc"
+       thumbnails keep working; decoding them requires the Ghostscript
+       delegate allowed below. Writing/executing them remains forbidden. -->
+  <policy domain="coder" rights="read" pattern="PS" />
+  <policy domain="coder" rights="read" pattern="PS2" />
+  <policy domain="coder" rights="read" pattern="PS3" />
+  <policy domain="coder" rights="read" pattern="EPS" />
+  <policy domain="coder" rights="read" pattern="PDF" />
 
   <!-- Block indirect reads via "@filename" / "@-" syntax. -->
   <policy domain="path" rights="none" pattern="@*" />
 
-  <!-- Block delegates (external command execution) entirely. -->
+  <!-- Block delegates (external command execution), except Ghostscript which
+       is required to rasterize PDF/PS for the "doc" thumbnails. -->
   <policy domain="delegate" rights="none" pattern="*" />
+  <policy domain="delegate" rights="execute" pattern="gs" />
 
   <!-- Reasonable resource limits to avoid decompression-bomb DoS. -->
   <policy domain="resource" name="memory" value="256MiB" />
