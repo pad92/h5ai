@@ -122,6 +122,12 @@ class Filesize {
             return $size;
         }
 
+        // From here on $size is an accumulator: a failed filesize() on the
+        // directory itself must not leak `false` into the summed result.
+        if ($size === false) {
+            $size = 0;
+        }
+
         $dirs[$path] = @filemtime($path);
 
         if (!$recursive) {
@@ -216,7 +222,13 @@ class Filesize {
         }
         $tree = $this->du_tree($paths);
         foreach ($paths as $path) {
-            $size = $tree[$path] ?? 0;
+            if (!isset($tree[$path])) {
+                // du produced no size for this path (permissions, vanished
+                // folder, ...): do not persist a bogus 0, keep the previous
+                // cache entry so a stale-but-real size is served instead.
+                continue;
+            }
+            $size = $tree[$path];
             $dirs = $this->dirs_from_tree($path, $tree);
             self::set_persistent_cache_entry($path, $size, $dirs);
             self::$cache[$path] = $size;
@@ -225,13 +237,20 @@ class Filesize {
 
     private function size(string $path, bool $withFoldersize = false, bool $withDu = false): ?int {
         if (is_file($path)) {
-            return $this->php_filesize($path);
+            $size = $this->php_filesize($path);
+            // filesize() can fail (race with a deletion, permissions):
+            // report "unknown" instead of fataling on the ?int return type.
+            return $size === false ? null : $size;
         }
 
         if (is_dir($path) && $withFoldersize) {
             if ($withDu) {
                 $tree = $this->du_tree([$path]);
-                $size = $tree[$path] ?? 0;
+                if (!isset($tree[$path])) {
+                    // du failed for this path: do not persist a bogus 0.
+                    return null;
+                }
+                $size = $tree[$path];
                 $dirs = $this->dirs_from_tree($path, $tree);
                 self::set_persistent_cache_entry($path, $size, $dirs);
                 return $size;
