@@ -11,15 +11,25 @@ class Json {
             return [];
         }
 
-        return self::decode(file_get_contents($path));
+        $decoded = self::decode(file_get_contents($path));
+        if ($decoded === null) {
+            // Malformed JSON must degrade to defaults, not fatal the whole
+            // app with a TypeError.
+            Util::log('failed to parse JSON, falling back to defaults: ' . $path);
+            return [];
+        }
+        return $decoded;
     }
 
     public static function save(string $path, mixed $obj): bool {
-        return file_put_contents($path, json_encode($obj)) !== false;
+        // LOCK_EX prevents concurrent requests from interleaving writes and
+        // leaving a torn file behind (e.g. cache/cmds.json).
+        return file_put_contents($path, json_encode($obj), LOCK_EX) !== false;
     }
 
-    private static function decode(string $json): array {
-        return json_decode(self::strip($json), true);
+    private static function decode(string $json): ?array {
+        $decoded = json_decode(self::strip($json), true);
+        return is_array($decoded) ? $decoded : null;
     }
 
     private static function strip(string $commented_json): string {
