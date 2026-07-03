@@ -15,10 +15,19 @@ class Theme {
             return $icons;
         }
 
-        foreach (self::EXTENSIONS as $ext) {
-            foreach (glob($theme_path . '/*.' . $ext) as $file) {
-                $parts = pathinfo($file);
-                $icons[$parts['filename']] = $theme . '/' . $parts['basename'];
+        // Case-insensitive extension match (icon.PNG must work like icon.png),
+        // which glob() cannot provide portably.
+        try {
+            $iter = new \FilesystemIterator($theme_path, \FilesystemIterator::SKIP_DOTS);
+        } catch (\UnexpectedValueException) {
+            return $icons;
+        }
+        foreach ($iter as $file) {
+            if (!$file->isFile()) {
+                continue;
+            }
+            if (in_array(strtolower($file->getExtension()), self::EXTENSIONS, true)) {
+                $icons[$file->getBasename('.' . $file->getExtension())] = $theme . '/' . $file->getFilename();
             }
         }
 
