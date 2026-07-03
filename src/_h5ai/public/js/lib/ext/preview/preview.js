@@ -277,6 +277,9 @@ const enter = () => {
 
 const exit = () => {
     setLabels([]);
+    // Restore the user's stored preference so the fullscreen forced for
+    // images does not leak into the next non-image preview.
+    isFullscreen = store.get(storekey) || false;
     each(dom('#pv-container *'), el => {
         if (typeof el.unload === 'function') {
             el.unload();
