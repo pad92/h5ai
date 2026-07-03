@@ -89,7 +89,8 @@ Allows custom header and footer files to be automatically rendered above or belo
 It searches for files named `_h5ai.header.html` and `_h5ai.footer.html` in the current folder, or recursively checks parent directories for `_h5ai.headers.html` and `_h5ai.footers.html`.
 If the files end in `.md`, they are rendered as Markdown.
 - `enabled` (default: `true`).
-- `stopSearchingAtRoot` (default: `true`): If `true`, stops searching for headers/footers when it reaches the web root folder.
+
+The search for `headers`/`footers` files always stops at the web root folder.
 
 #### `download`
 Allows packaging and downloading of selected directory entries.

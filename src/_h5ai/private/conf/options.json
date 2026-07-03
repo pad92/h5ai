@@ -44,8 +44,7 @@
     },
 
     "custom": {
-        "enabled": true,
-        "stopSearchingAtRoot": true
+        "enabled": true
     },
 
     "download": {
