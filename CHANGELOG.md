@@ -54,7 +54,7 @@
     * Raised minimum PHP version from `7.0.0` to `8.4.0`.
     * Modernized all PHP classes with typed/readonly properties, constructor promotion, return types, and union types.
     * Adopted modern PHP idioms: `match` expressions, `str_starts_with()`/`str_ends_with()`/`str_contains()`, first-class callable syntax, `never` return type, `CommentStyle` enum, `\GdImage` type hints.
-    * Leveraged PHP 8.4 array functions (`array_any()`, `array_all()`, `array_find()`) for cleaner iteration patterns.
+    * Used PHP 8.4 array functions (`array_any()`, `array_all()`, `array_find()`) for cleaner iteration.
 * **Performance Optimizations**:
     * Faster tar checksum with `unpack('C*')`, `FilesystemIterator` for directory reads, `glob()` for file listing, compile-time `__DIR__` resolution, vectorized `str_replace()`, and cached store lookups in hot loops.
 * **Code Cleanup**:

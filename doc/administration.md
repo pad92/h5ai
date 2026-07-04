@@ -72,7 +72,7 @@ Once logged in, the page displays a series of checks categorized into core featu
 
 * **Image thumbs**: Checks if the `GD` library is installed and compiled with `WebP` support.
 * **Fileinfo module**: Checks if the PHP Fileinfo module is active (used for determining file MIME types safely).
-* **Use EXIF thumbs**: Checks for the PHP `exif` module. When active, h5ai extracts embedded JPEG preview thumbnails from photos directly, resulting in massive speedups.
+* **Use EXIF thumbs**: Checks for the PHP `exif` module. When active, h5ai extracts embedded JPEG preview thumbnails from photos directly instead of decoding the full image, which is much faster.
 * **Video thumbs**: Verifies command line program `ffmpeg` or `avconv` is installed on the host. Required to capture frame previews from videos.
 * **PDF thumbs**: Verifies `convert` (ImageMagick) or `gm` (GraphicsMagick) is installed on the host. Required to generate thumbnails for PDF/postscript documents.
 

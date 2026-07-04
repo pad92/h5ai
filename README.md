@@ -4,7 +4,7 @@
 
 A modern HTTP web server index for Apache httpd, lighttpd, nginx, and Angie. 
 
-This repository is a **detached fork** of the original **[h5ai](https://github.com/lrsjng/h5ai)** project by Lars Jung, which is no longer maintained. This fork aims to keep the project alive by updating dependencies, applying bug fixes, and maintaining compatibility with modern PHP environments.
+This repository is a **detached fork** of the original **[h5ai](https://github.com/lrsjng/h5ai)** project by Lars Jung, which is no longer maintained. This fork keeps it going: updated dependencies, bug fixes, and compatibility with modern PHP.
 
 
 ## Important
