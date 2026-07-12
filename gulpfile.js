@@ -108,10 +108,26 @@ const copyJson = () => src(`${SRC}/**/conf/*.json`)
 const copyRootFiles = () => src(`${ROOT}/*.md`)
     .pipe(dest(path.join(BUILD, '_h5ai')));
 
+// movi-player's bundled CSS imports Google's Inter font over the network;
+// strip that import so the player falls back to its (already declared)
+// system-font stack instead of depending on fonts.googleapis.com.
 const copyMoviPlayer = () => src(`${ROOT}/node_modules/movi-player/dist/element.js`)
+    .pipe(replace(/@import url\(['"]https:\/\/fonts\.googleapis\.com[^)]*\);?/g, ''))
     .pipe(dest(path.join(BUILD, '_h5ai/public/ext/movi-player')));
 
-const copy = parallel(copyPhpAndStatic, copyJson, copyRootFiles, copyMoviPlayer);
+// Self-hosted Ubuntu / Ubuntu Mono (Ubuntu Font License 1.0, via @fontsource)
+// referenced by src/_h5ai/public/css/lib/fonts.less; no runtime dependency
+// on fonts.googleapis.com.
+const copyFonts = () => src([
+    `${ROOT}/node_modules/@fontsource/ubuntu/files/ubuntu-latin-300-normal.woff2`,
+    `${ROOT}/node_modules/@fontsource/ubuntu/files/ubuntu-latin-400-normal.woff2`,
+    `${ROOT}/node_modules/@fontsource/ubuntu/files/ubuntu-latin-700-normal.woff2`,
+    `${ROOT}/node_modules/@fontsource/ubuntu-mono/files/ubuntu-mono-latin-400-normal.woff2`,
+    `${ROOT}/node_modules/@fontsource/ubuntu-mono/files/ubuntu-mono-latin-700-normal.woff2`
+])
+    .pipe(dest(path.join(BUILD, '_h5ai/public/fonts')));
+
+const copy = parallel(copyPhpAndStatic, copyJson, copyRootFiles, copyMoviPlayer, copyFonts);
 
 const buildTests = () => src(path.join(TEST, 'index.js'))
     .pipe(webpack(WEBPACK_CFG))

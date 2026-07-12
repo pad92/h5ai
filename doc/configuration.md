@@ -26,7 +26,7 @@ Located at [options.json](../src/_h5ai/private/conf/options.json).
 | :--- | :--- | :--- | :--- |
 | `passhash` | `string` | `cf83e...` (empty) | Hash of the password for the h5ai info page (`/_h5ai/public/index.php`). The default value is the SHA512 of an empty string. **Recommended:** use a modern salted hash generated with PHP `password_hash()` (bcrypt/argon2), e.g. `php -r 'echo password_hash("yourpass", PASSWORD_DEFAULT), "\n";'`. Legacy 128-char SHA512 hex digests are still accepted for backward compatibility. |
 | `resources.scripts` | `array` | `[]` | List of URLs or paths of custom scripts to inject into every page. Paths not starting with `http://`, `https://` or `/` are relative to `_h5ai/public/ext/`. |
-| `resources.styles` | `array` | `["//fonts.googleapis.com/..."]` | List of URLs or paths of custom stylesheets to inject. |
+| `resources.styles` | `array` | `[]` | List of URLs or paths of custom stylesheets to inject. |
 
 ### View Options (`view`)
 
@@ -38,8 +38,8 @@ Customize the general look and feel of the index page.
 | `disableSidebar` | `boolean` | `false` | Hides the sidebar and its toggle button entirely. |
 | `fallbackMode` | `boolean` | `false` | Serves h5ai in fallback mode (useful for browsers without JS or very old browsers). |
 | `fastBrowsing` | `boolean` | `true` | Uses the HTML5 History API to navigate folders without reloading the whole page. |
-| `fonts` | `array` | `["Ubuntu", ...]` | Font family names for normal text. |
-| `fontsMono` | `array` | `["Ubuntu Mono", ...]` | Font family names for monospace text. |
+| `fonts` | `array` | `["Ubuntu", ...]` | Font family names for normal text. Ubuntu ships self-hosted (no `fonts.googleapis.com` request); other names fall back to whatever the browser/OS provides. |
+| `fontsMono` | `array` | `["Ubuntu Mono", ...]` | Font family names for monospace text. Ubuntu Mono ships self-hosted; other names fall back to whatever the browser/OS provides. |
 | `hidden` | `array` | `["^\\.", "^_h5ai"]` | Regular expressions matching files/directories that should be hidden from the index. |
 | `hideFolders` | `boolean` | `false` | Hides all folders from the main file listing. |
 | `hideIf403` | `boolean` | `true` | Hides files/folders that are unreadable by the web server (avoiding 403 Forbidden errors). |

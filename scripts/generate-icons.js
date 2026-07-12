@@ -1,93 +1,106 @@
 /*
- * Regenerates h5ai's Material-Icons-derived SVGs from the self-hosted
- * @material-symbols/svg-400 package (Apache-2.0, npm, no fonts.googleapis.com
- * dependency). Run after bumping the package version or to add/change an icon:
+ * Regenerates h5ai's icon SVGs from the self-hosted
+ * @fortawesome/fontawesome-free package (CC BY 4.0 icons / OFL 1.1 font /
+ * MIT code, npm, no fonts.googleapis.com dependency). Run after bumping the
+ * package version or to add/change an icon:
  *
  *   node scripts/generate-icons.js
  *
- * Icons not listed below (theme.svg, tree-toggle.svg, spinner.svg, paypal.svg,
- * the "default" theme's own type icons) are not part of Material Symbols and
- * are left untouched.
+ * Icons not listed below (theme.svg, tree-toggle.svg, spinner.svg, paypal.svg)
+ * are not part of Font Awesome and are left untouched.
  */
 
 const fs = require('fs');
 const path = require('path');
 
-const PKG_DIR = path.join(__dirname, '..', 'node_modules', '@material-symbols', 'svg-400', 'outlined');
+const FA_DIR = path.join(__dirname, '..', 'node_modules', '@fortawesome', 'fontawesome-free', 'svgs');
 const IMAGES_DIR = path.join(__dirname, '..', 'src', '_h5ai', 'public', 'images');
 
-// h5ai icon id -> [Material Symbols name, fill color]
-// fill #555 = light toolbar/sidebar/tree/crumb background
+// h5ai icon id -> [Font Awesome style, Font Awesome icon name, fill color]
+// style is "solid" (fas) or "brands" (fab)
+// fill #555 = light toolbar/sidebar/tree/crumb/file-list background
 // fill #fff = dark preview-bar background or a colored "selected" background
 const GROUPS = [
     {
         outDir: path.join(IMAGES_DIR, 'ui'),
         size: 24,
         icons: {
-            back: ['arrow_back', '#555'],
-            crumb: ['chevron_right', '#555'],
-            download: ['download', '#555'],
-            filter: ['filter_list', '#555'],
-            'info-toggle': ['info', '#555'],
-            'preview-close': ['close', '#fff'],
-            'preview-fullscreen': ['fullscreen', '#fff'],
-            'preview-next': ['chevron_right', '#fff'],
-            'preview-no-fullscreen': ['fullscreen_exit', '#fff'],
-            'preview-prev': ['chevron_left', '#fff'],
-            'preview-raw': ['download', '#fff'],
-            search: ['search', '#555'],
-            selected: ['check', '#fff'],
-            sidebar: ['menu', '#555'],
-            sort: ['keyboard_arrow_down', '#555'],
-            'tree-indicator': ['chevron_right', '#555'],
-            'view-details': ['view_list', '#555'],
-            'view-grid': ['view_module', '#555'],
-            'view-icons': ['apps', '#555']
+            back: ['solid', 'arrow-left', '#555'],
+            crumb: ['solid', 'chevron-right', '#555'],
+            download: ['solid', 'download', '#555'],
+            filter: ['solid', 'filter', '#555'],
+            'info-toggle': ['solid', 'circle-info', '#555'],
+            'preview-close': ['solid', 'xmark', '#fff'],
+            'preview-fullscreen': ['solid', 'expand', '#fff'],
+            'preview-next': ['solid', 'chevron-right', '#fff'],
+            'preview-no-fullscreen': ['solid', 'compress', '#fff'],
+            'preview-prev': ['solid', 'chevron-left', '#fff'],
+            'preview-raw': ['solid', 'download', '#fff'],
+            search: ['solid', 'magnifying-glass', '#555'],
+            selected: ['solid', 'check', '#fff'],
+            sidebar: ['solid', 'bars', '#555'],
+            sort: ['solid', 'chevron-down', '#555'],
+            'tree-indicator': ['solid', 'chevron-right', '#555'],
+            'view-details': ['solid', 'list', '#555'],
+            'view-grid': ['solid', 'table-cells', '#555'],
+            'view-icons': ['solid', 'grip', '#555']
         }
     },
     {
-        // Format-specific file-type icons in the default theme: previously
-        // brand-colored format logos (Android/Debian/RPM/PHP/... art, in the
-        // now-removed "comity" theme), now generic monochrome Material
-        // Symbols glyphs. Types without a dedicated symbol share a generic
-        // fallback (deb/rpm -> package, go/less/py/rb/rust -> code). The base
-        // types (ar, aud, bin, file, folder*, img, txt, vid, x) are not
-        // Material Symbols and are left untouched.
+        // Base file/folder types, and format-specific file-type icons (the
+        // latter previously brand-colored "comity" art, then generic
+        // monochrome Material Symbols glyphs). Font Awesome brand icons
+        // (fab) restore real per-language logos: android/debian/redhat for
+        // archives, css3-alt/golang/html5/js/less/markdown/php/python/rust
+        // for source files. Types without a brand mark use a generic fas
+        // fallback (txt-rb -> gem, txt-script -> file-code for the
+        // shell/config bucket: yaml/toml/sh/Dockerfile/.env/...).
         outDir: path.join(IMAGES_DIR, 'themes', 'default'),
         size: 20,
         icons: {
-            'ar-apk': ['android', '#555'],
-            'ar-deb': ['package', '#555'],
-            'ar-rpm': ['package', '#555'],
-            'txt-css': ['css', '#555'],
-            'txt-go': ['code', '#555'],
-            'txt-html': ['html', '#555'],
-            'txt-js': ['javascript', '#555'],
-            'txt-less': ['code', '#555'],
-            'txt-md': ['markdown', '#555'],
-            'txt-php': ['php', '#555'],
-            'txt-py': ['code', '#555'],
-            'txt-rb': ['code', '#555'],
-            'txt-rust': ['code', '#555'],
-            'txt-script': ['files', '#555'],
-            'x-pdf': ['picture_as_pdf', '#555']
+            ar: ['solid', 'file-zipper', '#555'],
+            aud: ['solid', 'file-audio', '#555'],
+            bin: ['solid', 'gear', '#555'],
+            file: ['solid', 'file', '#555'],
+            folder: ['solid', 'folder', '#555'],
+            'folder-page': ['solid', 'folder-open', '#555'],
+            'folder-parent': ['solid', 'arrow-up', '#555'],
+            img: ['solid', 'file-image', '#555'],
+            txt: ['solid', 'file-lines', '#555'],
+            vid: ['solid', 'file-video', '#555'],
+            x: ['solid', 'file', '#555'],
+            'ar-apk': ['brands', 'android', '#555'],
+            'ar-deb': ['brands', 'debian', '#555'],
+            'ar-rpm': ['brands', 'redhat', '#555'],
+            'txt-css': ['brands', 'css3-alt', '#555'],
+            'txt-go': ['brands', 'golang', '#555'],
+            'txt-html': ['brands', 'html5', '#555'],
+            'txt-js': ['brands', 'js', '#555'],
+            'txt-less': ['brands', 'less', '#555'],
+            'txt-md': ['brands', 'markdown', '#555'],
+            'txt-php': ['brands', 'php', '#555'],
+            'txt-py': ['brands', 'python', '#555'],
+            'txt-rb': ['solid', 'gem', '#555'],
+            'txt-rust': ['brands', 'rust', '#555'],
+            'txt-script': ['solid', 'file-code', '#555'],
+            'x-pdf': ['solid', 'file-pdf', '#555']
         }
     }
 ];
 
-const readSymbol = name => {
-    const file = path.join(PKG_DIR, `${name}-fill.svg`);
+const readIcon = (style, name) => {
+    const file = path.join(FA_DIR, style, `${name}.svg`);
     const content = fs.readFileSync(file, 'utf8');
     const viewBox = content.match(/viewBox="([^"]+)"/)[1];
-    const d = content.match(/<path d="([^"]+)"/)[1];
+    const d = content.match(/\bd="([^"]+)"/)[1];
     return {viewBox, d};
 };
 
 for (const {outDir, size, icons} of GROUPS) {
-    for (const [id, [symbol, fill]] of Object.entries(icons)) {
-        const {viewBox, d} = readSymbol(symbol);
+    for (const [id, [style, name, fill]] of Object.entries(icons)) {
+        const {viewBox, d} = readIcon(style, name);
         const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="${viewBox}"><path fill="${fill}" d="${d}"/></svg>`;
         fs.writeFileSync(path.join(outDir, `${id}.svg`), svg);
-        console.log(`${id}.svg  <-  ${symbol}-fill (${fill})`);
+        console.log(`${id}.svg  <-  ${style}/${name} (${fill})`);
     }
 }

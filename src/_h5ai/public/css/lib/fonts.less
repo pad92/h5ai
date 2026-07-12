@@ -3,3 +3,46 @@
 @font-size: 13px;
 @font-family-mono: "Ubuntu Mono", "Monaco", "Lucida Sans Typewriter", "monospace";
 @font-size-mono: 15px;
+
+// Self-hosted Ubuntu / Ubuntu Mono (Ubuntu Font License 1.0, via @fontsource).
+// Files are copied into public/fonts by the "copyFonts" gulp task; no
+// runtime dependency on fonts.googleapis.com.
+@font-face {
+    font-family: Ubuntu;
+    font-style: normal;
+    font-weight: 300;
+    font-display: swap;
+    src: url("../fonts/ubuntu-latin-300-normal.woff2") format("woff2");
+}
+
+@font-face {
+    font-family: Ubuntu;
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url("../fonts/ubuntu-latin-400-normal.woff2") format("woff2");
+}
+
+@font-face {
+    font-family: Ubuntu;
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url("../fonts/ubuntu-latin-700-normal.woff2") format("woff2");
+}
+
+@font-face {
+    font-family: "Ubuntu Mono";
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url("../fonts/ubuntu-mono-latin-400-normal.woff2") format("woff2");
+}
+
+@font-face {
+    font-family: "Ubuntu Mono";
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url("../fonts/ubuntu-mono-latin-700-normal.woff2") format("woff2");
+}

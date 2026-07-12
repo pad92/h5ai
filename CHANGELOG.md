@@ -2,10 +2,11 @@
 
 ## Unreleased
 
-* **Icons**: the UI icon set (toolbar, breadcrumb, tree, preview bar, view-mode switch) and the format-specific file-type icons (apk/deb/rpm, css/html/js/php, markdown, pdf, and the generic script/code types) are now generated from [Material Symbols][material-symbols] (`@material-symbols/svg-400`, Apache-2.0) instead of the legacy Material Icons paths and the brand-colored "comity" logos. Icons stay self-hosted static SVGs, with no runtime dependency on fonts.googleapis.com or any font file. Regenerate with `npm run icons` after editing `scripts/generate-icons.js`.
-* **Themes**: the separate "comity" icon theme is gone. Its file-type icons were merged into `themes/default`, which is now the sole and default theme (`view.theme` default changed from `"comity"` to `"default"`). The base type icons (folder/file/archive/audio/image/text/video) and the non-Material icons (theme toggle, tree-toggle, spinner, PayPal) are unchanged.
+* **Icons**: every icon (toolbar, breadcrumb, tree, preview bar, view-mode switch, and all file/folder types) is now generated from [Font Awesome Free][fontawesome] (`@fortawesome/fontawesome-free`, icons CC BY 4.0 / font OFL 1.1 / code MIT) instead of the legacy Material Icons paths and the brand-colored "comity" logos. Format-specific types get their real brand mark where Font Awesome has one (Android, Debian, Red Hat, CSS3, Go, HTML5, JS, Less, Markdown, PHP, Python, Rust); the rest share a fitting generic icon (Ruby uses `gem`, and the shell/config bucket, yaml/toml/sh/Dockerfile/.env/etc, uses `file-code`). Icons stay self-hosted static SVGs, with no runtime dependency on fonts.googleapis.com or any font file. Regenerate with `npm run icons` after editing `scripts/generate-icons.js`.
+* **Themes**: the separate "comity" icon theme is gone. Its file-type icons were merged into `themes/default`, which is now the sole and default theme (`view.theme` default changed from `"comity"` to `"default"`). The non-icon assets (theme toggle, tree-toggle, spinner, PayPal) are unchanged.
+* **Fonts (CSP / no external dependency)**: the default `resources.styles` no longer loads `//fonts.googleapis.com/css?family=Ubuntu...`, which a strict `Content-Security-Policy` (`style-src 'self'`) blocks. Ubuntu and Ubuntu Mono are now self-hosted (`@fontsource/ubuntu`/`@fontsource/ubuntu-mono`, Ubuntu Font License 1.0) as `@font-face` rules bundled straight into `styles.css`, with the `.woff2` files copied to `public/fonts` at build time. The bundled `movi-player` video preview no longer imports Google's Inter font either; it falls back to its own system-font stack. No h5ai page requests any external host for fonts or styles anymore.
 
-[material-symbols]: https://github.com/marella/material-symbols
+[fontawesome]: https://fontawesome.com
 
 
 ## v1.2.5 - *2026-07-03*

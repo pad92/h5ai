@@ -80,14 +80,18 @@ THE SOFTWARE.
 ## References
 
 **h5ai** profits from other projects, all of them licensed under the MIT license
-too. Exceptions are some [Material Symbols][material-symbols] (Apache-2.0, self-hosted, no runtime dependency on fonts.googleapis.com) and [movi-player][movi-player] (Apache-2.0).
+too. Exceptions are the icons from [Font Awesome Free][fontawesome] (CC BY 4.0),
+the [Ubuntu and Ubuntu Mono fonts][fontsource-ubuntu] (Ubuntu Font License 1.0),
+and [movi-player][movi-player] (Apache-2.0), all self-hosted with no runtime
+dependency on fonts.googleapis.com or any other external host.
 
 
 [github]: https://github.com/pad92/h5ai
 [github-issues]: https://github.com/pad92/h5ai/issues
 [github-releases]: https://github.com/pad92/h5ai/releases
 [node]: https://nodejs.org
-[material-symbols]: https://github.com/marella/material-symbols
+[fontawesome]: https://fontawesome.com
+[fontsource-ubuntu]: https://fontsource.org/fonts/ubuntu
 [movi-player]: https://github.com/mrujjwalg/movi-player
 
 [license-img]: https://img.shields.io/badge/license-MIT-a0a060.svg?style=flat-square
