@@ -80,14 +80,14 @@ THE SOFTWARE.
 ## References
 
 **h5ai** profits from other projects, all of them licensed under the MIT license
-too. Exceptions are some [Material Design icons][material-design-icons] (CC BY 4.0) and [movi-player][movi-player] (Apache-2.0).
+too. Exceptions are some [Material Symbols][material-symbols] (Apache-2.0, self-hosted, no runtime dependency on fonts.googleapis.com) and [movi-player][movi-player] (Apache-2.0).
 
 
 [github]: https://github.com/pad92/h5ai
 [github-issues]: https://github.com/pad92/h5ai/issues
 [github-releases]: https://github.com/pad92/h5ai/releases
 [node]: https://nodejs.org
-[material-design-icons]: https://github.com/google/material-design-icons
+[material-symbols]: https://github.com/marella/material-symbols
 [movi-player]: https://github.com/mrujjwalg/movi-player
 
 [license-img]: https://img.shields.io/badge/license-MIT-a0a060.svg?style=flat-square

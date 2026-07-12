@@ -17,12 +17,14 @@
     "lint": "eslint .",
     "test": "node scripts/run-tests.js",
     "build": "gulp release",
+    "icons": "node scripts/generate-icons.js",
     "precommit": "npm run -s lint && npm run -s test"
   },
   "devDependencies": {
     "@babel/core": "7.29.7",
     "@babel/preset-env": "7.29.7",
     "@eslint/js": "^10.0.1",
+    "@material-symbols/svg-400": "^0.45.7",
     "@stylistic/eslint-plugin": "^5.10.0",
     "babel-loader": "^10.0.0",
     "del": "^8.0.0",

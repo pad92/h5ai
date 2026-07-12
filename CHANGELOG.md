@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+* **Icons**: the UI icon set (toolbar, breadcrumb, tree, preview bar, view-mode switch) is now generated from [Material Symbols][material-symbols] (`@material-symbols/svg-400`, Apache-2.0) instead of the legacy Material Icons paths. Icons stay self-hosted static SVGs, with no runtime dependency on fonts.googleapis.com or any font file. File-type icons (folder/file/theme icons) and the non-Material icons (theme toggle, tree-toggle, spinner, PayPal) are unchanged. Regenerate with `npm run icons` after editing `scripts/generate-icons.js`.
+
+[material-symbols]: https://github.com/marella/material-symbols
+
+
 ## v1.2.5 - *2026-07-03*
 
 * **Security fix (ImageMagick policy)**: the hardened policy shipped in v1.2.1 was silently **ignored** by ImageMagick: its XML parser rejects the whole file when a comment sits between the `DOCTYPE` and the root element, so none of the SSRF/ImageTragick protections nor the resource limits were actually applied. The comment now lives inside `<policymap>` and the load is verified (`magick -list policy`).
