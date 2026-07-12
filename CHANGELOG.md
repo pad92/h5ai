@@ -2,7 +2,8 @@
 
 ## Unreleased
 
-* **Icons**: the UI icon set (toolbar, breadcrumb, tree, preview bar, view-mode switch) is now generated from [Material Symbols][material-symbols] (`@material-symbols/svg-400`, Apache-2.0) instead of the legacy Material Icons paths. Icons stay self-hosted static SVGs, with no runtime dependency on fonts.googleapis.com or any font file. File-type icons (folder/file/theme icons) and the non-Material icons (theme toggle, tree-toggle, spinner, PayPal) are unchanged. Regenerate with `npm run icons` after editing `scripts/generate-icons.js`.
+* **Icons**: the UI icon set (toolbar, breadcrumb, tree, preview bar, view-mode switch) and the format-specific file-type icons (apk/deb/rpm, css/html/js/php, markdown, pdf, and the generic script/code types) are now generated from [Material Symbols][material-symbols] (`@material-symbols/svg-400`, Apache-2.0) instead of the legacy Material Icons paths and the brand-colored "comity" logos. Icons stay self-hosted static SVGs, with no runtime dependency on fonts.googleapis.com or any font file. Regenerate with `npm run icons` after editing `scripts/generate-icons.js`.
+* **Themes**: the separate "comity" icon theme is gone. Its file-type icons were merged into `themes/default`, which is now the sole and default theme (`view.theme` default changed from `"comity"` to `"default"`). The base type icons (folder/file/archive/audio/image/text/video) and the non-Material icons (theme toggle, tree-toggle, spinner, PayPal) are unchanged.
 
 [material-symbols]: https://github.com/marella/material-symbols
 
