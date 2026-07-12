@@ -3,6 +3,17 @@
 ## Unreleased
 
 * **Fixed the cache warmer crashing on startup**: `warm-cache.php` accessed `$_SESSION`, which does not exist in CLI, and died with a `TypeError` before doing any work; the background warming triggered on page visits (and the documented cron command) therefore never ran. It now uses a local session store, like `refresh-cache.php` already did.
+* **Removed the dead `google-analytics-ua` extension**: Google shut down Universal Analytics in 2023, so the injected `analytics.js` snippet could no longer record anything. The option block, the client code and the documentation are gone; `piwik-analytics` (Matomo) stays. Remove any `google-analytics-ua` block from a customized `options.json`.
+* **Dropped unused shipped files**: the old PayPal donation icon and the unreferenced `favicon.svg` / `favicon-16.png` / `favicon-32.png` (the served pages only use `favicon-16-32.ico` and `favicon-152.png`).
+* **Apache config trimmed for Apache 2.4+**: removed the "Apache < 2.3" compatibility blocks (`Order`/`Deny`/`Satisfy`), the ancient mangled `Accept-Encoding` workaround and the obsolete font MIME types (`eot`, `ttf`, `otf`, legacy `woff`); `woff2` is now declared and cached for a year. Apache `2.4+` with `mod_authz_core` (loaded by default on every mainstream distribution) is now a documented requirement: without it the `.htaccess` files fail closed with a 500, the private directory is never silently exposed.
+* **Markup/CSS cleanup**: dropped the IE-only `x-ua-compatible` meta tag, switched `apple-touch-icon-precomposed` to the modern `apple-touch-icon` rel, and replaced prefixed `appearance` hacks (including the never-standard `-ms-appearance`) with the standard property.
+* **Build cleanup**: removed the unused `lebab` devDependency and the orphan `.dockerignore` (the repository never had a Dockerfile).
+* **PHP dead-code removal** (no behavior change):
+    * Deleted the legacy `Logger` class (leftover debug infrastructure that wrote timing lines to the error log); the two `Setup` error paths that used it now go through the standard `Util::log()`.
+    * Deleted the never-called `Util::exec_cmdv()` helper.
+    * Dropped the `HAS_PHP_JPEG` setup check, the unused `NAME` setup key and the `HAS_CMD_FFPROBE`/`HAS_CMD_AVPROBE` command probes: computed and stored on every fresh setup, read by nothing (thumbnails are WebP-based, and the video code paths only test for `ffmpeg`/`avconv`).
+    * Removed a PHP 4-era `function_exists('version_compare')` guard and the redundant `TESTED_PHP_VERSION` constant in `index.php`, the no-op `date_default_timezone_set(date_default_timezone_get())` call in the bootstrap, and two `include_once` statements made redundant by the autoloader.
+* **Documentation**: the admin guide now states the real PHP minimum (`8.4.0`, not `7.0.0`), the README's Node.js requirement matches `package.json` (`18.18+`), plus a general wording and formatting pass over all Markdown files.
 
 
 ## v1.2.6 - *2026-07-12*

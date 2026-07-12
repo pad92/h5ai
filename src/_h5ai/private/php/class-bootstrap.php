@@ -7,7 +7,6 @@ class Bootstrap {
         spl_autoload_register(self::autoload(...));
         putenv('LANG=en_US.UTF-8');
         setlocale(LC_CTYPE, 'en_US.UTF-8');
-        date_default_timezone_set(@date_default_timezone_get());
         session_start([
             'cookie_httponly' => true,
             'cookie_samesite' => 'Strict',

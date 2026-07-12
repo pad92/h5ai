@@ -14,7 +14,7 @@ $_SERVER['SERVER_SOFTWARE'] = 'CLI';
 $_SERVER['HTTP_USER_AGENT'] = 'CLI';
 
 require_once __DIR__ . '/class-bootstrap.php';
-spl_autoload_register(['Bootstrap', 'autoload']);
+spl_autoload_register(Bootstrap::autoload(...));
 
 $session_store = [];
 $session = new Session($session_store);

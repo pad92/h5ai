@@ -248,9 +248,6 @@ class Context {
             $result[] = $item->to_json_object();
         }
 
-        include_once __DIR__ . '/../ext/class-thumb.php';
-        include_once __DIR__ . '/../ext/class-cachedb.php';
-
         $db = new CacheDB($this->setup);
         $height = $this->options['thumbnails']['size'] ?? 240;
         $width = (int) floor($height * (4 / 3));

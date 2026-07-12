@@ -64,11 +64,6 @@
         "type": "shell-du"
     },
 
-    "google-analytics-ua": {
-        "enabled": false,
-        "id": "UA-000000-0"
-    },
-
     "info": {
         "enabled": true,
         "show": false,

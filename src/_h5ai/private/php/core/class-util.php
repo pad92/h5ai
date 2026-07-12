@@ -50,22 +50,6 @@ class Util {
         return $rc;
     }
 
-    public static function exec_cmdv(array $cmdv, bool $capture = false, bool $redirect = false): array|string|false {
-        $cmd = implode(' ', array_map(escapeshellarg(...), $cmdv));
-
-        if ($redirect) {
-            $cmd .= ' 2>&1';
-        }
-
-        if ($capture) {
-            $lines = [];
-            $rc = null;
-            exec($cmd, $lines, $rc);
-            return [$lines, $rc];
-        }
-        return exec($cmd);
-    }
-
     public static function exec_0(string $cmd): bool {
         $lines = [];
         $rc = null;

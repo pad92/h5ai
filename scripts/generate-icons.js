@@ -6,7 +6,7 @@
  *
  *   node scripts/generate-icons.js
  *
- * Icons not listed below (theme.svg, tree-toggle.svg, spinner.svg, paypal.svg)
+ * Icons not listed below (theme.svg, tree-toggle.svg, spinner.svg)
  * are not part of Font Awesome and are left untouched.
  */
 

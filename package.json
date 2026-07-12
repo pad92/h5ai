@@ -47,7 +47,6 @@
     "gulp-zip": "^6.1.0",
     "jsdom": "29.1.1",
     "kjua": "0.10.0",
-    "lebab": "^3.2.7",
     "lolight": "1.4.1",
     "marked": "^18.0.5",
     "movi-player": "^0.3.1",

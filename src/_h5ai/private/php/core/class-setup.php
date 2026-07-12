@@ -17,11 +17,7 @@ class Setup {
 
     private function set(string $key, string|bool $value): void {
         if (array_key_exists($key, $this->store)) {
-            Logger::log('setup key already taken', [
-                'key' => $key,
-                'value' => $value,
-                'found' => $this->store[$key],
-            ]);
+            Util::log('setup key already taken: ' . $key);
             exit;
         }
 
@@ -30,7 +26,7 @@ class Setup {
 
     public function get(string $key): string|bool {
         if (!array_key_exists($key, $this->store)) {
-            Logger::log('setup key not found', ['key' => $key]);
+            Util::log('setup key not found: ' . $key);
             exit;
         }
 
@@ -52,14 +48,11 @@ class Setup {
     private function add_php_checks(): void {
         $this->set('HAS_PHP_EXIF', function_exists('exif_thumbnail'));
 
-        $has_php_jpeg = false;
         $has_php_webp = false;
         if (function_exists('gd_info')) {
             $infos = gd_info();
-            $has_php_jpeg = !empty($infos['JPEG Support']);
             $has_php_webp = !empty($infos['WebP Support']) || !empty($infos['Webp Support']);
         }
-        $this->set('HAS_PHP_JPEG', $has_php_jpeg);
         $this->set('HAS_PHP_WEBP', $has_php_webp);
 
         $this->set('HAS_PHP_FILEINFO', extension_loaded('fileinfo'));
@@ -69,7 +62,6 @@ class Setup {
     }
 
     private function add_app_metadata(): void {
-        $this->set('NAME', 'h5ai');
         $this->set('VERSION', H5AI_VERSION);
         $this->set('FILE_PREFIX', '_h5ai');
     }
@@ -141,7 +133,7 @@ class Setup {
                 default => false,
             };
 
-            foreach (['avconv', 'avprobe', 'convert', 'du', 'ffmpeg', 'ffprobe', 'gm', 'tar', 'zip'] as $c) {
+            foreach (['avconv', 'convert', 'du', 'ffmpeg', 'gm', 'tar', 'zip'] as $c) {
                 $cmds[$c] = ($cmd !== false) && (Util::exec_0($cmd . ' ' . $c) || Util::exec_0($cmd . ' ' . $c . '.exe'));
             }
 
@@ -162,7 +154,6 @@ class Setup {
                 'MIN_PHP_VERSION',
                 'PHP_ARCH',
                 'HAS_PHP_EXIF',
-                'HAS_PHP_JPEG',
                 'HAS_PHP_WEBP',
                 'HAS_PHP_FILEINFO',
                 'HAS_PHP_ZIP',
