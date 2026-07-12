@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+* **Fixed the cache warmer crashing on startup**: `warm-cache.php` accessed `$_SESSION`, which does not exist in CLI, and died with a `TypeError` before doing any work; the background warming triggered on page visits (and the documented cron command) therefore never ran. It now uses a local session store, like `refresh-cache.php` already did.
+
+
 ## v1.2.6 - *2026-07-12*
 
 * **Icons**: replaced every icon (toolbar, tree, preview bar, and all file/folder types) with self-hosted [Font Awesome Free][fontawesome] glyphs, using real brand marks where available (Android, Debian, Red Hat, Python, Rust, PHP, and more). The old "comity" icon theme is gone, merged into `themes/default`, now the sole theme. Regenerate with `npm run icons`.
