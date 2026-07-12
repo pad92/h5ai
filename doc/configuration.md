@@ -1,26 +1,24 @@
-# h5ai Configuration Guide
+# h5ai configuration guide
 
 All configuration files for **h5ai** are located in the `_h5ai/private/conf/` directory. This guide explains how to customize and configure the application by modifying these files.
 
 > [!NOTE]
 > For information on server requirements, permissions, command line utilities, and the diagnostic Info Page, see the [Administration Guide](administration.md).
 
-## Files Overview
+## Files overview
 
-- **`options.json`**: The main configuration file containing display options, enabled extensions, and general behavior settings.
-- **`types.json`**: Associates file patterns (globs) to specific file types (e.g., mapping `*.zip` to `ar-zip`).
-- **`l10n/`**: Directory containing translation files for localized UI strings and date formatting.
+- `options.json`: The main configuration file containing display options, enabled extensions, and general behavior settings.
+- `types.json`: Associates file patterns (globs) to specific file types (e.g., mapping `*.zip` to `ar-zip`).
+- `l10n/`: Directory containing translation files for localized UI strings and date formatting.
 
----
-
-## 1. Options Configuration (`options.json`)
+## 1. Options configuration (`options.json`)
 
 Located at [options.json](../src/_h5ai/private/conf/options.json).
 
 > [!NOTE]
 > `options.json` must be valid strict JSON. While h5ai's internal PHP parser can handle `/* ... */` block comments, external tools (linters, security scanners) may reject them.
 
-### General Options
+### General options
 
 | Option / Section | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
@@ -28,7 +26,7 @@ Located at [options.json](../src/_h5ai/private/conf/options.json).
 | `resources.scripts` | `array` | `[]` | List of URLs or paths of custom scripts to inject into every page. Paths not starting with `http://`, `https://` or `/` are relative to `_h5ai/public/ext/`. |
 | `resources.styles` | `array` | `[]` | List of URLs or paths of custom stylesheets to inject. |
 
-### View Options (`view`)
+### View options (`view`)
 
 Customize the general look and feel of the index page.
 
@@ -53,7 +51,7 @@ Customize the general look and feel of the index page.
 | `unmanaged` | `array` | `["index.html", ...]` | If a folder contains any of these files, h5ai will not manage it, allowing default index pages to load instead. |
 | `unmanagedInNewWindow` | `boolean` | `false` | Opens unmanaged folder links in a new window/tab. |
 
-### Cache Options (`cache`)
+### Cache options (`cache`)
 
 Configure automatic background cache warming (for pre-generating thumbnails and calculating folder sizes persistently).
 
@@ -63,15 +61,15 @@ Configure automatic background cache warming (for pre-generating thumbnails and 
 | `warm_interval` | `number` | `86400` | The execution interval in seconds for the background cache warmer (default is 24 hours). |
 
 > [!TIP]
-> **Manual Execution & Low Priority (`nice`)**
+> **Manual execution and low priority (`nice`)**
 > You can also run the cache warmer manually or via a system cron job using:
 > `nice -n 19 php _h5ai/private/php/warm-cache.php`
 > The task is executed with low scheduling priority to prevent resource starvation.
 > 
-> **How Invalidation Works**
+> **How invalidation works**
 > The computed folder sizes are saved in `_h5ai/private/cache/foldersizes.json`. Along with each directory's size, it stores the modification times (`mtime`) of the directory and all of its descendant subfolders. When a page is requested, h5ai checks if the directory's own `mtime` or any of its descendant folders' `mtime`s have changed on disk. If so, only the affected folders are invalidated and recomputed on the fly, so the cache stays accurate without a full rescan.
 
-### Extensions Configuration
+### Extensions configuration
 
 Each extension under `options.json` can be enabled or disabled and has specific parameters.
 
@@ -115,11 +113,6 @@ Calculates and displays the sizes of directories.
 > This operation can significantly slow down directory loading speeds, especially on large folders.
 - `enabled` (default: `true`).
 - `type` (default: `"php"`): Can be `"php"` (slow, adds up sizes of files recursively in PHP) or `"shell-du"` (uses command line `du`, faster but still slow).
-
-#### `google-analytics-ua`
-Integrates Google Analytics tracking code.
-- `enabled` (default: `false`).
-- `id` (default: `"UA-000000-0"`): Google Analytics property tracking ID.
 
 #### `info`
 Shows an informational sidebar displaying file/folder details on hover or select.
@@ -208,7 +201,7 @@ Generates preview thumbnails for images, videos, and document files.
 - `blocklist` (default: `[]`): Array of types for which thumbnail generation is explicitly disabled. Removing a type from one of the arrays above (`img`, `mov`, etc.) implicitly adds it to the blocklist.
 
 > [!TIP]
-> **Failed Thumbnail Caching (`CacheDB`)**
+> **Failed thumbnail caching (`CacheDB`)**
 > If the `sqlite3` PHP module is enabled, h5ai automatically initializes a caching database at `_h5ai/private/cache/thumbs_cache.db`. This database keeps track of files that failed thumbnail generation or files whose types were misdetected. If a file fails to generate a thumbnail (e.g. due to corrupt files, unsupported codecs, or memory limits), its failure state is cached. Future directory requests read this state from the SQLite database directly, completely bypassing resource-heavy regeneration attempts.
 > The cache automatically invalidates entries if the source file's modification time changes or if the server's backend configuration/capabilities change.
 
@@ -226,15 +219,13 @@ Shows a collapsible directory tree sidebar on the left.
 - `naturalSort` (default: `true`): Use natural sorting in the tree view.
 - `ignorecase` (default: `true`): Case-insensitive sorting in the tree view.
 
----
-
-## 2. File Types Configuration (`types.json`)
+## 2. File types configuration (`types.json`)
 
 Located at [types.json](../src/_h5ai/private/conf/types.json).
 
 This file configures how **h5ai** classifies files. It is a JSON dictionary mapping a generic type name (used by CSS styling and previews) to an array of filename glob patterns.
 
-### Customizing Types
+### Customizing types
 
 You can add custom file extensions to existing categories or define new file type groupings.
 
@@ -257,8 +248,6 @@ To configure configurations like `.env` or `.yaml` to render as scripts:
 ]
 ```
 
----
-
 ## 3. Localization (`l10n/` directory)
 
 Located at [l10n/](../src/_h5ai/private/conf/l10n).
@@ -266,9 +255,9 @@ Located at [l10n/](../src/_h5ai/private/conf/l10n).
 This directory contains JSON files named `<language_code>.json` (such as `en.json`, `fr.json`, `de.json`).
 
 > [!NOTE]
-> `en.json` is the reference file — its values are the hardcoded defaults used as a fallback when a key is missing from another language file.
+> `en.json` is the reference file: its values are the hardcoded defaults used as a fallback when a key is missing from another language file.
 
-### Translation Structure
+### Translation structure
 
 Every language translation file maps UI strings to localized strings.
 

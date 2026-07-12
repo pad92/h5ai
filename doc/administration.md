@@ -1,13 +1,11 @@
-# h5ai Administration & Setup Guide
+# h5ai administration and setup guide
 
-The h5ai diagnostic page (commonly referred to as the **Info Page**) is located at `/_h5ai/public/index.php`. It helps administrators check system compatibility, verify optional extension requirements, and manage the health of their h5ai installation.
+The h5ai diagnostic page (the "info page") is located at `/_h5ai/public/index.php`. It checks system compatibility and shows which optional features are available on the host.
 
 > [!NOTE]
 > For customizing h5ai's features, icons, view options, search, previews, and translations, see the [Configuration Guide](configuration.md).
 
----
-
-## 1. Accessing the Info Page
+## 1. Accessing the info page
 
 To open the h5ai diagnostic interface, navigate to:
 ```
@@ -16,9 +14,7 @@ http://<your-server>/_h5ai/public/index.php
 
 By default, when you visit this page, you will see a login prompt.
 
----
-
-## 2. Password Configuration (`passhash`)
+## 2. Password configuration (`passhash`)
 
 Access to the Info Page is secured using a password hash defined in the main configuration file [options.json](../src/_h5ai/private/conf/options.json):
 
@@ -26,7 +22,7 @@ Access to the Info Page is secured using a password hash defined in the main con
 "passhash": "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e"
 ```
 
-### Changing the Password
+### Changing the password
 
 1. Choose a strong password.
 2. Generate its **SHA-512** hash. You can do this:
@@ -41,22 +37,20 @@ Access to the Info Page is secured using a password hash defined in the main con
 > [!NOTE]
 > The default password hash `cf83e...` corresponds to an **empty string**. If you have not customized this yet, you can log in by leaving the password field empty and clicking **login**. A warning notice is displayed on the screen until you customize the password.
 
----
+## 3. Diagnostic tests reference
 
-## 3. Diagnostic Tests Reference
+Once logged in, the page displays a series of checks covering core features and optional extensions. Here is what each test verifies and what to do when it fails.
 
-Once logged in, the page displays a series of checks categorized into core features and optional extensions. Below is a guide to what each test verifies and how to address failure states:
-
-### Core Checks
+### Core checks
 
 * **h5ai version**: Checks if the running version matches an official release format.
 * **Index file found**: Verifies that your web server directory index configuration includes `_h5ai/public/index.php`.
 * **Options/Types parsable**: Confirms that [options.json](../src/_h5ai/private/conf/options.json) and [types.json](../src/_h5ai/private/conf/types.json) contain valid JSON.
 * **Server software**: Detects if your web server is Apache, Lighttpd, Nginx, Cherokee, or Angie.
-* **PHP version**: Checks that PHP is at least version `7.0.0` or higher.
+* **PHP version**: Checks that PHP is at least version `8.4.0`.
 * **PHP arch**: Checks if PHP is running as `64-bit`. A 64-bit PHP runtime is required to display files and folder sizes greater than 2GB correctly.
 
-### Permission Checks
+### Permission checks
 
 * **Public Cache directory**: Verifies the web server has write access to `_h5ai/public/cache/`.
 * **Private Cache directory**: Verifies the web server has write access to `_h5ai/private/cache/`.
@@ -68,7 +62,7 @@ Once logged in, the page displays a series of checks categorized into core featu
 > chown -R www-data:www-data _h5ai/public/cache _h5ai/private/cache
 > ```
 
-### Media & Thumbnail Checks
+### Media and thumbnail checks
 
 * **Image thumbs**: Checks if the `GD` library is installed and compiled with `WebP` support.
 * **Fileinfo module**: Checks if the PHP Fileinfo module is active (used for determining file MIME types safely).
@@ -79,18 +73,16 @@ Once logged in, the page displays a series of checks categorized into core featu
 > [!NOTE]
 > **Media-processor hardening (SSRF/LFI).** Because thumbnails are generated from user-supplied files, h5ai applies defense-in-depth against crafted media that tries to make the processor reach the network or read arbitrary local files:
 > - `ffmpeg`/`avconv` are invoked with `-protocol_whitelist file,crypto,data`, blocking remote (e.g. HLS/concat/playlist) fetches.
-> - A restrictive ImageMagick policy is shipped at `_h5ai/private/conf/magick/policy.xml` and activated via the `MAGICK_CONFIGURE_PATH` environment variable (set automatically; it applies to the Imagick PHP extension and `convert` — GraphicsMagick `gm` does not read it). It disables risky coders (`URL`, `HTTPS`, `MSL`, `SVG`, `MVG`, `EPHEMERAL`, …) and external delegates, with one exception: `PDF`/PostScript stay readable and the Ghostscript delegate stays enabled so the documented `doc` thumbnails keep working. Do not relax this policy further unless you fully trust every file served. You can verify it is loaded with `MAGICK_CONFIGURE_PATH=/path/to/_h5ai/private/conf/magick magick -list policy`.
+> - A restrictive ImageMagick policy is shipped at `_h5ai/private/conf/magick/policy.xml` and activated via the `MAGICK_CONFIGURE_PATH` environment variable (set automatically; it applies to the Imagick PHP extension and `convert`, but GraphicsMagick `gm` does not read it). It disables risky coders (`URL`, `HTTPS`, `MSL`, `SVG`, `MVG`, `EPHEMERAL`, …) and external delegates, with one exception: `PDF`/PostScript stay readable and the Ghostscript delegate stays enabled so the documented `doc` thumbnails keep working. Do not relax this policy further unless you fully trust every file served. You can verify it is loaded with `MAGICK_CONFIGURE_PATH=/path/to/_h5ai/private/conf/magick magick -list policy`.
 
-### Utility Checks
+### Utility checks
 
 * **Zip/Rar module**: Checks for PHP `Zip` and `Rar` extensions. Required for on-the-fly archive previewing.
 * **SQLite3 module**: Checks for PHP `sqlite3` extension. Required for caching failed thumbnail/archive parsing states.
 * **Shell tar / Shell zip**: Checks if system commands `tar` and `zip` are available. Recommended for fast packaged downloads.
 * **Shell du**: Checks if system command `du` is available. Required if foldersize calculation type is set to `"shell-du"` in `options.json`.
 
----
-
-## 4. Troubleshooting Command Line Utilities
+## 4. Troubleshooting command line utilities
 
 If a CLI-based tool (like `ffmpeg`, `convert`, `zip`, `tar`, or `du`) shows a failure status, verify that:
 1. The binary is installed on the host system (e.g., via `apt install ffmpeg imagemagick zip tar`).

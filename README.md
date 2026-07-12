@@ -2,9 +2,9 @@
 
 [![license][license-img]][github] [![github][github-img]][github]
 
-A modern HTTP web server index for Apache httpd, lighttpd, nginx, and Angie. 
+A modern HTTP web server index for Apache httpd, lighttpd, nginx, and Angie.
 
-This repository is a **detached fork** of the original **[h5ai](https://github.com/lrsjng/h5ai)** project by Lars Jung, which is no longer maintained. This fork keeps it going: updated dependencies, bug fixes, and compatibility with modern PHP.
+This repository is a detached fork of the original [h5ai](https://github.com/lrsjng/h5ai) project by Lars Jung, which is no longer maintained. This fork keeps it going with updated dependencies, bug fixes, and compatibility with modern PHP.
 
 
 ## Important
@@ -19,7 +19,7 @@ This repository is a **detached fork** of the original **[h5ai](https://github.c
 
 ### Runtime (Server-side)
 * PHP `8.4.0+`
-* Web server (Apache httpd, lighttpd, nginx, cherokee, Angie, etc.)
+* Web server (Apache httpd `2.4+` with `mod_authz_core` (loaded by default), lighttpd, nginx, cherokee, Angie, etc.)
 * PHP extensions (depending on enabled features):
   * `GD` (required for default WebP image thumbnails, WebP support must be enabled)
   * `Imagick` (recommended for optimized high-performance image resizing, WebP support must be enabled)
@@ -31,7 +31,7 @@ This repository is a **detached fork** of the original **[h5ai](https://github.c
   * `du` (for folder size calculation)
 
 ### Build-time (Development)
-* Node.js `18.0+` and npm (for building the project)
+* Node.js `18.18+` and npm (for building the project)
 
 
 ## Build
@@ -89,7 +89,6 @@ dependency on fonts.googleapis.com or any other external host.
 [github]: https://github.com/pad92/h5ai
 [github-issues]: https://github.com/pad92/h5ai/issues
 [github-releases]: https://github.com/pad92/h5ai/releases
-[node]: https://nodejs.org
 [fontawesome]: https://fontawesome.com
 [fontsource-ubuntu]: https://fontsource.org/fonts/ubuntu
 [movi-player]: https://github.com/mrujjwalg/movi-player
