@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.2.6 - *2026-07-12*
 
 * **Icons**: replaced every icon (toolbar, tree, preview bar, and all file/folder types) with self-hosted [Font Awesome Free][fontawesome] glyphs, using real brand marks where available (Android, Debian, Red Hat, Python, Rust, PHP, and more). The old "comity" icon theme is gone, merged into `themes/default`, now the sole theme. Regenerate with `npm run icons`.
 * **Fonts / CSP**: Ubuntu and Ubuntu Mono are now self-hosted `@font-face` fonts instead of a `fonts.googleapis.com` stylesheet, which a strict `Content-Security-Policy` blocks. The bundled `movi-player` no longer imports Google's Inter font either. No h5ai page requests an external host for icons, fonts, or styles anymore.
