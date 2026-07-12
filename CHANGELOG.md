@@ -2,14 +2,14 @@
 
 ## v1.2.5 - *2026-07-03*
 
-* **Security fix (ImageMagick policy)**: the hardened policy shipped in v1.2.1 was silently **ignored** by ImageMagick — its XML parser rejects the whole file when a comment sits between the `DOCTYPE` and the root element, so none of the SSRF/ImageTragick protections nor the resource limits were actually applied. The comment now lives inside `<policymap>` and the load is verified (`magick -list policy`).
+* **Security fix (ImageMagick policy)**: the hardened policy shipped in v1.2.1 was silently **ignored** by ImageMagick: its XML parser rejects the whole file when a comment sits between the `DOCTYPE` and the root element, so none of the SSRF/ImageTragick protections nor the resource limits were actually applied. The comment now lives inside `<policymap>` and the load is verified (`magick -list policy`).
 * **PDF/PostScript thumbnails kept working under the policy**: with the policy actually enforced, the previous rules (`PDF`/`PS` coders and all delegates disabled) would have broken the documented `doc` thumbnails. The policy now grants **read-only** access to `PDF`/`PS`/`EPS` and allows only the Ghostscript delegate; everything else (network coders, `MSL`/`MVG`/`SVG`, `@file` indirection, other delegates, writes) stays blocked.
 * **Robustness (JSON)**: a malformed `options.json` / cached JSON file now degrades to defaults (with a log entry) instead of taking the whole site down with a `TypeError`; JSON cache writes are serialized with `LOCK_EX` to prevent torn files under concurrency.
-* **Logging**: h5ai no longer writes any log file of its own — all diagnostics (previously appended to `_h5ai/private/cache/debug.log`) now go to the PHP/web-server error log, prefixed with `h5ai:`. Additionally, entries that cannot be read while listing a directory (permission denied) are now reported there, whether or not `view.hideIf403` hides them.
+* **Logging**: h5ai no longer writes any log file of its own. All diagnostics (previously appended to `_h5ai/private/cache/debug.log`) now go to the PHP/web-server error log, prefixed with `h5ai:`. Entries that cannot be read while listing a directory (permission denied) are now reported there too, whether or not `view.hideIf403` hides them.
 * **Folder sizes**: a failing `du` no longer persists a bogus `0` into the folder-size cache (the previous value is kept, or the size is reported as unknown); a racing `filesize()` failure now yields "unknown" instead of a fatal error.
 * **Image preview**: the fullscreen mode forced for photos no longer leaks into the next non-image preview (videos/text open windowed again, per the stored preference).
 * **Theme icons**: extension matching is case-insensitive again (`icon.PNG` works like `icon.png`), which the v1.2.0 `glob()` rewrite had broken.
-* **Cleanup**: removed the dead `custom.stopSearchingAtRoot` option — since v1.2.1 the header/footer search always stops at the web root; the option and its documentation are gone.
+* **Cleanup**: removed the dead `custom.stopSearchingAtRoot` option. Since v1.2.1 the header/footer search always stops at the web root, so the option and its documentation are gone.
 
 
 ## v1.2.4 - *2026-06-26*
@@ -29,7 +29,7 @@
     * Background cache refresh (`refresh-cache.php`) now computes all stale folders in a **single batched `du` process** (`Filesize::refresh_du()`) instead of spawning one process per folder.
     * Dropped the now-redundant `exec_du`, `exec_du_all` and `get_all_subdirs` helpers; hardened `du` output parsing against paths containing spaces and malformed lines.
 * **Other optimizations & cleanup**:
-    * Memoized `Context::is_managed_path()` (was recomputed — `realpath()` + walk to root — once per listed sub-folder per request).
+    * Memoized `Context::is_managed_path()` (previously recomputed, via `realpath()` plus a walk to root, once per listed sub-folder per request).
     * Centralized the `withFoldersize`/`withDu` option lookup in a memoized `Context::foldersize_mode()`, removing the duplicated computation in `Util`, `CacheWarmer` and `refresh-cache.php`.
     * De-duplicated the custom-thumbnail (`_thumb`) detection: `get_items()` now reuses `Thumb::check_custom_thumb()`, and the supported-format list is a single `Thumb::CUSTOM_THUMB_EXT` constant.
     * `CacheDB`: cached the `select_typeid` prepared statement, and `select()` consistently returns `null` when SQLite is unavailable.
