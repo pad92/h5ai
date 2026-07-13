@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.2.7 - *2026-07-13*
 
 * **Fixed the cache warmer crashing on startup**: `warm-cache.php` accessed `$_SESSION`, which does not exist in CLI, and died with a `TypeError` before doing any work; the background warming triggered on page visits (and the documented cron command) therefore never ran. It now uses a local session store, like `refresh-cache.php` already did.
 * **Removed the dead `google-analytics-ua` extension**: Google shut down Universal Analytics in 2023, so the injected `analytics.js` snippet could no longer record anything. The option block, the client code and the documentation are gone; `piwik-analytics` (Matomo) stays. Remove any `google-analytics-ua` block from a customized `options.json`.
