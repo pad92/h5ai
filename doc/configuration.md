@@ -22,7 +22,7 @@ Located at [options.json](../src/_h5ai/private/conf/options.json).
 
 | Option / Section | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `passhash` | `string` | `cf83e...` (empty) | Hash of the password for the h5ai info page (`/_h5ai/public/index.php`). The default value is the SHA512 of an empty string. **Recommended:** use a modern salted hash generated with PHP `password_hash()` (bcrypt/argon2), e.g. `php -r 'echo password_hash("yourpass", PASSWORD_DEFAULT), "\n";'`. Legacy 128-char SHA512 hex digests are still accepted for backward compatibility. |
+| `passhash` | `string` | `""` | Hash of the password for the h5ai info page (`/_h5ai/public/index.php`). Login is disabled while empty. Generate a modern salted hash with PHP `password_hash()` (bcrypt/argon2), e.g. `php -r 'echo password_hash("yourpass", PASSWORD_DEFAULT), "\n";'`. Legacy 128-character SHA-512 digests are accepted only for upgrade compatibility. |
 | `resources.scripts` | `array` | `[]` | List of URLs or paths of custom scripts to inject into every page. Paths not starting with `http://`, `https://` or `/` are relative to `_h5ai/public/ext/`. |
 | `resources.styles` | `array` | `[]` | List of URLs or paths of custom stylesheets to inject. |
 
@@ -57,7 +57,7 @@ Configure automatic background cache warming (for pre-generating thumbnails and 
 
 | Key | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `warm_at_startup` | `boolean` | `true` | If `true`, triggers the cache warmer script in the background on request if it has not run recently. |
+| `warm_at_startup` | `boolean` | `false` | If `true`, triggers the cache warmer script in the background on request if it has not run recently. Keep disabled on large trees unless cache warming is scheduled deliberately. |
 | `warm_interval` | `number` | `86400` | The execution interval in seconds for the background cache warmer (default is 24 hours). |
 
 > [!TIP]
@@ -93,16 +93,19 @@ The search for `headers`/`footers` files always stops at the web root folder.
 #### `download`
 Allows packaging and downloading of selected directory entries.
 - `enabled` (default: `true`).
-- `type` (default: `"php-tar"`): The type of archiving:
-  - `"php-tar"`: uses PHP's `PharData` class to create a tar archive (no external dependency).
+- `type` (default: `"shell-zip"`): The type of archiving:
+  - `"php-tar"`: uses h5ai's streaming PHP TAR writer (no external dependency).
   - `"shell-tar"`: uses the `tar` command line tool.
   - `"shell-zip"`: uses the `zip` command line tool (`apt install zip`).
 - `packageName` (default: `null`): The default name of the archive package. If `null`, uses the current file or folder name.
 - `alwaysVisible` (default: `false`): If `true`, the download button is always visible (downloads the entire folder if nothing is selected).
+- `maxEntries` (default: `10000`): Maximum number of files and folders in one archive request.
+- `maxBytes` (default: `10737418240`): Maximum total file size in bytes for one archive request.
+- `timeout` (default: `300`): Maximum archive execution time in seconds.
 
 #### `filter`
 Allows the user to filter the files displayed in the current folder using a text box in the toolbar.
-- `enabled` (default: `false`).
+- `enabled` (default: `true`).
 - `advanced` (default: `true`): If `true`, checks for characters in the right order (e.g., "ab" matches "axb"). Allows spaces to OR query terms. Prefixing a query with `re:` enables regex search.
 - `debounceTime` (default: `100`): Debounce wait time in milliseconds before filtering.
 - `ignorecase` (default: `true`): Case-insensitive filtering.
@@ -111,8 +114,8 @@ Allows the user to filter the files displayed in the current folder using a text
 Calculates and displays the sizes of directories.
 > [!WARNING]
 > This operation can significantly slow down directory loading speeds, especially on large folders.
-- `enabled` (default: `true`).
-- `type` (default: `"php"`): Can be `"php"` (slow, adds up sizes of files recursively in PHP) or `"shell-du"` (uses command line `du`, faster but still slow).
+- `enabled` (default: `false`).
+- `type` (default: `"shell-du"`): Can be `"php"` (slow, adds up sizes of files recursively in PHP) or `"shell-du"` (uses command line `du`, faster but still potentially expensive).
 
 #### `info`
 Shows an informational sidebar displaying file/folder details on hover or select.
@@ -161,12 +164,19 @@ Enables in-browser video playback.
 - `autoplay` (default: `true`): Autoplay the video on preview start.
 - `types`: Supported video types for preview.
 
+The enhanced player is loaded only in a secure, cross-origin-isolated context.
+Otherwise h5ai immediately uses the native `<video>` element without downloading
+the enhanced-player bundle.
+
 #### `search`
 Allows users to search for files recursively inside the current folder and its subfolders.
-- `enabled` (default: `false`).
+- `enabled` (default: `true`).
 - `advanced` (default: `true`): Support fuzzy matching, spaces to OR terms, or `re:` prefix for regex.
 - `debounceTime` (default: `300`): Delay before searching triggers.
 - `ignorecase` (default: `true`): Case-insensitive search.
+- `maxResults` (default: `1000`): Maximum number of results returned by one recursive search.
+- `maxDepth` (default: `64`): Maximum recursive directory depth visited by one search.
+- `maxPatternLength` (default: `256`): Maximum regular-expression length accepted by the server.
 
 #### `select`
 Enables checkboxes and select options to choose multiple files.
@@ -198,6 +208,9 @@ Generates preview thumbnails for images, videos, and document files.
 - `seek` (default: `50`): Percentage of total video duration to seek into when generating video thumbnails (requires `ffprobe` or `avprobe`).
 - `exif` (default: `true`): Use embedded EXIF thumbnails if available (faster).
 - `chunksize` (default: `20`): Number of thumbnails requested in a single batch.
+- `maxBatchSize` (default: `40`): Hard server-side maximum number of thumbnails accepted in one request.
+- `maxDimension` (default: `4096`): Hard server-side maximum width or height of a generated thumbnail.
+- `allowGraphicsMagick` (default: `false`): Enables `gm` only as a compatibility fallback when ImageMagick is unavailable. Keep disabled for untrusted files because GraphicsMagick does not load h5ai's restrictive ImageMagick policy.
 - `blocklist` (default: `[]`): Array of types for which thumbnail generation is explicitly disabled. Removing a type from one of the arrays above (`img`, `mov`, etc.) implicitly adds it to the blocklist.
 
 > [!TIP]

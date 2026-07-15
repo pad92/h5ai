@@ -58,10 +58,21 @@ test:
     - if: $CI_COMMIT_BRANCH
     - if: $CI_COMMIT_TAG
 
+test:php:
+  stage: test
+  image: php:8.4-cli
+  script:
+    - find src test/php -name '*.php' -print0 | xargs -0 -n1 php -l
+    - php test/php/run.php
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH
+    - if: $CI_COMMIT_TAG
+
 scan:trivy:
   stage: scan
   image:
-    name: aquasec/trivy:latest
+    name: aquasec/trivy:0.65.0
     entrypoint: [""]
   script:
     - trivy fs --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed --skip-dirs .npm_cache,node_modules,build .
@@ -93,13 +104,13 @@ publish:
       fi
     - echo "Uploading $ZIP_FILE to GitLab Package Registry as h5ai-${CLEAN_VERSION}.zip..."
     - |
-      curl --header "JOB-TOKEN: $CI_JOB_TOKEN" \
+      curl --fail-with-body --show-error --header "JOB-TOKEN: $CI_JOB_TOKEN" \
         --upload-file "$ZIP_FILE" \
         "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/h5ai/${CLEAN_VERSION}/h5ai-${CLEAN_VERSION}.zip"
     - |
       if [ -n "$CI_COMMIT_TAG" ]; then
         echo "Uploading $ZIP_FILE to GitLab Package Registry as latest/h5ai-latest.zip..."
-        curl --header "JOB-TOKEN: $CI_JOB_TOKEN" \
+        curl --fail-with-body --show-error --header "JOB-TOKEN: $CI_JOB_TOKEN" \
           --upload-file "$ZIP_FILE" \
           "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/h5ai/latest/h5ai-latest.zip"
       fi

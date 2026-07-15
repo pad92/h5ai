@@ -10,6 +10,8 @@ class Archive {
     private string $base_path;
     private array $dirs = [];
     private array $files = [];
+    private int $total_bytes = 0;
+    private bool $limit_exceeded = false;
 
     public function __construct(private readonly Context $context) {}
 
@@ -21,11 +23,22 @@ class Archive {
 
         $this->dirs = [];
         $this->files = [];
+        $this->total_bytes = 0;
+        $this->limit_exceeded = false;
 
+        $has_requested_hrefs = is_array($hrefs)
+            ? array_any($hrefs, static fn(string $href): bool => trim($href) !== '')
+            : trim($hrefs) !== '';
         $this->add_hrefs($hrefs);
+        if ($this->limit_exceeded) {
+            return false;
+        }
 
-        if (count($this->dirs) === 0 && count($this->files) === 0) {
+        if (count($this->dirs) === 0 && count($this->files) === 0 && !$has_requested_hrefs) {
             $this->add_dir($this->base_path, $type === 'php-tar' ? '/' : '.');
+        }
+        if ($this->limit_exceeded) {
+            return false;
         }
 
         return match ($type) {
@@ -47,7 +60,13 @@ class Archive {
             $cmd,
         );
         try {
-            Util::passthru_cmd($cmd);
+            $rc = Util::passthru_cmd(
+                $cmd,
+                max(1, (int) $this->context->query_option('download.timeout', 300)),
+            );
+            if ($rc !== 0) {
+                return false;
+            }
         } catch (\Exception) {
             return false;
         }
@@ -56,7 +75,7 @@ class Archive {
 
     private function php_tar(array $dirs, array $files): bool {
         $filesizes = [];
-        $total_size = 512 * count($dirs);
+        $total_size = 512 * count($dirs) + 1024;
         foreach (array_keys($files) as $real_file) {
             $size = filesize($real_file);
             $filesizes[$real_file] = $size;
@@ -73,6 +92,9 @@ class Archive {
         }
 
         foreach ($files as $real_file => $archived_file) {
+            if (connection_aborted()) {
+                return false;
+            }
             $size = $filesizes[$real_file];
 
             echo $this->php_tar_header($archived_file, $size, @filemtime($real_file), 0);
@@ -82,6 +104,8 @@ class Archive {
                 echo str_repeat(self::NULL_BYTE, 512 - ($size % 512));
             }
         }
+
+        echo str_repeat(self::NULL_BYTE, 1024);
 
         return true;
     }
@@ -120,6 +144,9 @@ class Archive {
     private function print_file(string $file): void {
         if ($fd = fopen($file, 'rb')) {
             while (!feof($fd)) {
+                if (connection_aborted()) {
+                    break;
+                }
                 print fread($fd, self::$SEGMENT_SIZE);
                 @ob_flush();
                 @flush();
@@ -156,9 +183,25 @@ class Archive {
     }
 
     private function add_file(string $real_file, string $archived_file): void {
-        if (is_readable($real_file)) {
-            $this->files[$real_file] = $archived_file;
+        if (!$this->context->is_managed_file($real_file) || !is_readable($real_file)) {
+            return;
         }
+        if (isset($this->files[$real_file])) {
+            return;
+        }
+        $size = @filesize($real_file);
+        if ($size === false) {
+            return;
+        }
+        $max_entries = max(1, (int) $this->context->query_option('download.maxEntries', 10000));
+        $max_bytes = max(1, (int) $this->context->query_option('download.maxBytes', 10737418240));
+        if ((count($this->dirs) + count($this->files) + 1) > $max_entries
+            || ($this->total_bytes + $size) > $max_bytes) {
+            $this->limit_exceeded = true;
+            return;
+        }
+        $this->total_bytes += $size;
+        $this->files[$real_file] = $archived_file;
     }
 
     private function add_dir(string $real_dir, string $archived_dir, array &$visited = []): void {
@@ -171,10 +214,22 @@ class Archive {
         if (!$this->context->is_managed_path($real_dir)) {
             return;
         }
+        if (isset($this->dirs[$real_dir])) {
+            return;
+        }
+
+        $max_entries = max(1, (int) $this->context->query_option('download.maxEntries', 10000));
+        if ((count($this->dirs) + count($this->files) + 1) > $max_entries) {
+            $this->limit_exceeded = true;
+            return;
+        }
 
         $this->dirs[$real_dir] = $archived_dir;
 
         foreach ($this->context->read_dir($real_dir) as $file) {
+            if ($this->limit_exceeded || connection_aborted()) {
+                return;
+            }
             $real_file = $real_dir . '/' . $file;
             $archived_file = $archived_dir . '/' . $file;
 

@@ -20,4 +20,9 @@ if (name === 'index') {
 
 config._update(query)
     .then(() => awaitReady())
-    .then(() => require(`./main/${name}`));
+    .then(() => require(`./main/${name}`))
+    .catch(err => {
+        global.window.document.documentElement.className = 'no-browser';
+        // eslint-disable-next-line no-console
+        console.error('Unable to initialize h5ai:', err);
+    });

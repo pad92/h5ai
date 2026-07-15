@@ -44,10 +44,74 @@ class Util {
         return Util::RE_DELIMITER . str_replace(Util::RE_DELIMITER, '\\' . Util::RE_DELIMITER, $pattern) . Util::RE_DELIMITER;
     }
 
-    public static function passthru_cmd(string $cmd): int {
-        $rc = null;
-        passthru($cmd, $rc);
-        return $rc;
+    public static function passthru_cmd(string $cmd, int $timeout = 300): int {
+        $process = proc_open($cmd, [
+            0 => ['pipe', 'r'],
+            1 => ['pipe', 'w'],
+            2 => ['pipe', 'w'],
+        ], $pipes);
+        if (!is_resource($process)) {
+            return -1;
+        }
+        fclose($pipes[0]);
+        stream_set_blocking($pipes[1], false);
+        stream_set_blocking($pipes[2], false);
+        $started_at = microtime(true);
+        $exit_code = null;
+        $error = '';
+
+        while (true) {
+            $status = proc_get_status($process);
+            if (!$status['running'] && $status['exitcode'] >= 0) {
+                $exit_code = $status['exitcode'];
+            }
+            $read = array_values(array_filter(
+                [$pipes[1], $pipes[2]],
+                static fn($pipe): bool => !feof($pipe),
+            ));
+            if ($read !== []) {
+                $write = null;
+                $except = null;
+                if (@stream_select($read, $write, $except, 0, 200000) === false) {
+                    usleep(10000);
+                    continue;
+                }
+                foreach ($read as $pipe) {
+                    $chunk = fread($pipe, 65536);
+                    if ($chunk === false || $chunk === '') {
+                        continue;
+                    }
+                    if ($pipe === $pipes[1]) {
+                        echo $chunk;
+                        @flush();
+                    } elseif (strlen($error) < 8192) {
+                        $error .= substr($chunk, 0, 8192 - strlen($error));
+                    }
+                }
+            } else {
+                usleep(10000);
+            }
+            if (connection_aborted() || (microtime(true) - $started_at) > max(1, $timeout)) {
+                proc_terminate($process);
+                usleep(100000);
+                if (proc_get_status($process)['running']) {
+                    proc_terminate($process, 9);
+                }
+                $exit_code = 124;
+                break;
+            }
+            if (!$status['running'] && feof($pipes[1]) && feof($pipes[2])) {
+                break;
+            }
+        }
+
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        $close_code = proc_close($process);
+        if ($error !== '') {
+            self::log('archive command: ' . trim($error));
+        }
+        return $exit_code ?? $close_code;
     }
 
     public static function exec_0(string $cmd): bool {
@@ -60,30 +124,109 @@ class Util {
         return false;
     }
 
-    public static function proc_open_cmdv(array $cmdv, mixed &$output, mixed &$error): int {
-        $cmd = implode(' ', array_map(escapeshellarg(...), $cmdv));
-
+    public static function proc_open_cmdv(array $cmdv, mixed &$output, mixed &$error, int $timeout = 30): int {
         $descriptorspec = [
             0 => ['pipe', 'r'],
             1 => ['pipe', 'w'],
             2 => ['pipe', 'w'],
         ];
-        $process = proc_open($cmd, $descriptorspec, $pipes);
+        $process = proc_open($cmdv, $descriptorspec, $pipes);
 
         if (is_resource($process)) {
             fclose($pipes[0]);
+            stream_set_blocking($pipes[1], false);
+            stream_set_blocking($pipes[2], false);
+            $output_is_stream = is_resource($output);
+            if (!$output_is_stream) {
+                $output = '';
+            }
+            $error = '';
+            $output_bytes = 0;
+            $error_bytes = 0;
+            $max_output_bytes = 64 * 1024 * 1024;
+            $started_at = microtime(true);
+            $exit_code = null;
+            $timed_out = false;
 
-            if (is_resource($output)) {
-                stream_copy_to_stream($pipes[1], $output);
-            } else {
-                $output = stream_get_contents($pipes[1]);
+            while (true) {
+                $status = proc_get_status($process);
+                if (!$status['running'] && $status['exitcode'] >= 0) {
+                    $exit_code = $status['exitcode'];
+                }
+
+                $read = [];
+                if (!feof($pipes[1])) {
+                    $read[] = $pipes[1];
+                }
+                if (!feof($pipes[2])) {
+                    $read[] = $pipes[2];
+                }
+                if ($read !== []) {
+                    $write = null;
+                    $except = null;
+                    if (@stream_select($read, $write, $except, 0, 200000) === false) {
+                        usleep(10000);
+                        continue;
+                    }
+                    foreach ($read as $pipe) {
+                        $chunk = fread($pipe, 8192);
+                        if ($chunk === false || $chunk === '') {
+                            continue;
+                        }
+                        if ($pipe === $pipes[1]) {
+                            $output_bytes += strlen($chunk);
+                            if ($output_is_stream) {
+                                fwrite($output, $chunk);
+                            } else {
+                                $output .= $chunk;
+                            }
+                        } else {
+                            $error_bytes += strlen($chunk);
+                            if (strlen($error) < 8192) {
+                                $error .= substr($chunk, 0, 8192 - strlen($error));
+                            }
+                        }
+                    }
+                } else {
+                    usleep(10000);
+                }
+
+                if (($output_bytes + $error_bytes) > $max_output_bytes
+                    || (microtime(true) - $started_at) > max(1, $timeout)) {
+                    $timed_out = true;
+                    proc_terminate($process);
+                    usleep(100000);
+                    if (proc_get_status($process)['running']) {
+                        proc_terminate($process, 9);
+                    }
+                    $error .= ($output_bytes + $error_bytes) > $max_output_bytes
+                        ? "\nprocess output exceeded 64 MiB"
+                        : "\nprocess timed out";
+                    break;
+                }
+                if (!$status['running'] && feof($pipes[1]) && feof($pipes[2])) {
+                    break;
+                }
+            }
+
+            // Keep the pipes non-blocking: a killed process or one of its
+            // descendants may briefly retain a write descriptor.
+            $remaining_output = stream_get_contents($pipes[1]);
+            if ($remaining_output !== false) {
+                if ($output_is_stream) {
+                    fwrite($output, $remaining_output);
+                } else {
+                    $output .= $remaining_output;
+                }
+            }
+            $remaining_error = stream_get_contents($pipes[2]);
+            if ($remaining_error !== false) {
+                $error .= substr($remaining_error, 0, max(0, 8192 - strlen($error)));
             }
             fclose($pipes[1]);
-
-            $error = stream_get_contents($pipes[2]);
             fclose($pipes[2]);
-
-            return proc_close($process);
+            $close_code = proc_close($process);
+            return $timed_out ? 124 : ($exit_code ?? $close_code);
         }
         return -1;
     }

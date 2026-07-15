@@ -113,7 +113,7 @@ const fetchContent = absHref => {
 
                 item.isContentFetched = true;
                 resolve(item);
-            });
+            }).catch(() => resolve(item));
         }
     });
 };

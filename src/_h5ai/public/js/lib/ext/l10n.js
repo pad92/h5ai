@@ -82,7 +82,7 @@ const loadLanguage = isoCode => {
             {isoCode}
         );
         return loaded[isoCode];
-    });
+    }).catch(() => Object.assign({}, defaultTranslations, {isoCode}));
 };
 
 const localize = (languages, isoCode, useBrowserLang) => {

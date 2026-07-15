@@ -14,10 +14,13 @@
     "npm": ">=9.8.1"
   },
   "scripts": {
-    "lint": "eslint .",
+    "lint": "npm run -s lint:js && npm run -s lint:css",
+    "lint:js": "eslint .",
+    "lint:css": "stylelint 'src/**/*.less'",
     "test": "node scripts/run-tests.js",
     "build": "gulp release",
     "icons": "node scripts/generate-icons.js",
+    "test:php": "php test/php/run.php",
     "precommit": "npm run -s lint && npm run -s test"
   },
   "devDependencies": {

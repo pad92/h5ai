@@ -119,7 +119,7 @@ const refresh = () => {
         });
 
         event.pub('location.refreshed', item, added, removed, updated);
-    });
+    }).catch(() => notification.set('refresh failed'));
 };
 
 const setLocation = (newAbsHref, keepBrowserUrl) => {
@@ -149,7 +149,7 @@ const setLocation = (newAbsHref, keepBrowserUrl) => {
             item.isLoaded = true;
             notification.set();
             event.pub('location.changed', item);
-        });
+        }).catch(() => notification.set('loading failed'));
     }
 };
 

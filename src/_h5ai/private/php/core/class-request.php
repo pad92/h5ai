@@ -5,7 +5,10 @@ class Request {
 
     public function __construct(array $params, string $body) {
         $data = json_decode($body, true);
-        $this->params = $data ?? $params;
+        if ($body !== '' && !is_array($data)) {
+            Util::json_fail(Util::ERR_ILLIGAL_PARAM, 'request body must be a JSON object');
+        }
+        $this->params = is_array($data) ? $data : $params;
     }
 
     public function query(string $keypath = '', mixed $default = Util::NO_DEFAULT): mixed {
@@ -21,6 +24,12 @@ class Request {
 
     public function query_boolean(string $keypath = '', mixed $default = Util::NO_DEFAULT): bool {
         return filter_var($this->query($keypath, $default), FILTER_VALIDATE_BOOLEAN);
+    }
+
+    public function query_string(string $keypath = '', mixed $default = Util::NO_DEFAULT): string {
+        $value = $this->query($keypath, $default);
+        Util::json_fail(Util::ERR_ILLIGAL_PARAM, "parameter '{$keypath}' is not a string", !is_string($value));
+        return $value;
     }
 
     public function query_numeric(string $keypath = '', mixed $default = Util::NO_DEFAULT): int {

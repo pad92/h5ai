@@ -122,9 +122,16 @@ class Thumb {
         }
 
         $is_directory = is_dir($this->source_path);
+        if (($is_directory && !$this->context->is_managed_path($this->source_path))
+            || (!$is_directory && !$this->context->is_managed_file($this->source_path))) {
+            return null;
+        }
         $custom_thumb_source_path = self::check_custom_thumb($this->source_path);
 
         if ($custom_thumb_source_path) {
+            if (!$this->context->is_managed_file($custom_thumb_source_path)) {
+                return null;
+            }
             $this->source_path = $custom_thumb_source_path;
             $this->mtime = @filemtime($this->source_path);
             $this->source_hash = sha1($this->source_path);
@@ -302,7 +309,10 @@ class Thumb {
             unset($arg);
             $capture_data = fopen('php://temp/maxmemory:' . 2 * 1024 * 1024, 'r+');
             $error = null;
-            Util::proc_open_cmdv($cmdv, $capture_data, $error);
+            if (Util::proc_open_cmdv($cmdv, $capture_data, $error) !== 0) {
+                fclose($capture_data);
+                return false;
+            }
             rewind($capture_data);
             $content = stream_get_contents($capture_data);
             if (empty($content)) {
@@ -310,7 +320,9 @@ class Thumb {
                 return false;
             }
             rewind($capture_data);
-            return $this->do_capture_img($capture_data);
+            $success = $this->do_capture_img($capture_data);
+            fclose($capture_data);
+            return $success;
         } catch (\Exception) {
             return false;
         }
@@ -318,11 +330,12 @@ class Thumb {
 
     private function capture_doc(): bool {
         try {
-            if ($this->setup->get('HAS_CMD_GM')) {
-                return $this->do_capture(self::GM_CONVERT_CMDV);
-            }
             if ($this->setup->get('HAS_CMD_CONVERT')) {
                 return $this->do_capture(self::CONVERT_CMDV);
+            }
+            if ($this->context->query_option('thumbnails.allowGraphicsMagick', false)
+                && $this->setup->get('HAS_CMD_GM')) {
+                return $this->do_capture(self::GM_CONVERT_CMDV);
             }
             return false;
         } catch (\Exception) {
@@ -445,7 +458,10 @@ class Thumb {
         $capture_data = fopen('php://temp/maxmemory:' . 2 * 1024 * 1024, 'r+');
 
         $error = null;
-        Util::proc_open_cmdv($cmdv, $capture_data, $error);
+        if (Util::proc_open_cmdv($cmdv, $capture_data, $error) !== 0) {
+            fclose($capture_data);
+            throw new \Exception($error ?: 'thumbnail command failed');
+        }
 
         rewind($capture_data);
         $magic = fread($capture_data, 3);
@@ -471,7 +487,10 @@ class Thumb {
         unset($arg);
         $output = null;
         $error = null;
-        Util::proc_open_cmdv($cmdv, $output, $error);
+        $rc = Util::proc_open_cmdv($cmdv, $output, $error);
+        if ($rc !== 0) {
+            throw new \Exception($error ?: "media probe failed with exit code {$rc}");
+        }
         if (empty($output) || !is_numeric($output) || is_infinite((float) $output)) {
             if (!empty($error) && str_contains($error, 'misdetection possible')) {
                 throw new \Exception($error);

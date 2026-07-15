@@ -26,12 +26,18 @@ This repository is a detached fork of the original [h5ai](https://github.com/lrs
   * `exif` (recommended for EXIF rotation and fast thumbnail extraction)
 * Command-line helpers (optional):
   * `ffmpeg` or `avconv` (for video thumbnails)
-  * ImageMagick (`convert`) or GraphicsMagick (`gm`) (for PDF/document thumbnails)
+  * ImageMagick (`convert`) (for hardened PDF/document thumbnails; GraphicsMagick is an opt-in compatibility fallback)
   * `tar` and `zip` (for packaged downloads)
   * `du` (for folder size calculation)
 
 ### Build-time (Development)
 * Node.js `18.18+` and npm (for building the project)
+
+> [!IMPORTANT]
+> `_h5ai/private/` must never be served as static content. Apache applies the
+> bundled `.htaccess` rules when `AllowOverride` permits them. nginx, lighttpd
+> and Angie require the matching deny rules from [`doc/server/`](doc/server/)
+> to be included in the virtual host before h5ai is exposed.
 
 
 ## Build
@@ -42,7 +48,7 @@ commands to find a fresh zipball in folder `build` (tested on linux only,
 might work on other configurations):
 
 ~~~sh
-> npm install
+> npm ci
 > npm run build
 ~~~
 

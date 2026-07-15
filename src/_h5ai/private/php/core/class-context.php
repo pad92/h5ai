@@ -1,7 +1,6 @@
 <?php
 
 class Context {
-    private const DEFAULT_PASSHASH = 'cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e';
     private const AS_ADMIN_SESSION_KEY = 'AS_ADMIN';
     private const L10N_ISO_CODES = [
         'af', 'bg', 'cs', 'da', 'de', 'el', 'en', 'es', 'et', 'fi', 'fr', 'he',
@@ -15,6 +14,7 @@ class Context {
     private ?array $types = null;
     private array $managed_cache = [];
     private ?array $foldersize_mode = null;
+    private ?array $canonical_paths = null;
 
     public function __construct(
         private readonly Session $session,
@@ -24,7 +24,7 @@ class Context {
         $this->options = Json::load($this->setup->get('CONF_PATH') . '/options.json');
 
         $this->passhash = $this->query_option('passhash', '');
-        $this->options['hasCustomPasshash'] = strcasecmp($this->passhash, self::DEFAULT_PASSHASH) !== 0;
+        $this->options['hasCustomPasshash'] = $this->passhash !== '';
         unset($this->options['passhash']);
     }
 
@@ -159,6 +159,25 @@ class Context {
         return $this->is_managed_path($this->to_path($href));
     }
 
+    public function is_managed_file(string $path): bool {
+        if (!is_file($path)) {
+            return false;
+        }
+
+        [$root_real, $public_real, $private_real] = $this->canonical_paths();
+        $file_real = realpath($path);
+        if ($root_real === false || $file_real === false
+            || !str_starts_with($file_real, $root_real . '/')) {
+            return false;
+        }
+        if (($public_real !== false && str_starts_with($file_real, $public_real . '/'))
+            || ($private_real !== false && str_starts_with($file_real, $private_real . '/'))) {
+            return false;
+        }
+
+        return $this->is_managed_path(dirname($path)) && !$this->is_hidden(basename($path));
+    }
+
     public function is_managed_path(string $path): bool {
         // Result is stable within a request but the check is costly (realpath +
         // walking up to the root), and it runs once per listed sub-folder.
@@ -173,15 +192,15 @@ class Context {
         // Canonicalize and ensure the resolved path stays within the served root.
         // realpath() also resolves symlinks, so a symlinked directory pointing
         // outside the root is rejected here.
-        $root_real = realpath($this->setup->get('ROOT_PATH'));
+        [$root_real, $public_real, $private_real] = $this->canonical_paths();
         $path_real = realpath($path);
         if ($root_real === false || $path_real === false
             || ($path_real !== $root_real && !str_starts_with($path_real, $root_real . '/'))) {
             return false;
         }
 
-        if (str_starts_with($path, $this->setup->get('PUBLIC_PATH'))
-            || str_starts_with($path, $this->setup->get('PRIVATE_PATH'))) {
+        if (($public_real !== false && ($path_real === $public_real || str_starts_with($path_real, $public_real . '/')))
+            || ($private_real !== false && ($path_real === $private_real || str_starts_with($path_real, $private_real . '/')))) {
             return false;
         }
 
@@ -201,6 +220,14 @@ class Context {
             $path = $parent_path;
         }
         return true;
+    }
+
+    private function canonical_paths(): array {
+        return $this->canonical_paths ??= [
+            realpath($this->setup->get('ROOT_PATH')),
+            realpath($this->setup->get('PUBLIC_PATH')),
+            realpath($this->setup->get('PRIVATE_PATH')),
+        ];
     }
 
     public function get_current_path(): string {
@@ -248,27 +275,30 @@ class Context {
             $result[] = $item->to_json_object();
         }
 
-        $db = new CacheDB($this->setup);
+        $db = null;
         $height = $this->options['thumbnails']['size'] ?? 240;
         $width = (int) floor($height * (4 / 3));
 
-        foreach ($result as &$item_obj) {
-            if (!isset($item_obj['managed'])) {
-                continue;
-            }
-            $custom_thumb = Thumb::check_custom_thumb($this->to_path($item_obj['href']));
-            if ($custom_thumb === null) {
-                continue;
-            }
+        if ($this->query_option('thumbnails.enabled', false) && $this->setup->get('HAS_PHP_WEBP')) {
+            foreach ($result as &$item_obj) {
+                if (!isset($item_obj['managed'])) {
+                    continue;
+                }
+                $custom_thumb = Thumb::check_custom_thumb($this->to_path($item_obj['href']));
+                if ($custom_thumb === null || !$this->is_managed_file($custom_thumb)) {
+                    continue;
+                }
 
-            $thumb_gen = new Thumb($this, $custom_thumb, 'img', $db);
-            $thumb_href = $thumb_gen->thumb($width, $height);
-            if ($thumb_href) {
-                $item_obj['thumbSquare'] = $thumb_href;
-                $item_obj['thumbRational'] = $thumb_href;
+                $db ??= new CacheDB($this->setup);
+                $thumb_gen = new Thumb($this, $custom_thumb, 'img', $db);
+                $thumb_href = $thumb_gen->thumb($width, $height);
+                if ($thumb_href) {
+                    $item_obj['thumbSquare'] = $thumb_href;
+                    $item_obj['thumbRational'] = $thumb_href;
+                }
             }
+            unset($item_obj);
         }
-        unset($item_obj);
 
         $stale_paths = Filesize::get_stale_paths();
         if (!empty($stale_paths)) {
@@ -279,10 +309,27 @@ class Context {
     }
 
     private function trigger_folder_refresh(array $paths): void {
+        $marker = $this->setup->get('CACHE_PRV_PATH') . '/refresh.requested';
+        if (is_file($marker) && (time() - (int) @filemtime($marker)) > 300) {
+            @unlink($marker);
+        }
+        $marker_handle = @fopen($marker, 'x');
+        if (!$marker_handle) {
+            return;
+        }
+        fclose($marker_handle);
         $script_path = $this->setup->get('PRIVATE_PATH') . '/php/refresh-cache.php';
         $args = implode(' ', array_map(escapeshellarg(...), $paths));
         $cmd = 'nice -n 19 php ' . escapeshellarg($script_path) . ' ' . $args . ' > /dev/null 2>&1 &';
-        @exec($cmd);
+        $rc = null;
+        try {
+            $launched = @exec($cmd, $unused, $rc) !== false && $rc === 0;
+        } catch (\Throwable) {
+            $launched = false;
+        }
+        if (!$launched) {
+            @unlink($marker);
+        }
     }
 
     public function get_langs(): array {
@@ -324,14 +371,23 @@ class Context {
         $width = (int) floor($height * (4 / 3));
         $db = new CacheDB($this->setup);
 
-        foreach ($requests as $req) {
+        $max_batch = max(1, (int) $this->query_option('thumbnails.maxBatchSize', 40));
+        $max_dimension = max(1, (int) $this->query_option('thumbnails.maxDimension', 4096));
+
+        foreach (array_slice($requests, 0, $max_batch) as $req) {
+            if (!is_array($req) || !isset($req['type'], $req['href'])
+                || !is_string($req['type']) || !is_string($req['href'])) {
+                $hrefs[] = null;
+                $filetypes[] = null;
+                continue;
+            }
             if ($req['type'] === 'blocked') {
                 $hrefs[] = null;
                 $filetypes[] = null;
                 continue;
             }
             $path = $this->to_path($req['href']);
-            if (!$this->is_managed_path(dirname($path)) || $this->is_hidden(basename($path))) {
+            if (!$this->is_managed_file($path)) {
                 $hrefs[] = null;
                 $filetypes[] = null;
                 continue;
@@ -344,8 +400,8 @@ class Context {
                 continue;
             }
 
-            $req_width = isset($req['width']) ? (int) $req['width'] : $width;
-            $req_height = isset($req['height']) ? (int) $req['height'] : $height;
+            $req_width = min($max_dimension, max(1, isset($req['width']) ? (int) $req['width'] : $width));
+            $req_height = min($max_dimension, max(0, isset($req['height']) ? (int) $req['height'] : $height));
             $hrefs[] = $thumbs[$path]->thumb($req_width, $req_height);
 
             if ($thumbs[$path]->get_type()?->was_wrong()) {

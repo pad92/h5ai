@@ -203,6 +203,8 @@ const getExif = href => {
             }
         };
         xhr.onerror = () => resolve(null);
+        xhr.ontimeout = () => resolve(null);
+        xhr.timeout = 10000;
         xhr.send();
     });
 };
@@ -259,7 +261,7 @@ const requestSample = href => {
         }]
     }).then(json => {
         return json && json.thumbs && json.thumbs[0] ? json.thumbs[0] : null;
-    });
+    }).catch(() => null);
 };
 
 const load = item => {

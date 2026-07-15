@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+* **Security hardening**: confines archive, search and thumbnail inputs to regular managed files under the served root; limits archive size, recursive search, thumbnail batches and generated dimensions; disables the unhardened GraphicsMagick document fallback by default; disables administrator login until a password hash is configured; and documents mandatory deny rules for Apache, nginx, Angie and lighttpd.
+* **Process reliability**: reads child-process stdout and stderr concurrently with output and execution limits, preventing pipe deadlocks and indefinitely running archive/media helpers; keeps timeout drains non-blocking, avoids exit-time busy loops, handles interrupted stream polling, verifies media-helper exit codes and closes temporary capture streams.
+* **Performance**: switches costly folder-size and startup cache warming features to opt-in defaults, avoids opening the thumbnail database when thumbnails are unused, serializes cache refresh workers, and lazy-loads preview code and the large video compatibility player.
+* **Frontend robustness**: handles HTTP, JSON, network and timeout failures consistently, keeps failed folder loads retryable, clears stale search results after request failures, and fixes recursive video unload handling.
+* **Cache correctness**: serializes and atomically merges folder-size cache updates so concurrent workers do not lose entries.
+* **Worker reliability**: prevents duplicate cache refresh and warm-up workers, detects disabled or failed background process launches, and automatically expires stale launch markers.
+* **Quality checks**: runs JavaScript, CSS and PHP checks in CI, pins the security scanner image, fails publishing on HTTP errors, and adds PHP security and process-timeout regression tests.
+
 ## v1.2.7 - *2026-07-13*
 
 * **Fixed the cache warmer crashing on startup**: `warm-cache.php` accessed `$_SESSION`, which does not exist in CLI, and died with a `TypeError` before doing any work; the background warming triggered on page visits (and the documented cron command) therefore never ran. It now uses a local session store, like `refresh-cache.php` already did.
