@@ -53,6 +53,34 @@ might work on other configurations):
 ~~~
 
 
+## Docker Image
+
+A ready-to-use Docker image is published to Docker Hub as [`pad92/docker-h5ai`][dockerhub].
+It runs on Angie 1.11+ (Alpine) and PHP 8.4, with s6-overlay as the process supervisor.
+
+[![Docker Pulls](https://img.shields.io/docker/pulls/pad92/docker-h5ai.svg)](https://hub.docker.com/r/pad92/docker-h5ai/)
+
+```bash
+# Basic usage — mount the directory to share at /share
+docker run -d -p 80:80 \
+  -v /path/to/files:/share \
+  pad92/docker-h5ai:latest
+```
+
+```bash
+# With basic authentication
+docker run -d -p 80:80 \
+  -e ENV_U=admin -e ENV_P=mysecretpassword \
+  -v /path/to/files:/share \
+  pad92/docker-h5ai:latest
+```
+
+A `docker-compose.yml` example is included for convenience. See
+[`CHANGELOG.docker.md`](CHANGELOG.docker.md) for the Docker image changelog.
+
+[dockerhub]: https://hub.docker.com/r/pad92/docker-h5ai
+
+
 ## Configuration
 
 For detailed information on configuring **h5ai**, including options, file types, and localization, see the [Configuration Guide](doc/configuration.md).

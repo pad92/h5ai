@@ -28,12 +28,12 @@
     },
 
     "cache": {
-        "warm_at_startup": false,
+        "warm_at_startup": true,
         "warm_interval": 86400
     },
 
     "autorefresh": {
-        "enabled": false,
+        "enabled": true,
         "interval": 5000
     },
 

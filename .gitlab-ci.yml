@@ -12,6 +12,12 @@ default:
 
 variables:
   npm_config_cache: "$CI_PROJECT_DIR/.npm"
+  # Docker image published to Docker Hub under this name.
+  IMAGE_NAME: pad92/docker-h5ai
+  # Multi-platform candidate pushed by `build:candidate` on every pipeline,
+  # scanned by Trivy, then promoted digest-for-digest by the publish jobs.
+  # Configure a registry cleanup policy for `ci-*` tags.
+  CANDIDATE_IMAGE: "$CI_REGISTRY_IMAGE:ci-$CI_COMMIT_SHORT_SHA"
 
 cache:
   key:
@@ -20,43 +26,115 @@ cache:
   paths:
     - .npm/
 
-lint:
+.pipeline-rules: &pipeline_rules
+  - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  - if: $CI_COMMIT_BRANCH
+  - if: $CI_COMMIT_TAG
+
+.publish-rules: &publish_rules
+  - if: $CI_COMMIT_BRANCH == "master"
+  - if: $CI_COMMIT_TAG
+
+.dockerhub-publish-rules: &dockerhub_publish_rules
+  - if: $CI_COMMIT_BRANCH == "master" && $DOCKERHUB_USERNAME && $DOCKERHUB_PASSWORD
+  - if: $CI_COMMIT_TAG && $DOCKERHUB_USERNAME && $DOCKERHUB_PASSWORD
+
+# ── Lint ─────────────────────────────────────────────────────────────────────
+
+lint:app:
   stage: lint
   image: node:20-slim
   script:
     - npm ci
     - npm run lint
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH
-    - if: $CI_COMMIT_TAG
+  rules: *pipeline_rules
 
-build:
+lint:dockerfile:
+  stage: lint
+  image: hadolint/hadolint:latest-alpine
+  script:
+    - hadolint --failure-threshold error Dockerfile
+  rules: *pipeline_rules
+
+# ── Build ────────────────────────────────────────────────────────────────────
+
+build:app:
   stage: build
   image: node:20-slim
   script:
-    - apt-get update && apt-get install -y git
     - npm ci
     - npm run build
   artifacts:
     paths:
       - build/h5ai-*.zip
     expire_in: 1 day
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH
-    - if: $CI_COMMIT_TAG
+  rules: *pipeline_rules
 
-test:
+.docker-build-base:
+  image: docker:28
+  variables:
+    BUILDER_NAME: "builder-$CI_JOB_ID"
+  # binfmt install/uninstall below mutates the shared runner host; serialize
+  # every job extending this base so they cannot race each other's QEMU
+  # registration.
+  resource_group: docker-build
+  before_script:
+    - docker run --privileged --rm tonistiigi/binfmt --uninstall qemu-* || true
+    - docker run --privileged --rm tonistiigi/binfmt --install all || true
+    - docker buildx create --name $BUILDER_NAME --use --bootstrap
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+  after_script:
+    - docker buildx rm $BUILDER_NAME || true
+  rules: *pipeline_rules
+
+build:image:
+  extends: .docker-build-base
+  stage: build
+  script:
+    - |
+      docker buildx build \
+        --load \
+        --pull \
+        -t h5ai-local:latest \
+        --cache-from "type=registry,ref=$CI_REGISTRY_IMAGE:cache" \
+        --cache-to "type=registry,ref=$CI_REGISTRY_IMAGE:cache,mode=max" \
+        .
+    - docker save -o image.tar h5ai-local:latest
+  artifacts:
+    paths:
+      - image.tar
+    expire_in: 1 day
+
+build:candidate:
+  extends: .docker-build-base
+  stage: build
+  script:
+    - |
+      docker buildx build \
+        --platform linux/amd64,linux/arm64 \
+        --push \
+        --metadata-file build-metadata.json \
+        -t "$CANDIDATE_IMAGE" \
+        --cache-from "type=registry,ref=$CI_REGISTRY_IMAGE:cache" \
+        .
+      CANDIDATE_DIGEST=$(sed -n 's/.*"containerimage\.digest"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' build-metadata.json | head -n1)
+      printf 'CANDIDATE_DIGEST=%s\n' "${CANDIDATE_DIGEST:-none}" > build.env
+      echo "Candidate pushed: $CANDIDATE_IMAGE@${CANDIDATE_DIGEST:-none}"
+      rm -f build-metadata.json
+  artifacts:
+    reports:
+      dotenv: build.env
+    expire_in: 1 day
+
+# ── Test ─────────────────────────────────────────────────────────────────────
+
+test:app:
   stage: test
   image: node:20-slim
   script:
     - npm ci
     - npm run test
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH
-    - if: $CI_COMMIT_TAG
+  rules: *pipeline_rules
 
 test:php:
   stage: test
@@ -64,29 +142,121 @@ test:php:
   script:
     - find src test/php -name '*.php' -print0 | xargs -0 -n1 php -l
     - php test/php/run.php
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH
-    - if: $CI_COMMIT_TAG
+  rules: *pipeline_rules
 
-scan:trivy:
+test:docker:
+  stage: test
+  image: docker:28
+  needs:
+    - job: build:image
+      artifacts: true
+  before_script:
+    - apk add --no-cache curl
+  script:
+    - docker load -i image.tar
+    - echo "Testing container without authentication..."
+    - docker run -d --name h5ai-test-noauth -v "$CI_PROJECT_DIR:/share:ro" h5ai-local:latest
+    - TEST_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' h5ai-test-noauth)
+    - |
+      SUCCESS=false
+      for i in $(seq 1 15); do
+        if curl -s -I "http://${TEST_IP}/" | grep -q "HTTP/1.1 200 OK"; then
+          SUCCESS=true
+          break
+        fi
+        sleep 1
+      done
+      if [ "$SUCCESS" = "true" ]; then
+        echo "✓ Public index page returned 200 OK"
+      else
+        echo "✗ Public index page test failed"
+        docker rm -f h5ai-test-noauth
+        exit 1
+      fi
+    - docker rm -f h5ai-test-noauth
+
+    - echo "Testing container with basic authentication..."
+    - docker run -d --name h5ai-test-auth -e ENV_U=admin -e ENV_P=secret -v "$CI_PROJECT_DIR:/share:ro" h5ai-local:latest
+    - TEST_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' h5ai-test-auth)
+    - |
+      SUCCESS=false
+      for i in $(seq 1 15); do
+        if curl -s -I "http://${TEST_IP}/" | grep -q "HTTP/1.1 401 Unauthorized"; then
+          SUCCESS=true
+          break
+        fi
+        sleep 1
+      done
+      if [ "$SUCCESS" = "true" ]; then
+        echo "✓ Unauthenticated request correctly blocked (401 Unauthorized)"
+      else
+        echo "✗ Unauthenticated request test failed (did not return 401)"
+        docker rm -f h5ai-test-auth
+        exit 1
+      fi
+    - |
+      SUCCESS=false
+      for i in $(seq 1 15); do
+        if curl -s -I -u admin:secret "http://${TEST_IP}/" | grep -q "HTTP/1.1 200 OK"; then
+          SUCCESS=true
+          break
+        fi
+        sleep 1
+      done
+      if [ "$SUCCESS" = "true" ]; then
+        echo "✓ Authenticated request successfully bypassed basic auth"
+      else
+        echo "✗ Authenticated request test failed (rejected credentials or PHP-FPM not ready)"
+        docker rm -f h5ai-test-auth
+        exit 1
+      fi
+    - docker rm -f h5ai-test-auth
+    - echo "All tests passed successfully!"
+  rules: *pipeline_rules
+
+# ── Scan ─────────────────────────────────────────────────────────────────────
+
+scan:trivy:fs:
   stage: scan
   image:
-    name: aquasec/trivy:0.65.0
+    name: aquasec/trivy:latest
     entrypoint: [""]
   script:
     - trivy fs --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed --skip-dirs .npm_cache,node_modules,build .
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH
-    - if: $CI_COMMIT_TAG
+  rules: *pipeline_rules
 
-publish:
+scan:trivy:image:
+  stage: scan
+  needs:
+    - job: build:candidate
+      artifacts: true
+  image:
+    name: aquasec/trivy:latest
+    entrypoint: [""]
+  script:
+    - |
+      if [ -z "$CANDIDATE_DIGEST" ] || [ "$CANDIDATE_DIGEST" = "none" ]; then
+        echo "ERROR: CANDIDATE_DIGEST not exported by the build stage" >&2
+        exit 1
+      fi
+      CANDIDATE_REF="$CANDIDATE_IMAGE@$CANDIDATE_DIGEST"
+      export TRIVY_USERNAME="$CI_REGISTRY_USER"
+      export TRIVY_PASSWORD="$CI_REGISTRY_PASSWORD"
+      for platform in linux/amd64 linux/arm64; do
+        echo "Scanning $CANDIDATE_REF ($platform)..."
+        trivy image --platform "$platform" --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed "$CANDIDATE_REF"
+      done
+  rules: *pipeline_rules
+
+# ── Publish ──────────────────────────────────────────────────────────────────
+
+publish:app:
   stage: publish
   image: curlimages/curl:latest
-  rules:
-    - if: $CI_COMMIT_TAG
-    - if: $CI_COMMIT_BRANCH == "master"
+  needs:
+    - job: build:app
+      artifacts: true
+  rules: *publish_rules
   script:
     - |
       if [ -n "$CI_COMMIT_TAG" ]; then
@@ -115,6 +285,73 @@ publish:
           "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/h5ai/latest/h5ai-latest.zip"
       fi
 
+# Publishing does not rebuild: it promotes the scanned candidate's digest to
+# the final tags with `docker buildx imagetools create`, so the published
+# images are bit-identical to what the scan stage validated.
+.docker-publish-template:
+  stage: publish
+  image: docker:28
+  needs:
+    - job: build:candidate
+      artifacts: true
+  script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+    - |
+      if [ -n "$PUBLISH_REGISTRY_LOGIN_CMD" ]; then
+        eval "$PUBLISH_REGISTRY_LOGIN_CMD"
+      fi
+    - |
+      TAGS_ARGS=""
+      add_tag() {
+        TAGS_ARGS="$TAGS_ARGS -t $PUBLISH_IMAGE:$1"
+      }
+
+      if [ -n "$CI_COMMIT_TAG" ]; then
+        add_tag "$CI_COMMIT_TAG"
+        add_tag "latest"
+        if echo "$CI_COMMIT_TAG" | grep -E '^v?[0-9]+\.[0-9]+\.[0-9]+(-.*)?$' > /dev/null; then
+          SEMVER=$(echo "$CI_COMMIT_TAG" | sed 's/^v//')
+          add_tag "$SEMVER"
+          if echo "$SEMVER" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' > /dev/null; then
+            MAJOR=$(echo "$SEMVER" | cut -d. -f1)
+            MINOR=$(echo "$SEMVER" | cut -d. -f2)
+            add_tag "$MAJOR.$MINOR"
+            add_tag "$MAJOR"
+          fi
+        fi
+      elif [ "$CI_COMMIT_BRANCH" = "master" ]; then
+        add_tag "devel"
+      fi
+
+      if [ -z "$TAGS_ARGS" ]; then
+        echo "No tags to publish for this pipeline"
+        exit 0
+      fi
+
+      if [ -z "$CANDIDATE_DIGEST" ] || [ "$CANDIDATE_DIGEST" = "none" ]; then
+        echo "ERROR: CANDIDATE_DIGEST not exported by the build stage, refusing to publish an unscanned image" >&2
+        exit 1
+      fi
+      CANDIDATE_REF="$CANDIDATE_IMAGE@$CANDIDATE_DIGEST"
+
+      echo "Promoting scanned candidate $CANDIDATE_REF to: $TAGS_ARGS"
+      docker buildx imagetools create $TAGS_ARGS "$CANDIDATE_REF"
+
+publish:gitlab:
+  extends: .docker-publish-template
+  variables:
+    PUBLISH_IMAGE: "$CI_REGISTRY_IMAGE"
+  rules: *publish_rules
+
+publish:dockerhub:
+  extends: .docker-publish-template
+  variables:
+    PUBLISH_IMAGE: "docker.io/$IMAGE_NAME"
+    PUBLISH_REGISTRY_LOGIN_CMD: 'echo "$DOCKERHUB_PASSWORD" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin docker.io'
+  rules: *dockerhub_publish_rules
+
+# ── Release ──────────────────────────────────────────────────────────────────
+
 create_release:
   stage: release
   image: registry.gitlab.com/gitlab-org/release-cli:latest
@@ -125,7 +362,6 @@ create_release:
     - CLEAN_VERSION=$(echo "$VERSION" | sed 's/^v//')
     - echo "Extracting release notes for $CLEAN_VERSION (from tag $VERSION)..."
     - |
-      # Extract notes between ## v$CLEAN_VERSION (or ## $CLEAN_VERSION) and the next ## header
       awk -v ver="$CLEAN_VERSION" '{ gsub(/\r$/, "") } /^## / { if ($2 == "v"ver || $2 == ver) flag=1; else flag=0; next } flag' CHANGELOG.md > release_notes.txt
     - |
       if [ ! -s release_notes.txt ]; then

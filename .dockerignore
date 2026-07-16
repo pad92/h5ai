@@ -1,0 +1,10 @@
+.git
+.gitlab-ci.yml
+.npm
+node_modules
+build
+test
+doc
+scripts
+CHANGELOG*.md
+README.md
