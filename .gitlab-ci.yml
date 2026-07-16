@@ -83,6 +83,10 @@ build:app:
     - docker run --privileged --rm tonistiigi/binfmt --install all || true
     - docker buildx create --name $BUILDER_NAME --use --bootstrap
     - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+    # Version/build metadata consumed by the Dockerfile ARGs (image labels).
+    - H5AI_VERSION=$(sed -n 's/.*"version":[[:space:]]*"\([^"]*\)".*/\1/p' package.json | head -n1)
+    - BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    - BUILD_ARGS="--build-arg H5AI_VERSION=$H5AI_VERSION --build-arg BUILD_DATE=$BUILD_DATE --build-arg BUILD_VCSREF=$CI_COMMIT_SHORT_SHA"
   after_script:
     - docker buildx rm $BUILDER_NAME || true
   rules: *pipeline_rules
@@ -95,6 +99,7 @@ build:image:
       docker buildx build \
         --load \
         --pull \
+        $BUILD_ARGS \
         -t h5ai-local:latest \
         --cache-from "type=registry,ref=$CI_REGISTRY_IMAGE:cache" \
         --cache-to "type=registry,ref=$CI_REGISTRY_IMAGE:cache,mode=max" \
@@ -105,15 +110,20 @@ build:image:
       - image.tar
     expire_in: 1 day
 
+# Multi-arch candidate is only needed by the publish stage: build it (and scan
+# it) only on pipelines that can publish, instead of paying the emulated arm64
+# build and a throwaway ci-* tag on every MR/branch pipeline.
 build:candidate:
   extends: .docker-build-base
   stage: build
+  rules: *publish_rules
   script:
     - |
       docker buildx build \
         --platform linux/amd64,linux/arm64 \
         --push \
         --metadata-file build-metadata.json \
+        $BUILD_ARGS \
         -t "$CANDIDATE_IMAGE" \
         --cache-from "type=registry,ref=$CI_REGISTRY_IMAGE:cache" \
         .
@@ -154,62 +164,33 @@ test:docker:
     - apk add --no-cache curl
   script:
     - docker load -i image.tar
+    - |
+      # wait_http <curl extra args> <expected status> <ok msg> <fail msg> <container>
+      # Polls http://$TEST_IP/ until the status line matches (15 s max);
+      # on failure removes the container and fails the job.
+      wait_http() {
+        for i in $(seq 1 15); do
+          if curl -s -I $1 "http://${TEST_IP}/" | grep -q "HTTP/1.1 $2"; then
+            echo "✓ $3"
+            return 0
+          fi
+          sleep 1
+        done
+        echo "✗ $4"
+        docker rm -f "$5"
+        exit 1
+      }
     - echo "Testing container without authentication..."
     - docker run -d --name h5ai-test-noauth -v "$CI_PROJECT_DIR:/share:ro" h5ai-local:latest
     - TEST_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' h5ai-test-noauth)
-    - |
-      SUCCESS=false
-      for i in $(seq 1 15); do
-        if curl -s -I "http://${TEST_IP}/" | grep -q "HTTP/1.1 200 OK"; then
-          SUCCESS=true
-          break
-        fi
-        sleep 1
-      done
-      if [ "$SUCCESS" = "true" ]; then
-        echo "✓ Public index page returned 200 OK"
-      else
-        echo "✗ Public index page test failed"
-        docker rm -f h5ai-test-noauth
-        exit 1
-      fi
+    - wait_http "" "200 OK" "Public index page returned 200 OK" "Public index page test failed" h5ai-test-noauth
     - docker rm -f h5ai-test-noauth
 
     - echo "Testing container with basic authentication..."
     - docker run -d --name h5ai-test-auth -e ENV_U=admin -e ENV_P=secret -v "$CI_PROJECT_DIR:/share:ro" h5ai-local:latest
     - TEST_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' h5ai-test-auth)
-    - |
-      SUCCESS=false
-      for i in $(seq 1 15); do
-        if curl -s -I "http://${TEST_IP}/" | grep -q "HTTP/1.1 401 Unauthorized"; then
-          SUCCESS=true
-          break
-        fi
-        sleep 1
-      done
-      if [ "$SUCCESS" = "true" ]; then
-        echo "✓ Unauthenticated request correctly blocked (401 Unauthorized)"
-      else
-        echo "✗ Unauthenticated request test failed (did not return 401)"
-        docker rm -f h5ai-test-auth
-        exit 1
-      fi
-    - |
-      SUCCESS=false
-      for i in $(seq 1 15); do
-        if curl -s -I -u admin:secret "http://${TEST_IP}/" | grep -q "HTTP/1.1 200 OK"; then
-          SUCCESS=true
-          break
-        fi
-        sleep 1
-      done
-      if [ "$SUCCESS" = "true" ]; then
-        echo "✓ Authenticated request successfully bypassed basic auth"
-      else
-        echo "✗ Authenticated request test failed (rejected credentials or PHP-FPM not ready)"
-        docker rm -f h5ai-test-auth
-        exit 1
-      fi
+    - wait_http "" "401 Unauthorized" "Unauthenticated request correctly blocked (401 Unauthorized)" "Unauthenticated request test failed (did not return 401)" h5ai-test-auth
+    - wait_http "-u admin:secret" "200 OK" "Authenticated request successfully bypassed basic auth" "Authenticated request test failed (rejected credentials or PHP-FPM not ready)" h5ai-test-auth
     - docker rm -f h5ai-test-auth
     - echo "All tests passed successfully!"
   rules: *pipeline_rules
@@ -246,24 +227,23 @@ scan:trivy:image:
         echo "Scanning $CANDIDATE_REF ($platform)..."
         trivy image --platform "$platform" --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed "$CANDIDATE_REF"
       done
-  rules: *pipeline_rules
+  rules: *publish_rules
 
 # ── Publish ──────────────────────────────────────────────────────────────────
 
+# Uploads the versioned zip consumed by create_release. The former
+# `latest/h5ai-latest.zip` and master-branch uploads had a single consumer —
+# the separate docker-h5ai repository — which now builds from source in-tree.
 publish:app:
   stage: publish
   image: curlimages/curl:latest
   needs:
     - job: build:app
       artifacts: true
-  rules: *publish_rules
+  rules:
+    - if: $CI_COMMIT_TAG
   script:
-    - |
-      if [ -n "$CI_COMMIT_TAG" ]; then
-        CLEAN_VERSION=$(echo "$CI_COMMIT_TAG" | sed 's/^v//')
-      elif [ "$CI_COMMIT_BRANCH" = "master" ]; then
-        CLEAN_VERSION="master"
-      fi
+    - CLEAN_VERSION=$(echo "$CI_COMMIT_TAG" | sed 's/^v//')
     - ZIP_FILE=$(ls build/h5ai-*.zip | head -n 1)
     - |
       if [ -z "$ZIP_FILE" ] || [ ! -f "$ZIP_FILE" ]; then
@@ -277,13 +257,6 @@ publish:app:
       curl --fail-with-body --show-error --header "JOB-TOKEN: $CI_JOB_TOKEN" \
         --upload-file "$ZIP_FILE" \
         "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/h5ai/${CLEAN_VERSION}/h5ai-${CLEAN_VERSION}.zip"
-    - |
-      if [ -n "$CI_COMMIT_TAG" ]; then
-        echo "Uploading $ZIP_FILE to GitLab Package Registry as latest/h5ai-latest.zip..."
-        curl --fail-with-body --show-error --header "JOB-TOKEN: $CI_JOB_TOKEN" \
-          --upload-file "$ZIP_FILE" \
-          "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/h5ai/latest/h5ai-latest.zip"
-      fi
 
 # Publishing does not rebuild: it promotes the scanned candidate's digest to
 # the final tags with `docker buildx imagetools create`, so the published

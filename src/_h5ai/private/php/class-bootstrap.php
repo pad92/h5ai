@@ -66,14 +66,7 @@ class Bootstrap {
             if (!$last_activity || ($now - $last_activity) > $interval) {
                 @file_put_contents($laststart_file, (string) $now, LOCK_EX);
                 $script_path = $setup->get('PRIVATE_PATH') . '/php/warm-cache.php';
-                $cmd = 'nice -n 19 php ' . escapeshellarg($script_path) . ' > /dev/null 2>&1 &';
-                $rc = null;
-                try {
-                    $launched = @exec($cmd, $unused, $rc) !== false && $rc === 0;
-                } catch (\Throwable) {
-                    $launched = false;
-                }
-                if (!$launched) {
+                if (!Util::launch_background($script_path)) {
                     @unlink($laststart_file);
                 }
             }

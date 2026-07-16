@@ -319,15 +319,7 @@ class Context {
         }
         fclose($marker_handle);
         $script_path = $this->setup->get('PRIVATE_PATH') . '/php/refresh-cache.php';
-        $args = implode(' ', array_map(escapeshellarg(...), $paths));
-        $cmd = 'nice -n 19 php ' . escapeshellarg($script_path) . ' ' . $args . ' > /dev/null 2>&1 &';
-        $rc = null;
-        try {
-            $launched = @exec($cmd, $unused, $rc) !== false && $rc === 0;
-        } catch (\Throwable) {
-            $launched = false;
-        }
-        if (!$launched) {
+        if (!Util::launch_background($script_path, $paths)) {
             @unlink($marker);
         }
     }
