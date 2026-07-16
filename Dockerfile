@@ -5,6 +5,7 @@ WORKDIR /build
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY src/ ./src/
+COPY test/ ./test/
 COPY gulpfile.js eslint.config.js ./
 RUN npm run build
 
