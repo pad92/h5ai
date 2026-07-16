@@ -40,6 +40,9 @@ class Archive {
         if ($this->limit_exceeded) {
             return false;
         }
+        if (count($this->dirs) === 0 && count($this->files) === 0) {
+            return false;
+        }
 
         return match ($type) {
             'php-tar' => $this->php_tar($this->dirs, $this->files),

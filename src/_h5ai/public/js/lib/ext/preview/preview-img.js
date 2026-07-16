@@ -193,10 +193,8 @@ const getExif = href => {
                 try {
                     const tags = EXIF.readFromBinaryFile(xhr.response);
                     resolve(tags || null);
-                } catch (e) {
-                    if (e) {
-                        resolve(null);
-                    }
+                } catch {
+                    resolve(null);
                 }
             } else {
                 resolve(null);

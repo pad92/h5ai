@@ -34,8 +34,13 @@ if [ -n "${REAL_IP_FROM}" ]; then
     echo "${REAL_IP_FROM}" | tr ',' ' ' | xargs -n1 | while read -r cidr; do
         [ -n "${cidr}" ] && echo "set_real_ip_from ${cidr};" >> "${REALIP_CONF}"
     done
-    echo "real_ip_header ${REAL_IP_HEADER:-X-Forwarded-For};" >> "${REALIP_CONF}"
-    echo "real_ip_recursive on;" >> "${REALIP_CONF}"
+    if ! grep -q "^set_real_ip_from" "${REALIP_CONF}" 2>/dev/null; then
+        echo "WARNING: REAL_IP_FROM='${REAL_IP_FROM}' produced no valid CIDR entries; real_ip configuration skipped" >&2
+        rm -f "${REALIP_CONF}"
+    else
+        echo "real_ip_header ${REAL_IP_HEADER:-X-Forwarded-For};" >> "${REALIP_CONF}"
+        echo "real_ip_recursive on;" >> "${REALIP_CONF}"
+    fi
 else
     rm -f "${REALIP_CONF}"
 fi
@@ -87,7 +92,12 @@ if [ -n "${H5AI_ADMIN_PASSHASH}" ] && [ -f "${OPTIONS_JSON}" ]; then
     # temp file over the target, which fails with EBUSY when options.json is
     # a single-file bind mount.
     TMP_OPTIONS=$(mktemp)
+    trap 'rm -f "${TMP_OPTIONS}"' EXIT
     sed -E 's/"passhash":[[:space:]]*"[^"]*"/"passhash": "'"${H5AI_ADMIN_PASSHASH}"'"/g' "${OPTIONS_JSON}" > "${TMP_OPTIONS}"
+    if ! grep -qF "\"${H5AI_ADMIN_PASSHASH}\"" "${TMP_OPTIONS}"; then
+        echo "WARNING: 'passhash' key not found in ${OPTIONS_JSON}; admin password was not applied" >&2
+    fi
     cat "${TMP_OPTIONS}" > "${OPTIONS_JSON}"
     rm -f "${TMP_OPTIONS}"
+    trap - EXIT
 fi
