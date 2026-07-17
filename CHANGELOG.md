@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.3.0 - *2026-07-17*
 
 * **Monorepo**: merges the `docker-h5ai` packaging repository into this repository. The Docker image (`pad92/docker-h5ai`) is now built from the in-tree sources by a multi-stage Dockerfile instead of downloading a released zip; published registries, tag scheme and image name are unchanged, so `docker pull` keeps working as before.
 * **Changelog**: merged `CHANGELOG.docker.md` into this file. A single changelog now covers the h5ai application and its Docker packaging, with the former Docker-only pre-monorepo history kept as its own section below.
