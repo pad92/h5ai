@@ -76,7 +76,8 @@ docker run -d -p 80:80 \
 ```
 
 A `docker-compose.yml` example is included for convenience. See
-[`CHANGELOG.docker.md`](CHANGELOG.docker.md) for the Docker image changelog.
+[`CHANGELOG.md`](CHANGELOG.md) for the changelog, which covers both the
+application and the Docker image.
 
 [dockerhub]: https://hub.docker.com/r/pad92/docker-h5ai
 
