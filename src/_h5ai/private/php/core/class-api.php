@@ -10,7 +10,7 @@ class Api {
     }
 
     public function apply(): never {
-        $action = $this->request->query('action');
+        $action = $this->request->query_string('action');
         $supported = ['download', 'get', 'login', 'logout'];
         Util::json_fail(Util::ERR_UNSUPPORTED, 'unsupported action', !in_array($action, $supported, true));
 
@@ -22,16 +22,21 @@ class Api {
     private function on_download(): never {
         Util::json_fail(Util::ERR_DISABLED, 'download disabled', !$this->context->query_option('download.enabled', false));
 
-        $as = $this->request->query('as');
-        $type = $this->request->query('type');
-        $base_href = $this->request->query('baseHref');
+        $as = $this->request->query_string('as');
+        $type = $this->request->query_string('type');
+        $base_href = $this->request->query_string('baseHref');
         $hrefs = $this->request->query('hrefs', '');
+        Util::json_fail(
+            Util::ERR_ILLIGAL_PARAM,
+            'hrefs must be a string or an array of strings',
+            !is_string($hrefs) && (!is_array($hrefs) || !array_all($hrefs, is_string(...))),
+        );
 
         $as = preg_replace('/[^\w.\-]/', '_', $as);
 
         $archive = new Archive($this->context);
 
-        set_time_limit(0);
+        set_time_limit(max(1, (int) $this->context->query_option('download.timeout', 300)));
         session_write_close();
         header('Content-Type: application/octet-stream');
         header('Content-Disposition: attachment; filename="' . $as . '"');
@@ -61,27 +66,30 @@ class Api {
         }
 
         if ($this->request->query('items', false)) {
-            $href = $this->request->query('items.href');
+            $href = $this->request->query_string('items.href');
             $what = $this->request->query_numeric('items.what');
             $response['items'] = $this->context->get_items($href, $what);
         }
 
         if ($this->request->query('custom', false)) {
             Util::json_fail(Util::ERR_DISABLED, 'custom disabled', !$this->context->query_option('custom.enabled', false));
-            $href = $this->request->query('custom');
+            $href = $this->request->query_string('custom');
             $response['custom'] = new Custom($this->context)->get_customizations($href);
         }
 
         if ($this->request->query('l10n', false)) {
             Util::json_fail(Util::ERR_DISABLED, 'l10n disabled', !$this->context->query_option('l10n.enabled', false));
-            $iso_codes = array_filter($this->request->query_array('l10n'));
+            $iso_codes = array_values(array_filter(
+                $this->request->query_array('l10n'),
+                is_string(...),
+            ));
             $response['l10n'] = $this->context->get_l10n($iso_codes);
         }
 
         if ($this->request->query('search', false)) {
             Util::json_fail(Util::ERR_DISABLED, 'search disabled', !$this->context->query_option('search.enabled', false));
-            $href = $this->request->query('search.href');
-            $pattern = $this->request->query('search.pattern');
+            $href = $this->request->query_string('search.href');
+            $pattern = $this->request->query_string('search.pattern');
             $ignorecase = $this->request->query_boolean('search.ignorecase', false);
             $response['search'] = new Search($this->context)->get_items($href, $pattern, $ignorecase);
         }
@@ -90,6 +98,8 @@ class Api {
             Util::json_fail(Util::ERR_DISABLED, 'thumbnails disabled', !$this->context->query_option('thumbnails.enabled', false));
             Util::json_fail(Util::ERR_UNSUPPORTED, 'thumbnails not supported', !$this->setup->get('HAS_PHP_WEBP'));
             $thumbs = $this->request->query_array('thumbs');
+            $max_batch = max(1, (int) $this->context->query_option('thumbnails.maxBatchSize', 40));
+            Util::json_fail(Util::ERR_ILLIGAL_PARAM, 'too many thumbnail requests', count($thumbs) > $max_batch);
             [$response['thumbs'], $response['filetypes']] = $this->context->get_thumbs($thumbs);
         }
 
@@ -100,7 +110,7 @@ class Api {
     }
 
     private function on_login(): never {
-        $pass = $this->request->query('pass');
+        $pass = $this->request->query_string('pass');
         Util::json_exit(['asAdmin' => $this->context->login_admin($pass)]);
     }
 

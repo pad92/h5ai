@@ -22,6 +22,8 @@ $session = new Session($session_store);
 $request = new Request($_REQUEST, '');
 $setup = new Setup();
 $context = new Context($session, $request, $setup);
+$laststart_file = $setup->get('CACHE_PRV_PATH') . '/warmer.laststart';
+register_shutdown_function(static fn() => @unlink($laststart_file));
 
 $lock_file = $setup->get('CACHE_PRV_PATH') . '/warmer.lock';
 $fp = @fopen($lock_file, 'c+');
@@ -41,6 +43,7 @@ $warmer->warm();
 
 $lastrun_file = $setup->get('CACHE_PRV_PATH') . '/warmer.lastrun';
 @file_put_contents($lastrun_file, time());
+@unlink($laststart_file);
 
 flock($fp, LOCK_UN);
 fclose($fp);

@@ -35,6 +35,7 @@ const addTest = (label, info, passed, result) => {
 };
 
 const addTests = () => {
+    const thumbnails = config.options && config.options.thumbnails;
     if (!setup.AS_ADMIN) {
         return;
     }
@@ -122,8 +123,8 @@ const addTests = () => {
     );
 
     addTest(
-        'PDF thumbs', 'Command line program <code>convert</code> or <code>gm</code> available',
-        setup.HAS_CMD_CONVERT || setup.HAS_CMD_GM
+        'PDF thumbs', 'Hardened ImageMagick <code>convert</code> available',
+        setup.HAS_CMD_CONVERT || thumbnails && thumbnails.allowGraphicsMagick && setup.HAS_CMD_GM
     );
 
     addTest(
@@ -150,13 +151,13 @@ const onLogin = () => {
     server.request({
         action: 'login',
         pass: dom('#pass').val()
-    }).then(reload);
+    }).then(reload).catch(() => undefined);
 };
 
 const onLogout = () => {
     server.request({
         action: 'logout'
-    }).then(reload);
+    }).then(reload).catch(() => undefined);
 };
 
 const onKeydown = ev => {

@@ -193,16 +193,16 @@ const getExif = href => {
                 try {
                     const tags = EXIF.readFromBinaryFile(xhr.response);
                     resolve(tags || null);
-                } catch (e) {
-                    if (e) {
-                        resolve(null);
-                    }
+                } catch {
+                    resolve(null);
                 }
             } else {
                 resolve(null);
             }
         };
         xhr.onerror = () => resolve(null);
+        xhr.ontimeout = () => resolve(null);
+        xhr.timeout = 10000;
         xhr.send();
     });
 };
@@ -259,7 +259,7 @@ const requestSample = href => {
         }]
     }).then(json => {
         return json && json.thumbs && json.thumbs[0] ? json.thumbs[0] : null;
-    });
+    }).catch(() => null);
 };
 
 const load = item => {

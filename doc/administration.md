@@ -19,25 +19,44 @@ By default, when you visit this page, you will see a login prompt.
 Access to the Info Page is secured using a password hash defined in the main configuration file [options.json](../src/_h5ai/private/conf/options.json):
 
 ```json
-"passhash": "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e"
+"passhash": ""
 ```
 
 ### Changing the password
 
 1. Choose a strong password.
-2. Generate its **SHA-512** hash. You can do this:
-   - On the Linux command line:
-     ```bash
-     echo -n "yourpassword" | sha512sum
-     ```
-   - Using online hash generators.
-3. Open [options.json](../src/_h5ai/private/conf/options.json) and replace the value of `"passhash"` with the generated 128-character hex string.
+2. Generate a salted bcrypt or Argon2 hash locally:
+   ```bash
+   php -r 'echo password_hash("yourpassword", PASSWORD_DEFAULT), "\n";'
+   ```
+3. Open [options.json](../src/_h5ai/private/conf/options.json) and replace the value of `"passhash"` with the generated hash.
 4. Save the file. The new password takes effect immediately.
 
-> [!NOTE]
-> The default password hash `cf83e...` corresponds to an **empty string**. If you have not customized this yet, you can log in by leaving the password field empty and clicking **login**. A warning notice is displayed on the screen until you customize the password.
+Never send an administrator password to an online hash generator. Legacy
+128-character SHA-512 hashes remain readable for compatibility, but should not
+be used for new installations.
 
-## 3. Diagnostic tests reference
+> [!IMPORTANT]
+> Administrator login is disabled while `passhash` is empty. Configure a hash
+> before using the diagnostic page. Existing legacy SHA-512 hashes continue to
+> work during upgrades.
+
+## 3. Web server access control
+
+The `_h5ai/private/` directory contains configuration, password hashes and
+caches with filesystem paths. It must not be reachable over HTTP.
+
+* Apache 2.4 applies the bundled `_h5ai/.htaccess` deny rule and grants access
+  back only under `_h5ai/public/`. The virtual host must allow these access
+  directives with `AllowOverride AuthConfig` (or `AllowOverride All`).
+* nginx must include [`server/nginx.conf`](server/nginx.conf) in its server block.
+* Angie must include [`server/angie.conf`](server/angie.conf) in its server block.
+* lighttpd must include [`server/lighttpd.conf`](server/lighttpd.conf).
+
+After deployment, verify that `/_h5ai/private/conf/options.json` returns 403 or
+404 before using the application.
+
+## 4. Diagnostic tests reference
 
 Once logged in, the page displays a series of checks covering core features and optional extensions. Here is what each test verifies and what to do when it fails.
 
@@ -68,12 +87,12 @@ Once logged in, the page displays a series of checks covering core features and 
 * **Fileinfo module**: Checks if the PHP Fileinfo module is active (used for determining file MIME types safely).
 * **Use EXIF thumbs**: Checks for the PHP `exif` module. When active, h5ai extracts embedded JPEG preview thumbnails from photos directly instead of decoding the full image, which is much faster.
 * **Video thumbs**: Verifies command line program `ffmpeg` or `avconv` is installed on the host. Required to capture frame previews from videos.
-* **PDF thumbs**: Verifies `convert` (ImageMagick) or `gm` (GraphicsMagick) is installed on the host. Required to generate thumbnails for PDF/postscript documents.
+* **PDF thumbs**: Verifies hardened ImageMagick `convert` is installed. GraphicsMagick is available only as an explicit compatibility fallback with `thumbnails.allowGraphicsMagick`; it does not use the bundled security policy.
 
 > [!NOTE]
 > **Media-processor hardening (SSRF/LFI).** Because thumbnails are generated from user-supplied files, h5ai applies defense-in-depth against crafted media that tries to make the processor reach the network or read arbitrary local files:
 > - `ffmpeg`/`avconv` are invoked with `-protocol_whitelist file,crypto,data`, blocking remote (e.g. HLS/concat/playlist) fetches.
-> - A restrictive ImageMagick policy is shipped at `_h5ai/private/conf/magick/policy.xml` and activated via the `MAGICK_CONFIGURE_PATH` environment variable (set automatically; it applies to the Imagick PHP extension and `convert`, but GraphicsMagick `gm` does not read it). It disables risky coders (`URL`, `HTTPS`, `MSL`, `SVG`, `MVG`, `EPHEMERAL`, …) and external delegates, with one exception: `PDF`/PostScript stay readable and the Ghostscript delegate stays enabled so the documented `doc` thumbnails keep working. Do not relax this policy further unless you fully trust every file served. You can verify it is loaded with `MAGICK_CONFIGURE_PATH=/path/to/_h5ai/private/conf/magick magick -list policy`.
+> - A restrictive ImageMagick policy is shipped at `_h5ai/private/conf/magick/policy.xml` and activated via the `MAGICK_CONFIGURE_PATH` environment variable (set automatically; it applies to the Imagick PHP extension and `convert`). It disables risky coders (`URL`, `HTTPS`, `MSL`, `SVG`, `MVG`, `EPHEMERAL`, ...) and external delegates, with one exception: `PDF`/PostScript stay readable and the Ghostscript delegate stays enabled so the documented `doc` thumbnails keep working. GraphicsMagick `gm` does not read this policy and is therefore disabled by default. Do not enable it or relax the policy unless you fully trust every file served. You can verify the ImageMagick policy with `MAGICK_CONFIGURE_PATH=/path/to/_h5ai/private/conf/magick magick -list policy`.
 
 ### Utility checks
 
@@ -82,7 +101,7 @@ Once logged in, the page displays a series of checks covering core features and 
 * **Shell tar / Shell zip**: Checks if system commands `tar` and `zip` are available. Recommended for fast packaged downloads.
 * **Shell du**: Checks if system command `du` is available. Required if foldersize calculation type is set to `"shell-du"` in `options.json`.
 
-## 4. Troubleshooting command line utilities
+## 5. Troubleshooting command line utilities
 
 If a CLI-based tool (like `ffmpeg`, `convert`, `zip`, `tar`, or `du`) shows a failure status, verify that:
 1. The binary is installed on the host system (e.g., via `apt install ffmpeg imagemagick zip tar`).

@@ -44,10 +44,97 @@ class Util {
         return Util::RE_DELIMITER . str_replace(Util::RE_DELIMITER, '\\' . Util::RE_DELIMITER, $pattern) . Util::RE_DELIMITER;
     }
 
-    public static function passthru_cmd(string $cmd): int {
-        $rc = null;
-        passthru($cmd, $rc);
-        return $rc;
+    // Shared non-blocking pipe pump for passthru_cmd/proc_open_cmdv. Feeds
+    // stdout chunks to $on_stdout, caps captured stderr at 8 KiB, enforces
+    // the timeout and asks $should_abort (total pumped bytes) for an early
+    // abort reason. Returns [?int exit_code, string error, ?string abort]
+    // where a non-null abort means the process was terminated.
+    private static function pump_pipes(mixed $process, array $pipes, callable $on_stdout, int $timeout, callable $should_abort): array {
+        fclose($pipes[0]);
+        stream_set_blocking($pipes[1], false);
+        stream_set_blocking($pipes[2], false);
+        $started_at = microtime(true);
+        $exit_code = null;
+        $error = '';
+        $total_bytes = 0;
+
+        while (true) {
+            $status = proc_get_status($process);
+            if (!$status['running'] && $status['exitcode'] >= 0) {
+                $exit_code = $status['exitcode'];
+            }
+            $read = array_values(array_filter(
+                [$pipes[1], $pipes[2]],
+                static fn($pipe): bool => !feof($pipe),
+            ));
+            if ($read !== []) {
+                $write = null;
+                $except = null;
+                if (@stream_select($read, $write, $except, 0, 200000) === false) {
+                    usleep(10000);
+                    continue;
+                }
+                foreach ($read as $pipe) {
+                    $chunk = fread($pipe, 65536);
+                    if ($chunk === false || $chunk === '') {
+                        continue;
+                    }
+                    $total_bytes += strlen($chunk);
+                    if ($pipe === $pipes[1]) {
+                        $on_stdout($chunk);
+                    } elseif (strlen($error) < 8192) {
+                        $error .= substr($chunk, 0, 8192 - strlen($error));
+                    }
+                }
+            } else {
+                usleep(10000);
+            }
+            $abort = $should_abort($total_bytes);
+            if ($abort === null && (microtime(true) - $started_at) > max(1, $timeout)) {
+                $abort = 'timeout';
+            }
+            if ($abort !== null) {
+                proc_terminate($process);
+                usleep(100000);
+                if (proc_get_status($process)['running']) {
+                    proc_terminate($process, 9);
+                }
+                return [$exit_code, $error, $abort];
+            }
+            if (!$status['running'] && feof($pipes[1]) && feof($pipes[2])) {
+                return [$exit_code, $error, null];
+            }
+        }
+    }
+
+    public static function passthru_cmd(string $cmd, int $timeout = 300): int {
+        $process = proc_open($cmd, [
+            0 => ['pipe', 'r'],
+            1 => ['pipe', 'w'],
+            2 => ['pipe', 'w'],
+        ], $pipes);
+        if (!is_resource($process)) {
+            return -1;
+        }
+
+        [$exit_code, $error, $abort] = self::pump_pipes(
+            $process,
+            $pipes,
+            static function (string $chunk): void {
+                echo $chunk;
+                @flush();
+            },
+            $timeout,
+            static fn(int $total_bytes): ?string => connection_aborted() ? 'aborted' : null,
+        );
+
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        $close_code = proc_close($process);
+        if ($error !== '') {
+            self::log('archive command: ' . trim($error));
+        }
+        return $abort !== null ? 124 : ($exit_code ?? $close_code);
     }
 
     public static function exec_0(string $cmd): bool {
@@ -60,32 +147,73 @@ class Util {
         return false;
     }
 
-    public static function proc_open_cmdv(array $cmdv, mixed &$output, mixed &$error): int {
-        $cmd = implode(' ', array_map(escapeshellarg(...), $cmdv));
-
+    public static function proc_open_cmdv(array $cmdv, mixed &$output, mixed &$error, int $timeout = 30): int {
         $descriptorspec = [
             0 => ['pipe', 'r'],
             1 => ['pipe', 'w'],
             2 => ['pipe', 'w'],
         ];
-        $process = proc_open($cmd, $descriptorspec, $pipes);
+        $process = proc_open($cmdv, $descriptorspec, $pipes);
 
         if (is_resource($process)) {
-            fclose($pipes[0]);
+            $output_is_stream = is_resource($output);
+            if (!$output_is_stream) {
+                $output = '';
+            }
+            $max_output_bytes = 64 * 1024 * 1024;
 
-            if (is_resource($output)) {
-                stream_copy_to_stream($pipes[1], $output);
-            } else {
-                $output = stream_get_contents($pipes[1]);
+            [$exit_code, $error, $abort] = self::pump_pipes(
+                $process,
+                $pipes,
+                static function (string $chunk) use (&$output, $output_is_stream): void {
+                    if ($output_is_stream) {
+                        fwrite($output, $chunk);
+                    } else {
+                        $output .= $chunk;
+                    }
+                },
+                $timeout,
+                static fn(int $total_bytes): ?string => $total_bytes > $max_output_bytes ? 'output-limit' : null,
+            );
+            if ($abort !== null) {
+                $error .= $abort === 'output-limit'
+                    ? "\nprocess output exceeded 64 MiB"
+                    : "\nprocess timed out";
+            }
+
+            // Keep the pipes non-blocking: a killed process or one of its
+            // descendants may briefly retain a write descriptor.
+            $remaining_output = stream_get_contents($pipes[1]);
+            if ($remaining_output !== false) {
+                if ($output_is_stream) {
+                    fwrite($output, $remaining_output);
+                } else {
+                    $output .= $remaining_output;
+                }
+            }
+            $remaining_error = stream_get_contents($pipes[2]);
+            if ($remaining_error !== false) {
+                $error .= substr($remaining_error, 0, max(0, 8192 - strlen($error)));
             }
             fclose($pipes[1]);
-
-            $error = stream_get_contents($pipes[2]);
             fclose($pipes[2]);
-
-            return proc_close($process);
+            $close_code = proc_close($process);
+            return $abort !== null ? 124 : ($exit_code ?? $close_code);
         }
         return -1;
+    }
+
+    // Fire-and-forget launch of a low-priority PHP worker script. Returns
+    // whether the shell accepted the job; the caller rolls back its
+    // marker/lock file when it did not.
+    public static function launch_background(string $script_path, array $args = []): bool {
+        $cmd = 'nice -n 19 php ' . escapeshellarg($script_path);
+        foreach ($args as $arg) {
+            $cmd .= ' ' . escapeshellarg($arg);
+        }
+        $cmd .= ' > /dev/null 2>&1 &';
+        $rc = null;
+        return @exec($cmd, $unused, $rc) !== false && $rc === 0;
     }
 
     public static function filesize(Context $context, string $path): ?int {

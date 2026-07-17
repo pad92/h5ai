@@ -49,6 +49,9 @@ const search = (pattern = '') => {
         $search.rmCls('pending');
         view.setHint('noMatch');
         view.setItems(map(response.search, item => Item.get(item)));
+    }).catch(() => {
+        $search.rmCls('pending');
+        view.setLocation();
     });
 };
 

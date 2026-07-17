@@ -34,8 +34,15 @@ const requestTextContent = href => {
         const xhr = new XHR();
         const callback = () => {
             if (xhr.readyState === XHR.DONE) {
+                if (xhr.status === 0) {
+                    return;
+                }
                 try {
-                    resolve(xhr.responseText || '');
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        resolve(xhr.responseText || '');
+                    } else {
+                        reject(`HTTP ${xhr.status}`);
+                    }
                 } catch (err) {
                     reject(String(err));
                 }
@@ -44,6 +51,9 @@ const requestTextContent = href => {
 
         xhr.open('GET', href, true);
         xhr.onreadystatechange = callback;
+        xhr.onerror = () => reject('network error');
+        xhr.ontimeout = () => reject('request timed out');
+        xhr.timeout = 30000;
         xhr.send();
     });
 };

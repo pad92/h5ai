@@ -1,5 +1,5 @@
 {
-    "passhash": "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e",
+    "passhash": "",
 
     "resources": {
         "scripts": [],
@@ -49,7 +49,10 @@
         "enabled": true,
         "type": "shell-zip",
         "packageName": null,
-        "alwaysVisible": false
+        "alwaysVisible": false,
+        "maxEntries": 10000,
+        "maxBytes": 10737418240,
+        "timeout": 300
     },
 
     "filter": {
@@ -60,7 +63,7 @@
     },
 
     "foldersize": {
-        "enabled": true,
+        "enabled": false,
         "type": "shell-du"
     },
 
@@ -143,7 +146,10 @@
         "enabled": true,
         "advanced": true,
         "debounceTime": 300,
-        "ignorecase": true
+        "ignorecase": true,
+        "maxResults": 1000,
+        "maxDepth": 64,
+        "maxPatternLength": 256
     },
 
     "select": {
@@ -173,6 +179,9 @@
         "seek": 50,
         "exif": true,
         "chunksize": 20,
+        "maxBatchSize": 40,
+        "maxDimension": 4096,
+        "allowGraphicsMagick": false,
         "blocklist": []
     },
 

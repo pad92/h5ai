@@ -93,7 +93,7 @@ const requestQueue = queue => {
                 }
             }
         });
-    });
+    }).catch(() => undefined);
 };
 
 const breakAndRequestQueue = queue => {

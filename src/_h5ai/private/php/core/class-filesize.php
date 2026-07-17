@@ -4,6 +4,7 @@ class Filesize {
     private static array $cache = [];
     private static ?array $persistent_cache = null;
     private static bool $persistent_cache_dirty = false;
+    private static array $dirty_entries = [];
     private static ?string $persistent_cache_path = null;
     private static bool $async_mode = false;
     private static array $stale_paths = [];
@@ -28,12 +29,41 @@ class Filesize {
         if (!self::$persistent_cache_dirty || self::$persistent_cache_path === null) {
             return;
         }
-        $dir = dirname(self::$persistent_cache_path);
+        $path = self::$persistent_cache_path;
+        $dir = dirname($path);
         if (!is_dir($dir)) {
             @mkdir($dir, 0755, true);
         }
-        @file_put_contents(self::$persistent_cache_path, json_encode(self::$persistent_cache));
-        self::$persistent_cache_dirty = false;
+        $lock = @fopen($path . '.lock', 'c+');
+        if (!$lock || !flock($lock, LOCK_EX)) {
+            if ($lock) {
+                fclose($lock);
+            }
+            return;
+        }
+
+        $current = [];
+        $content = @file_get_contents($path);
+        if ($content !== false) {
+            $decoded = json_decode($content, true);
+            $current = is_array($decoded) ? $decoded : [];
+        }
+        foreach (self::$dirty_entries as $entry_path => $entry) {
+            $current[$entry_path] = $entry;
+        }
+
+        $tmp = @tempnam($dir, 'foldersizes.');
+        $json = json_encode($current);
+        if ($tmp !== false && $json !== false && @file_put_contents($tmp, $json, LOCK_EX) !== false
+            && @rename($tmp, $path)) {
+            self::$persistent_cache = $current;
+            self::$dirty_entries = [];
+            self::$persistent_cache_dirty = false;
+        } elseif ($tmp !== false) {
+            @unlink($tmp);
+        }
+        flock($lock, LOCK_UN);
+        fclose($lock);
     }
 
     public static function set_persistent_cache_entry(string $path, int $size, array $dirs): void {
@@ -43,6 +73,7 @@ class Filesize {
             'mtime' => @filemtime($path),
             'dirs' => $dirs,
         ];
+        self::$dirty_entries[$path] = self::$persistent_cache[$path];
         self::$persistent_cache_dirty = true;
     }
 

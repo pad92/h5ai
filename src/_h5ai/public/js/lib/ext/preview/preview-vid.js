@@ -1,5 +1,6 @@
 const {dom} = require('../../util');
 const allsettings = require('../../core/settings');
+const {addUnloadFn} = require('../../util/media');
 const preview = require('./preview');
 
 const settings = Object.assign({
@@ -84,29 +85,6 @@ const updateGui = () => {
     ]);
 };
 
-const addUnloadFn = el => {
-    const originalUnload = el.unload;
-    el.unload = () => {
-        if (typeof originalUnload === 'function') {
-            originalUnload();
-        }
-        try {
-            el.pause();
-        } catch {/* ignore */}
-
-        if (el.tagName.toLowerCase() === 'movi-player' && typeof el.unload === 'function') {
-            try {
-                el.unload();
-            } catch {/* ignore */}
-        } else {
-            try {
-                el.src = '';
-                el.load();
-            } catch {/* ignore */}
-        }
-    };
-};
-
 const loadNativeVideo = item => {
     return new Promise(resolve => {
         const $el = dom('<video id="pv-content-vid"/>')
@@ -159,13 +137,11 @@ const loadMoviVideo = item => {
 
 const load = item => {
     preview.setControlType('vid');
+    if (!global.window.crossOriginIsolated) {
+        return loadNativeVideo(item);
+    }
     return loadMoviPlayerScript()
         .then(() => {
-            if (!global.window.crossOriginIsolated) {
-                // eslint-disable-next-line no-console
-                console.warn('Cross-origin isolation headers missing. Falling back to standard <video>.');
-                return loadNativeVideo(item);
-            }
             return loadMoviVideo(item);
         })
         .catch(err => {

@@ -122,9 +122,9 @@ class Setup {
 
         $cmds = Json::load($cmds_cache_path);
         if (count($cmds) === 0 || $this->refresh) {
-            $cmds['command'] = Util::exec_0('command -v command');
-            $cmds['which'] = Util::exec_0('which which') || Util::exec_0('which which.exe');
-            $cmds['where'] = Util::exec_0('where where.exe');
+            $cmds['command'] = Util::exec_0('command -v command 2>/dev/null');
+            $cmds['which'] = Util::exec_0('which which 2>/dev/null');
+            $cmds['where'] = false;
 
             $cmd = match (true) {
                 $cmds['command'] => 'command -v',
@@ -134,7 +134,7 @@ class Setup {
             };
 
             foreach (['avconv', 'convert', 'du', 'ffmpeg', 'gm', 'tar', 'zip'] as $c) {
-                $cmds[$c] = ($cmd !== false) && (Util::exec_0($cmd . ' ' . $c) || Util::exec_0($cmd . ' ' . $c . '.exe'));
+                $cmds[$c] = ($cmd !== false) && Util::exec_0($cmd . ' ' . $c . ' 2>/dev/null');
             }
 
             Json::save($cmds_cache_path, $cmds);

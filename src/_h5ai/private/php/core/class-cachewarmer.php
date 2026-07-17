@@ -49,7 +49,9 @@ class CacheWarmer {
             $child_path = $path . '/' . $file;
             if (is_dir($child_path) && !is_link($child_path)) {
                 $this->warm_path($child_path, $visited);
-            } elseif (!is_dir($child_path) && $this->thumbnails_enabled) {
+            } elseif (!is_dir($child_path)
+                && $this->thumbnails_enabled
+                && $this->context->is_managed_file($child_path)) {
                 $type = $this->type_helper->getType($file);
                 $thumb_type = match (true) {
                     in_array($type, $this->img_types, true) => 'img',

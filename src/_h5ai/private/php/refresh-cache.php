@@ -21,10 +21,13 @@ $session = new Session($session_store);
 $request = new Request($_REQUEST, '');
 $setup = new Setup();
 $context = new Context($session, $request, $setup);
+$request_marker = $setup->get('CACHE_PRV_PATH') . '/refresh.requested';
+register_shutdown_function(static fn() => @unlink($request_marker));
 
 $lock_file = $setup->get('CACHE_PRV_PATH') . '/refresh.lock';
 $fp = @fopen($lock_file, 'c+');
 if (!$fp || !flock($fp, LOCK_EX | LOCK_NB)) {
+    @unlink($request_marker);
     exit(0);
 }
 
@@ -45,3 +48,4 @@ if ($withFoldersize) {
 
 flock($fp, LOCK_UN);
 fclose($fp);
+@unlink($request_marker);
