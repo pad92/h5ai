@@ -216,7 +216,7 @@ test:docker:
 scan:trivy:fs:
   stage: scan
   image:
-    name: aquasec/trivy:latest
+    name: aquasec/trivy:0.65.0
     entrypoint: [""]
   needs: []
   cache: []
@@ -231,7 +231,7 @@ scan:trivy:image:
       artifacts: true
   cache: []
   image:
-    name: aquasec/trivy:latest
+    name: aquasec/trivy:0.65.0
     entrypoint: [""]
   script:
     - |
