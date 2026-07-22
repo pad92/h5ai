@@ -63,7 +63,7 @@
     },
 
     "foldersize": {
-        "enabled": false,
+        "enabled": true,
         "type": "shell-du"
     },
 

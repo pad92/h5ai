@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.3.1 - *2026-07-22*
+
+* **Configuration**: re-enables `foldersize` by default (`foldersize.enabled: true`); the feature was switched to opt-in in v1.3.0 but is now considered stable enough to ship enabled out of the box.
+
 ## v1.3.0 - *2026-07-17*
 
 * **Monorepo**: merges the `docker-h5ai` packaging repository into this repository. The Docker image (`pad92/docker-h5ai`) is now built from the in-tree sources by a multi-stage Dockerfile instead of downloading a released zip; published registries, tag scheme and image name are unchanged, so `docker pull` keeps working as before.
