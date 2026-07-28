@@ -15,9 +15,18 @@ variables:
   # Docker image published to Docker Hub under this name.
   IMAGE_NAME: pad92/docker-h5ai
   # Multi-platform candidate pushed by `build:candidate` on every pipeline,
-  # scanned by Trivy, then promoted digest-for-digest by the publish jobs.
+  # scanned by Grype, then promoted digest-for-digest by the publish jobs.
   # Configure a registry cleanup policy for `ci-*` tags.
   CANDIDATE_IMAGE: "$CI_REGISTRY_IMAGE:ci-$CI_COMMIT_SHORT_SHA"
+  # Job and scanner containers pinned by digest. These jobs receive registry
+  # credentials and, for the docker ones, the runner's Docker socket, so the
+  # container holding them must not be swappable — pinning only the scanners
+  # would leave that outer container mutable underneath them. Other job images
+  # (node, hadolint, php, curl, release-cli) and the privileged
+  # `tonistiigi/binfmt` helper are not pinned yet.
+  DOCKER_IMAGE: "docker:28@sha256:2a232a42256f70d78e3cc5d2b5d6b3276710a0de0596c145f627ecfae90282ac"
+  GRYPE_IMAGE: "anchore/grype:v0.116.0@sha256:fd4ab4d1042b522c896e73bdf09ab8bf384fa417df99d6dd0d6e1008c7e7c821"
+  SYFT_IMAGE: "anchore/syft:v1.49.0@sha256:13b53ebabe3d215268c90cf8fb9b875f0183908245f376fd4b3a2cb69d21d484"
 
 cache:
   key:
@@ -80,7 +89,7 @@ build:app:
   rules: *pipeline_rules
 
 .docker-build-base:
-  image: docker:28
+  image: $DOCKER_IMAGE
   variables:
     BUILDER_NAME: "builder-$CI_JOB_ID"
   # binfmt install/uninstall below mutates the shared runner host; serialize
@@ -171,7 +180,7 @@ test:php:
 
 test:docker:
   stage: test
-  image: docker:28
+  image: $DOCKER_IMAGE
   needs:
     - job: build:image
       artifacts: true
@@ -213,26 +222,22 @@ test:docker:
 
 # ── Scan ─────────────────────────────────────────────────────────────────────
 
-scan:trivy:fs:
-  stage: scan
-  image:
-    name: aquasec/trivy:0.65.0
-    entrypoint: [""]
-  needs: []
-  cache: []
-  script:
-    - trivy fs --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed --skip-dirs .npm_cache,node_modules,build .
-  rules: *pipeline_rules
-
-scan:trivy:image:
+# Grype and Syft ship as `FROM scratch` images with no shell, so they cannot be
+# used as a GitLab CI job `image:` (GitLab needs a shell to run `script:`).
+# They are invoked through `docker run` from the Docker image instead.
+#
+# Gate policy: `--only-fixed --fail-on high`, i.e. parity with the Trivy policy
+# this replaces. Measured on the published image, dropping `--only-fixed` and
+# lowering the threshold yielded 235 findings of which only 2 were fixable (144
+# were ffmpeg CVEs awaiting an Alpine fix), so publishing would currently block
+# on predominantly unfixed findings.
+scan:grype:image:
   stage: scan
   needs:
     - job: build:candidate
       artifacts: true
   cache: []
-  image:
-    name: aquasec/trivy:0.65.0
-    entrypoint: [""]
+  image: $DOCKER_IMAGE
   script:
     - |
       if [ -z "$CANDIDATE_DIGEST" ] || [ "$CANDIDATE_DIGEST" = "none" ]; then
@@ -240,13 +245,79 @@ scan:trivy:image:
         exit 1
       fi
       CANDIDATE_REF="$CANDIDATE_IMAGE@$CANDIDATE_DIGEST"
-      export TRIVY_USERNAME="$CI_REGISTRY_USER"
-      export TRIVY_PASSWORD="$CI_REGISTRY_PASSWORD"
+      # Scan every published platform before failing, so amd64 findings cannot
+      # mask arm64 ones: under the runner's `set -e`, a plain loop would stop at
+      # the first hit. Grype exits 2 for a policy finding and 1 for an
+      # operational error — the latter must abort now rather than be silently
+      # recorded as "scanned", so the gate fails closed.
+      status=0
       for platform in linux/amd64 linux/arm64; do
         echo "Scanning $CANDIDATE_REF ($platform)..."
-        trivy image --platform "$platform" --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed "$CANDIDATE_REF"
+        set +e
+        docker run --rm \
+          -e GRYPE_REGISTRY_AUTH_AUTHORITY="$CI_REGISTRY" \
+          -e GRYPE_REGISTRY_AUTH_USERNAME="$CI_REGISTRY_USER" \
+          -e GRYPE_REGISTRY_AUTH_PASSWORD="$CI_REGISTRY_PASSWORD" \
+          "$GRYPE_IMAGE" "registry:$CANDIDATE_REF" \
+          --platform "$platform" --only-fixed --fail-on high
+        rc=$?
+        set -e
+        case "$rc" in
+          0) echo "✓ $platform clean" ;;
+          2) echo "✗ $platform: fixable vulnerabilities at or above high"; status=1 ;;
+          *) echo "ERROR: grype failed on $platform (exit $rc)" >&2; exit 1 ;;
+        esac
       done
+      exit $status
   rules: *publish_rules
+
+# The multi-stage Dockerfile discards the npm build stage, so node_modules and
+# package-lock.json never reach the final image and scan:grype:image cannot see
+# npm dependencies at all. This job is the only thing that audits them.
+#
+# It does NOT use `grype dir:`: Grype's directory scan skips lockfile entries
+# marked `"dev": true`, cataloging 2 packages here instead of 704 and reporting
+# "No vulnerabilities found" no matter what — a vacuous gate. Syft is therefore
+# run explicitly with dev dependencies enabled and Grype matches the resulting
+# SBOM. Grype honours neither SYFT_* nor GRYPE_* forms of that setting.
+#
+# Advisory (`allow_failure: true`) while the backlog it reports is worked down;
+# it is deliberately absent from the publish jobs' `needs:` because a job that
+# cannot fail the pipeline cannot gate a release. Make it blocking and add it
+# back to those `needs:` once the reported dependencies are bumped.
+#
+# This runner uses Docker socket binding (no dind service): `docker run` here
+# talks to the host daemon and spawns *sibling* containers, so `-v
+# "$CI_PROJECT_DIR:...` resolves against the host's filesystem, not this job
+# container's — a mismatch that either sees an empty/stale directory or, for a
+# file this job itself just wrote (npm-sbom.json), fails outright with "no
+# such file or directory". `--volumes-from` against this job's own container
+# reuses its real mounts instead of guessing a host path.
+scan:grype:deps:
+  stage: scan
+  needs: []
+  cache: []
+  image: $DOCKER_IMAGE
+  allow_failure: true
+  script:
+    - |
+      JOB_CONTAINER_ID=$(docker ps -q -f "label=com.gitlab.gitlab-runner.job.id=$CI_JOB_ID")
+      docker run --rm \
+        --volumes-from "$JOB_CONTAINER_ID:ro" \
+        -e SYFT_JAVASCRIPT_INCLUDE_DEV_DEPENDENCIES=true \
+        "$SYFT_IMAGE" dir:"$CI_PROJECT_DIR" \
+        --exclude './node_modules/**' \
+        --exclude './build/**' \
+        --exclude './.npm/**' \
+        -o syft-json > npm-sbom.json
+      docker run --rm --volumes-from "$JOB_CONTAINER_ID:ro" "$GRYPE_IMAGE" \
+        sbom:"$CI_PROJECT_DIR/npm-sbom.json" --only-fixed --fail-on high
+  artifacts:
+    paths:
+      - npm-sbom.json
+    expire_in: 1 week
+    when: always
+  rules: *pipeline_rules
 
 # ── Publish ──────────────────────────────────────────────────────────────────
 
@@ -258,14 +329,15 @@ publish:app:
   image: curlimages/curl:latest
   cache: []
   # needs (not just the stage barrier) so this job's own DAG position really
-  # gates on the full test/scan suite, not only on build:app — see
+  # gates on the test suite, not only on build:app — see
   # .docker-publish-template below for the same requirement on image publish.
+  # scan:grype:deps is advisory (allow_failure) and so is not listed: it could
+  # not block this job even if it were.
   needs:
     - job: build:app
       artifacts: true
     - job: test:app
     - job: test:php
-    - job: scan:trivy:fs
   rules:
     - if: $CI_COMMIT_TAG
   script:
@@ -289,23 +361,23 @@ publish:app:
 # images are bit-identical to what the scan stage validated.
 .docker-publish-template:
   stage: publish
-  image: docker:28
+  image: $DOCKER_IMAGE
   cache: []
   # `needs` puts this job in DAG mode, so it only waits for what it lists here
   # — it does NOT automatically wait for the rest of the `scan`/`test` stages
-  # the way a stage-barrier job would. scan:trivy:image must be listed
+  # the way a stage-barrier job would. scan:grype:image must be listed
   # explicitly, otherwise the image could be promoted before (or even if) the
   # vulnerability scan fails. test:app/test:php/test:docker are listed for the
   # same reason: without them, a failing test would no longer block the
-  # published image.
+  # published image. scan:grype:deps is advisory (allow_failure) and cannot
+  # gate anything, so listing it here would only be decorative.
   needs:
     - job: build:candidate
       artifacts: true
-    - job: scan:trivy:image
+    - job: scan:grype:image
     - job: test:app
     - job: test:php
     - job: test:docker
-    - job: scan:trivy:fs
   script:
     - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
     - |

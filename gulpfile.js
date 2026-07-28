@@ -12,10 +12,10 @@ import zip from 'gulp-zip';
 import insert from 'gulp-insert';
 import footer from 'gulp-footer';
 import replace from 'gulp-replace';
-import gulpif from 'gulp-if';
 import rename from 'gulp-rename';
 import uglify from 'gulp-uglify';
 import {fileURLToPath} from 'url';
+import {PassThrough} from 'stream';
 import pkg from './package.json' with {type: 'json'};
 
 const {src, dest, series, parallel} = gulp;
@@ -27,6 +27,12 @@ const SRC = path.join(ROOT, 'src');
 const TEST = path.join(ROOT, 'test');
 const BUILD = path.join(ROOT, 'build');
 const isProduction = process.argv.includes('release');
+
+// `gulp-if`'s own dependency chain (gulp-match -> an old minimatch) drags in
+// a brace-expansion release with an unpatched DoS (GHSA-mh99-v99m-4gvg) and
+// none of those packages have had a release since; `isProduction` is a plain
+// boolean here, so a passthrough stream is all `gulp-if` was buying us.
+const pipeIf = (condition, stream) => condition ? stream : new PassThrough({objectMode: true});
 
 const WEBPACK_CFG = {
     mode: isProduction ? 'production' : 'development',
@@ -73,7 +79,7 @@ const buildScripts = () => src(path.join(SRC, '_h5ai/public/js/scripts.js'))
     .pipe(webpack(WEBPACK_CFG))
     .pipe(insert.prepend('//= require "pre.js"\n\n'))
     .pipe(include({hardFail: true, includePaths: [path.join(SRC, '_h5ai/public/js')]}))
-    .pipe(gulpif(isProduction, uglify()))
+    .pipe(pipeIf(isProduction, uglify()))
     .pipe(insert.prepend(comment_js))
     .pipe(dest(path.join(BUILD, '_h5ai/public/js')));
 
@@ -82,7 +88,7 @@ const buildStyles = () => src(path.join(SRC, '_h5ai/public/css/styles.less'))
     .pipe(include({hardFail: true}))
     .pipe(less({math: 'always'}))
     .pipe(autoprefixer())
-    .pipe(gulpif(isProduction, cleanCss()))
+    .pipe(pipeIf(isProduction, cleanCss()))
     .pipe(insert.prepend(comment_js))
     .pipe(dest(path.join(BUILD, '_h5ai/public/css')));
 
