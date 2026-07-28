@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+* **Security scanning**: replaces Trivy with Grype/Syft in the CI pipeline and the `Makefile`.
+    * Image scan: keeps the previous gate policy (fixable vulnerabilities at high or critical severity), now scans every published platform before failing so a finding on one architecture can't hide the other's, and treats an operational scanner failure as a failure instead of a silent pass.
+    * The former blocking filesystem scan is replaced by an advisory npm dependency scan. It also covers build-only `devDependencies`, which the image scan never sees since the multi-stage build discards them, and it publishes an SBOM artifact.
+    * The Docker CLI, Grype and Syft images used by the affected jobs are now pinned by digest.
+    * The initial baseline found 8 fixable high-severity findings in the build toolchain, all now fixed: `js-yaml`, `fast-uri`, `postcss` and one `brace-expansion` instance were bumped within their existing semver ranges; the last `brace-expansion` DoS (GHSA-mh99-v99m-4gvg) was never backported to the 1.x line it shipped in, pulled in by the unmaintained `gulp-if` → `gulp-match` → old `minimatch` chain, so `gulp-if` is dropped in favor of a two-line `PassThrough`-based helper in `gulpfile.js`.
+
 ## v1.3.1 - *2026-07-22*
 
 * **Configuration**: re-enables `foldersize` by default (`foldersize.enabled: true`); the feature was switched to opt-in in v1.3.0 but is now considered stable enough to ship enabled out of the box.

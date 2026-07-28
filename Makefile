@@ -9,7 +9,11 @@ TEST_URL = http://$(TEST_HOST):8890/
 TEST_RUN = docker run -d -p 8890:80 -v $(CURDIR):/share:ro
 OPTIONS_JSON = /usr/share/h5ai/_h5ai/private/conf/options.json
 
-.PHONY: help all install build lint test clean clean-all scan docker-build docker-test docker-trivy docker-clean
+# Scanners pinned by digest, kept in sync with .gitlab-ci.yml.
+GRYPE_IMAGE = anchore/grype:v0.116.0@sha256:fd4ab4d1042b522c896e73bdf09ab8bf384fa417df99d6dd0d6e1008c7e7c821
+SYFT_IMAGE = anchore/syft:v1.49.0@sha256:13b53ebabe3d215268c90cf8fb9b875f0183908245f376fd4b3a2cb69d21d484
+
+.PHONY: help all install build lint test clean clean-all scan docker-build docker-test docker-grype docker-clean
 
 .DEFAULT_GOAL := help
 
@@ -22,12 +26,12 @@ help:
 	@echo "  test          Run application tests"
 	@echo "  clean         Clean build output"
 	@echo "  clean-all     Clean build output, node_modules and Docker artifacts"
-	@echo "  scan          Run Trivy filesystem security scan"
+	@echo "  scan          Scan npm dependencies with Syft + Grype"
 	@echo ""
 	@echo "Docker image targets (image: $(TEST_IMAGE)):"
 	@echo "  docker-build  Build the Docker image"
 	@echo "  docker-test   Build the image and run the container test suite"
-	@echo "  docker-trivy  Build the image and scan it with Trivy"
+	@echo "  docker-grype  Build the image and scan it with Grype"
 	@echo "  docker-clean  Remove test containers and the built image"
 
 all: lint test build
@@ -53,8 +57,16 @@ clean:
 clean-all: clean docker-clean
 	rm -rf node_modules
 
+# Mirrors scan:grype:deps. Grype's own directory scan skips lockfile entries
+# marked "dev": true, so the SBOM is produced by Syft with dev dependencies
+# enabled and Grype matches that instead.
 scan:
-	trivy fs --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed --skip-dirs .npm_cache,node_modules,build .
+	docker run --rm -e SYFT_JAVASCRIPT_INCLUDE_DEV_DEPENDENCIES=true \
+		-v $(CURDIR):/src:ro $(SYFT_IMAGE) dir:/src \
+		--exclude './node_modules/**' --exclude './build/**' --exclude './.npm/**' \
+		-o syft-json > npm-sbom.json
+	docker run --rm -v $(CURDIR):/w:ro $(GRYPE_IMAGE) \
+		sbom:/w/npm-sbom.json --only-fixed --fail-on high
 
 # Poll $(TEST_URL) until the response matches; on failure remove the container.
 # $(1) extra curl args (e.g. -u user:pass), $(2) expected status line,
@@ -100,11 +112,12 @@ docker-build:
 		--build-arg BUILD_VCSREF=$$(git rev-parse --short HEAD) \
 		.
 
-docker-trivy: docker-build
+docker-grype: docker-build
 	docker run --rm \
 		-v /var/run/docker.sock:/var/run/docker.sock \
-		-v $(HOME)/.cache:/root/.cache \
-		aquasec/trivy:latest image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed $(TEST_IMAGE)
+		-v $(HOME)/.cache/grype:/tmp/grype \
+		-e GRYPE_DB_CACHE_DIR=/tmp/grype \
+		$(GRYPE_IMAGE) docker:$(TEST_IMAGE) --only-fixed --fail-on high
 
 docker-test: docker-build
 	@echo "Testing container without authentication..."

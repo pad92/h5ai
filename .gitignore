@@ -5,6 +5,8 @@
 /node_modules/
 /npm-debug.log
 /.npm_cache/
+# SBOM produced by `make scan` / the scan:grype:deps CI job
+/npm-sbom.json
 
 # OS metadata
 .DS_Store
