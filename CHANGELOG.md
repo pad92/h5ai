@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.3.2 - *2026-07-29*
 
 * **Security scanning**: replaces Trivy with Grype/Syft in the CI pipeline and the `Makefile`.
     * Image scan: keeps the previous gate policy (fixable vulnerabilities at high or critical severity), now scans every published platform before failing so a finding on one architecture can't hide the other's, and treats an operational scanner failure as a failure instead of a silent pass.
