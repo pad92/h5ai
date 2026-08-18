@@ -2,55 +2,46 @@
 
 ## v1.3.3 - *2026-08-18*
 
-* **Bounded the `du` call behind folder sizes**: `Filesize::exec()` ran `du -bL` through a plain `exec()` with no execution limit. It was the last child-process call left unguarded after the archive and thumbnail helpers were hardened in v1.3.0, so on slow storage a single `du` pass could run for as long as it liked. Search results and fallback listings compute folder sizes inline, so that also stalled real requests, not just the background cache warmer. The call now goes through the existing bounded `Util::proc_open_cmdv()` helper, which terminates the child once the timeout expires and force-kills it if it ignores the signal. Output from an aborted pass is dropped instead of parsed, because half a `du` listing would persist a wrong, too-small size in `foldersizes.json`.
-* **New `foldersize.timeout` and `foldersize.backgroundTimeout` options** (capped at `3600` seconds each). Requests get `50` seconds, which stays under the `request_terminate_timeout` of the Docker image's PHP-FPM pool so h5ai keeps the size already in the cache instead of losing the worker mid-write. CLI cache warming and refreshing get `900` seconds, since no pool limit applies there and cutting a large tree short would leave it permanently uncached. If your share needs longer than 900 seconds for a full `du` pass, raise `backgroundTimeout`.
-* **Docker/php-fpm reliability**: the `www` pool had no `request_terminate_timeout`, so workers left behind by a slow request piled up until the pool was starved. They are now recycled after 60s, and a `slow.log` (forwarded to stderr like `error.log`) records any request past 10s. Note that neither mechanism can reclaim a worker blocked on a mount that has hung outright: the kernel keeps it in uninterruptible I/O, the signal stays pending, and no stack trace can be written. That case has to be fixed at the mount.
-* **Documentation**: `foldersize.enabled` was still documented as defaulting to `false`. It has defaulted to `true` since v1.3.1.
-* **Dependencies**: bumps `brace-expansion`, `undici`, `nanoid`, `fast-uri`, `js-yaml` and `less` (transitive, via `gulp-less`) within their existing semver ranges, clearing the high-severity findings from the npm dependency scan. Also upgrades the build toolchain to its latest major versions: `@babel/core` and `@babel/preset-env` from 7 to 8, `eslint` from 10.4 to 10.8, `globals` from 16 to 17, `jsdom` from 29 to 30, `gulp-autoprefixer` from 9 to 10, and `movi-player` from 0.3 to 0.4. Build, lint and test suites still pass.
-* **Fixed CI test failures on Node 20**: the jsdom 30 upgrade above pulled in `undici` 8, which declares `"engines": { "node": ">=22.19.0" }` and calls `worker_threads.markAsUncloneable` — an API Node 20 does not have — crashing `npm run test` with `TypeError: webidl.util.markAsUncloneable is not a function` as soon as jsdom is loaded. jsdom 30 itself only supports Node `^22.22.2 || ^24.15.0 || >=26.0.0`. The CI `.node-job` image and the `Dockerfile` build stage move from `node:20-slim` to `node:24-slim`, and `package.json`'s `engines.node` is updated to match jsdom's real requirement (`^22.22.2 || ^24.15.0 || >=26.0.0`); Node 18, 20, 21, 23 and 25 are no longer supported for building or testing h5ai.
+* **Folder sizes**: the `du` pass now runs through the bounded `Util::proc_open_cmdv()` helper instead of a plain `exec()`, so it can no longer run forever on slow storage. It was the last unguarded child-process call, and it also stalled real requests since search results and fallback listings compute folder sizes inline. Output from an aborted pass is thrown away rather than parsed, because a truncated listing would write a wrong size into `foldersizes.json`.
+* **New options** `foldersize.timeout` and `foldersize.backgroundTimeout`, both capped at 3600 seconds. Requests get 50 seconds, which stays under the Docker image's php-fpm kill timeout, so a slow `du` gives up cleanly and the cached size survives. CLI cache warming gets 900 seconds; raise `backgroundTimeout` if a full pass over your share needs more.
+* **Docker/php-fpm**: workers stuck on a slow request are now recycled after 60 seconds (`request_terminate_timeout`); before, they piled up until the pool starved. A slowlog was tried and removed again: dumping its backtrace requires `ptrace`, which Docker's default capability set forbids, so every trigger logged `failed to ptrace(ATTACH) ... Operation not permitted` instead of a trace. Per-request timing is already in Angie's access log. A worker blocked on a hung mount still cannot be reclaimed (the kernel keeps it in uninterruptible I/O); that has to be fixed at the mount.
+* **Documentation**: `foldersize.enabled` has defaulted to `true` since v1.3.1; the docs still said `false`.
+* **Dependencies**: security bumps within range for `brace-expansion`, `undici`, `nanoid`, `fast-uri`, `js-yaml` and `less`, clearing the high-severity npm scan findings. The build toolchain moves to current majors: Babel 8, eslint 10.8, globals 17, jsdom 30, gulp-autoprefixer 10 and movi-player 0.4.
+* **Fixed CI test failures on Node 20**: jsdom 30 pulls in `undici` 8, which needs APIs Node 20 does not have, so CI and the Docker build stage move from `node:20-slim` to `node:24-slim` and `engines.node` becomes `^22.22.2 || ^24.15.0 || >=26.0.0`. Node 18, 20, 21, 23 and 25 can no longer build or test h5ai. This only affects builds; the served application does not use Node.
 
 ## v1.3.2 - *2026-07-29*
 
-* **Security scanning**: replaces Trivy with Grype/Syft in the CI pipeline and the `Makefile`.
-    * Image scan: keeps the previous gate policy (fixable vulnerabilities at high or critical severity), now scans every published platform before failing so a finding on one architecture can't hide the other's, and treats an operational scanner failure as a failure instead of a silent pass.
-    * The former blocking filesystem scan is replaced by an advisory npm dependency scan. It also covers build-only `devDependencies`, which the image scan never sees since the multi-stage build discards them, and it publishes an SBOM artifact.
-    * The Docker CLI, Grype and Syft images used by the affected jobs are now pinned by digest.
-    * The initial baseline found 8 fixable high-severity findings in the build toolchain, all now fixed: `js-yaml`, `fast-uri`, `postcss` and one `brace-expansion` instance were bumped within their existing semver ranges; the last `brace-expansion` DoS (GHSA-mh99-v99m-4gvg) was never backported to the 1.x line it shipped in, pulled in by the unmaintained `gulp-if` → `gulp-match` → old `minimatch` chain, so `gulp-if` is dropped in favor of a two-line `PassThrough`-based helper in `gulpfile.js`.
+* **Security scanning**: Grype/Syft replace Trivy in CI and the `Makefile`. The image scan keeps the same gate (fixable high or critical findings) but now checks every published platform and treats a scanner failure as a failure instead of a silent pass. The old blocking filesystem scan becomes an advisory npm dependency scan, which also covers build-only `devDependencies` and publishes an SBOM. The scanner images are pinned by digest.
+* The first scan baseline found 8 fixable high-severity findings in the build toolchain, all fixed: `js-yaml`, `fast-uri`, `postcss` and one `brace-expansion` instance were bumped within their existing ranges. A second, older `brace-expansion` instance, pulled in through the unmaintained `gulp-if` → `gulp-match` → `minimatch` chain, never got its DoS fix (GHSA-mh99-v99m-4gvg) backported to that 1.x line, so `gulp-if` is dropped entirely in favor of a small `PassThrough` helper in `gulpfile.js`.
 
 ## v1.3.1 - *2026-07-22*
 
-* **Configuration**: re-enables `foldersize` by default (`foldersize.enabled: true`); the feature was switched to opt-in in v1.3.0 but is now considered stable enough to ship enabled out of the box.
+* **Configuration**: `foldersize` is enabled by default again (`foldersize.enabled: true`). It went opt-in in v1.3.0 and is now stable enough to ship on.
 
 ## v1.3.0 - *2026-07-17*
 
-* **Monorepo**: merges the `docker-h5ai` packaging repository into this repository. The Docker image (`pad92/docker-h5ai`) is now built from the in-tree sources by a multi-stage Dockerfile instead of downloading a released zip; published registries, tag scheme and image name are unchanged, so `docker pull` keeps working as before.
-* **Changelog**: merged `CHANGELOG.docker.md` into this file. A single changelog now covers the h5ai application and its Docker packaging, with the former Docker-only pre-monorepo history kept as its own section below.
-* **CI/packaging**: the multi-arch candidate image and its vulnerability scan now run only on pipelines that can publish (master and tags); merge-request pipelines still build and test the single-arch image. The GitLab package registry keeps only the versioned `h5ai-<version>.zip` attached to releases — the `latest/h5ai-latest.zip` and `master` snapshot uploads were dropped, their only consumer was the former separate docker repository. Image labels (`version`, `build-date`, `vcs-ref`) are now filled from the build pipeline.
-* **Security hardening**: confines archive, search and thumbnail inputs to regular managed files under the served root; limits archive size, recursive search, thumbnail batches and generated dimensions; disables the unhardened GraphicsMagick document fallback by default; disables administrator login until a password hash is configured; and documents mandatory deny rules for Apache, nginx, Angie and lighttpd.
-* **Process reliability**: reads child-process stdout and stderr concurrently with output and execution limits, preventing pipe deadlocks and indefinitely running archive/media helpers; keeps timeout drains non-blocking, avoids exit-time busy loops, handles interrupted stream polling, verifies media-helper exit codes and closes temporary capture streams.
-* **Performance**: switches costly folder-size and startup cache warming features to opt-in defaults, avoids opening the thumbnail database when thumbnails are unused, serializes cache refresh workers, and lazy-loads preview code and the large video compatibility player.
-* **Frontend robustness**: handles HTTP, JSON, network and timeout failures consistently, keeps failed folder loads retryable, clears stale search results after request failures, and fixes recursive video unload handling.
-* **Cache correctness**: serializes and atomically merges folder-size cache updates so concurrent workers do not lose entries.
-* **Worker reliability**: prevents duplicate cache refresh and warm-up workers, detects disabled or failed background process launches, and automatically expires stale launch markers.
-* **Quality checks**: runs JavaScript, CSS and PHP checks in CI, pins the security scanner image, fails publishing on HTTP errors, and adds PHP security and process-timeout regression tests.
+* **Monorepo**: the `docker-h5ai` packaging repository is merged into this one. The image is now built from the in-tree sources by a multi-stage Dockerfile instead of downloading a released zip; registries, tag scheme and image name are unchanged, so `docker pull` keeps working. `CHANGELOG.docker.md` is merged into this file, with the pre-monorepo Docker history kept as its own section below.
+* **CI/packaging**: the multi-arch candidate image and its vulnerability scan only run on pipelines that can publish (master and tags); merge requests still build and test a single-arch image. The package registry keeps only the versioned `h5ai-<version>.zip`; the `latest` and `master` snapshot uploads are gone, since their only consumer was the old docker repository. Image labels are filled from the pipeline.
+* **Security hardening**: archive, search and thumbnail inputs are confined to regular managed files under the served root; archive size, recursive search, thumbnail batches and generated dimensions are limited; the unhardened GraphicsMagick document fallback is off by default; admin login stays disabled until a password hash is configured; mandatory deny rules for Apache, nginx, Angie and lighttpd are documented.
+* **Process reliability**: child-process stdout and stderr are read concurrently under output and execution limits, which fixes pipe deadlocks and runaway archive/media helpers. Timeout drains stay non-blocking, exit-time busy loops are avoided, interrupted stream polling is handled, media-helper exit codes are verified, and temporary capture streams are closed.
+* **Performance**: folder sizes and startup cache warming become opt-in, the thumbnail database only opens when thumbnails are used, cache refresh workers run one at a time, and preview code plus the large video compatibility player load lazily.
+* **Frontend robustness**: HTTP, JSON, network and timeout failures are handled consistently, failed folder loads can be retried, stale search results are cleared after a failed request, and recursive video unload handling is fixed.
+* **Cache correctness**: folder-size cache updates are serialized and merged atomically, so concurrent workers no longer lose entries. Duplicate refresh and warm-up workers are prevented, failed background launches detected, and stale launch markers expire on their own.
+* **Quality checks**: CI runs JavaScript, CSS and PHP checks, pins the security scanner image, fails publishing on HTTP errors, and gains PHP security and process-timeout regression tests.
 
 ## v1.2.7 - *2026-07-13*
 
-* **Fixed the cache warmer crashing on startup**: `warm-cache.php` accessed `$_SESSION`, which does not exist in CLI, and died with a `TypeError` before doing any work; the background warming triggered on page visits (and the documented cron command) therefore never ran. It now uses a local session store, like `refresh-cache.php` already did.
-* **Removed the dead `google-analytics-ua` extension**: Google shut down Universal Analytics in 2023, so the injected `analytics.js` snippet could no longer record anything. The option block, the client code and the documentation are gone; `piwik-analytics` (Matomo) stays. Remove any `google-analytics-ua` block from a customized `options.json`.
-* **Dropped unused shipped files**: the old PayPal donation icon and the unreferenced `favicon.svg` / `favicon-16.png` / `favicon-32.png` (the served pages only use `favicon-16-32.ico` and `favicon-152.png`).
-* **Apache config trimmed for Apache 2.4+**: removed the "Apache < 2.3" compatibility blocks (`Order`/`Deny`/`Satisfy`), the ancient mangled `Accept-Encoding` workaround and the obsolete font MIME types (`eot`, `ttf`, `otf`, legacy `woff`); `woff2` is now declared and cached for a year. Apache `2.4+` with `mod_authz_core` (loaded by default on every mainstream distribution) is now a documented requirement: without it the `.htaccess` files fail closed with a 500, the private directory is never silently exposed.
-* **Markup/CSS cleanup**: dropped the IE-only `x-ua-compatible` meta tag, switched `apple-touch-icon-precomposed` to the modern `apple-touch-icon` rel, and replaced prefixed `appearance` hacks (including the never-standard `-ms-appearance`) with the standard property.
-* **Build cleanup**: removed the unused `lebab` devDependency and the orphan `.dockerignore` (the repository never had a Dockerfile).
-* **PHP dead-code removal** (no behavior change):
-    * Deleted the legacy `Logger` class (leftover debug infrastructure that wrote timing lines to the error log); the two `Setup` error paths that used it now go through the standard `Util::log()`.
-    * Deleted the never-called `Util::exec_cmdv()` helper.
-    * Dropped the `HAS_PHP_JPEG` setup check, the unused `NAME` setup key and the `HAS_CMD_FFPROBE`/`HAS_CMD_AVPROBE` command probes: computed and stored on every fresh setup, read by nothing (thumbnails are WebP-based, and the video code paths only test for `ffmpeg`/`avconv`).
-    * Removed a PHP 4-era `function_exists('version_compare')` guard and the redundant `TESTED_PHP_VERSION` constant in `index.php`, the no-op `date_default_timezone_set(date_default_timezone_get())` call in the bootstrap, and two `include_once` statements made redundant by the autoloader.
-* **Documentation**: the admin guide now states the real PHP minimum (`8.4.0`, not `7.0.0`), the README's Node.js requirement matches `package.json` (`18.18+`), plus a general wording and formatting pass over all Markdown files.
-* **Docker image**: updated s6-overlay from `3.1.6.2` to `3.2.3.0`; removed unused packages (`php84-intl` and its ICU data, `php84-xml`, `php84-simplexml`, `php84-xmlwriter`, `php84-pdo_sqlite`, and the base image's `angie-console-light` console) and switched the `HEALTHCHECK` to busybox `wget`, dropping `curl` too — roughly 15 MB smaller, same functionality; dropped the obsolete `msie6` keepalive/gzip Angie directives and added `application/wasm` to `gzip_types` for WebAssembly assets.
-* **Fixed the Docker build against h5ai 1.2.7**: h5ai 1.2.7 dropped the `avprobe`/`ffprobe` entries from the command-probe list in `class-setup.php`, shifting the context our `class-setup.php.patch` (silencing missing-command shell noise) depended on; the build failed applying the patch. Updated the patch to match the new upstream source.
-* **README**: dropped the stale `X-XSS-Protection` mention, replaced by `Referrer-Policy`/`Content-Security-Policy` since 1.2.0-1.
+* **Fixed the cache warmer crashing on startup**: `warm-cache.php` read `$_SESSION`, which does not exist in CLI, and died before doing any work, so background warming never actually ran. It now uses a local session store like `refresh-cache.php`.
+* **Removed the dead `google-analytics-ua` extension**: Google shut down Universal Analytics in 2023, so the snippet recorded nothing. `piwik-analytics` (Matomo) stays. Remove any `google-analytics-ua` block from a customized `options.json`.
+* **Dropped unused shipped files**: the old PayPal donation icon and three unreferenced favicon variants.
+* **Apache config trimmed for 2.4+**: removed the pre-2.4 compatibility blocks, the ancient mangled `Accept-Encoding` workaround and the obsolete font MIME types; `woff2` is now declared and cached for a year. Apache 2.4+ with `mod_authz_core` is a documented requirement; without it the `.htaccess` files fail closed with a 500 instead of silently exposing the private directory.
+* **Markup/CSS cleanup**: dropped the IE-only `x-ua-compatible` meta tag, switched to the modern `apple-touch-icon` rel, and replaced prefixed `appearance` hacks with the standard property.
+* **Build cleanup**: removed the unused `lebab` devDependency and an orphan `.dockerignore`.
+* **PHP dead-code removal** (no behavior change): the legacy `Logger` class, the never-called `Util::exec_cmdv()` helper, several setup keys and command probes that nothing read, a PHP 4-era `version_compare` guard, a no-op timezone call and two `include_once` statements made redundant by the autoloader.
+* **Documentation**: the admin guide now states the real PHP minimum (8.4.0, not 7.0.0), the README's Node.js requirement matches `package.json`, plus a wording and formatting pass over the Markdown files.
+* **Docker image**: s6-overlay updated to 3.2.3.0; removed unused packages (`php84-intl` and its ICU data, `php84-xml`, `php84-simplexml`, `php84-xmlwriter`, `php84-pdo_sqlite`, and the base image's `angie-console-light` console) and switched the `HEALTHCHECK` to busybox `wget`, dropping `curl` too. About 15 MB smaller, same functionality. Also dropped the obsolete `msie6` Angie directives and added `application/wasm` to `gzip_types` for WebAssembly assets.
+* **Fixed the Docker build against h5ai 1.2.7**: 1.2.7 changed the source context our `class-setup.php` patch depended on, so the patch failed to apply. It now matches the new source.
+* **README**: dropped the stale `X-XSS-Protection` mention; `Referrer-Policy` and `Content-Security-Policy` replaced it in 1.2.0-1.
 
 
 ## v1.2.6 - *2026-07-12*
@@ -64,15 +55,15 @@
 
 ## v1.2.5 - *2026-07-03*
 
-* **Security fix (ImageMagick policy)**: the hardened policy shipped in v1.2.1 was silently **ignored** by ImageMagick: its XML parser rejects the whole file when a comment sits between the `DOCTYPE` and the root element, so none of the SSRF/ImageTragick protections nor the resource limits were actually applied. The comment now lives inside `<policymap>` and the load is verified (`magick -list policy`).
-* **PDF/PostScript thumbnails kept working under the policy**: with the policy actually enforced, the previous rules (`PDF`/`PS` coders and all delegates disabled) would have broken the documented `doc` thumbnails. The policy now grants **read-only** access to `PDF`/`PS`/`EPS` and allows only the Ghostscript delegate; everything else (network coders, `MSL`/`MVG`/`SVG`, `@file` indirection, other delegates, writes) stays blocked.
-* **Robustness (JSON)**: a malformed `options.json` / cached JSON file now degrades to defaults (with a log entry) instead of taking the whole site down with a `TypeError`; JSON cache writes are serialized with `LOCK_EX` to prevent torn files under concurrency.
-* **Logging**: h5ai no longer writes any log file of its own. All diagnostics (previously appended to `_h5ai/private/cache/debug.log`) now go to the PHP/web-server error log, prefixed with `h5ai:`. Entries that cannot be read while listing a directory (permission denied) are now reported there too, whether or not `view.hideIf403` hides them.
-* **Folder sizes**: a failing `du` no longer persists a bogus `0` into the folder-size cache (the previous value is kept, or the size is reported as unknown); a racing `filesize()` failure now yields "unknown" instead of a fatal error.
-* **Image preview**: the fullscreen mode forced for photos no longer leaks into the next non-image preview (videos/text open windowed again, per the stored preference).
-* **Theme icons**: extension matching is case-insensitive again (`icon.PNG` works like `icon.png`), which the v1.2.0 `glob()` rewrite had broken.
-* **Cleanup**: removed the dead `custom.stopSearchingAtRoot` option. Since v1.2.1 the header/footer search always stops at the web root, so the option and its documentation are gone.
-* **Docker/CI**: added a ready-to-use `docker-compose.yml` example (image `pad92/docker-h5ai:latest`), renaming the previous development compose file to `docker-compose.dev.yml`; fixed a startup failure when `options.json` is bind-mounted as a single file (`sed -i`'s rename fails with `EBUSY`, now rewritten in place via a temp file + `cat`) — a read-only mount keeps its existing `passhash`, and combining it with `H5AI_ADMIN_PASSWORD` now aborts startup with an explicit error; an `htpasswd` failure during basic-auth setup no longer starts the container unauthenticated (fails closed); an unsupported `TARGETARCH` now fails the build explicitly instead of silently falling back to `x86_64` s6-overlay binaries; added explicit `HEALTHCHECK` timing parameters and a 5s `curl` timeout; switched CI registry logins to `--password-stdin`; the CI build now pushes a multi-platform candidate image, scans it with Trivy, and promotes the exact scanned digest to the published tags instead of rebuilding, so published images are bit-identical to what was scanned; fixed the release-notes extraction script eating real content for the oldest changelog section.
+* **Security fix (ImageMagick policy)**: the hardened policy shipped in v1.2.1 was silently ignored. ImageMagick rejects the whole XML file when a comment sits between the `DOCTYPE` and the root element, so none of the SSRF/ImageTragick protections or resource limits actually applied. The comment now lives inside `<policymap>` and the load is verified with `magick -list policy`.
+* **PDF/PostScript thumbnails still work under the policy**: with the policy actually enforced, the old rules would have broken the documented `doc` thumbnails. `PDF`/`PS`/`EPS` get read-only access and only the Ghostscript delegate is allowed; network coders, `MSL`/`MVG`/`SVG`, `@file` indirection, other delegates and writes stay blocked.
+* **Robustness (JSON)**: a malformed `options.json` or cached JSON file now degrades to defaults with a log entry instead of taking the site down with a `TypeError`; cache writes use `LOCK_EX` to prevent torn files.
+* **Logging**: h5ai no longer writes its own log file. All diagnostics go to the PHP/web-server error log, prefixed `h5ai:`, including entries that cannot be read while listing a directory.
+* **Folder sizes**: a failing `du` no longer writes a bogus `0` into the cache (the previous value is kept, or the size shows as unknown); a racing `filesize()` failure reports "unknown" instead of a fatal error.
+* **Image preview**: the fullscreen mode forced for photos no longer leaks into the next non-image preview.
+* **Theme icons**: extension matching is case-insensitive again (`icon.PNG` works like `icon.png`); the v1.2.0 `glob()` rewrite had broken it.
+* **Cleanup**: removed the dead `custom.stopSearchingAtRoot` option; the header/footer search always stops at the web root since v1.2.1.
+* **Docker/CI**: added a ready-to-use `docker-compose.yml` (the previous development compose file becomes `docker-compose.dev.yml`); fixed a startup failure when `options.json` is bind-mounted as a single file (`sed -i`'s rename fails with `EBUSY`, now rewritten in place via a temp file + `cat`), and a read-only mount now keeps its existing `passhash` (combining it with `H5AI_ADMIN_PASSWORD` aborts startup with an explicit error); a failed `htpasswd` no longer starts the container unauthenticated; an unsupported `TARGETARCH` fails the build instead of silently using `x86_64` s6-overlay binaries; added explicit `HEALTHCHECK` timing parameters and a 5s `curl` timeout; switched CI registry logins to `--password-stdin`; CI now pushes a multi-platform candidate image, scans it with Trivy, and promotes the exact scanned digest to the published tags instead of rebuilding, so published images are bit-identical to what was scanned; fixed the release-notes extraction script eating real content for the oldest changelog section.
 
 
 ## v1.2.4 - *2026-06-26*
@@ -88,16 +79,9 @@
 
 ## v1.2.2 - *2026-06-26*
 
-* **Folder size performance (`du`)**:
-    * Replaced the per-folder `du -sbL` call plus a full PHP re-walk of the same tree with a single `du -bL` pass: one process now yields the cumulative size of the whole subtree, and the cache-validation `mtime` map is derived directly from `du`'s output (directories only) instead of a second `RecursiveDirectoryIterator` traversal.
-    * Background cache refresh (`refresh-cache.php`) now computes all stale folders in a **single batched `du` process** (`Filesize::refresh_du()`) instead of spawning one process per folder.
-    * Dropped the now-redundant `exec_du`, `exec_du_all` and `get_all_subdirs` helpers; hardened `du` output parsing against paths containing spaces and malformed lines.
-* **Other optimizations & cleanup**:
-    * Memoized `Context::is_managed_path()` (previously recomputed, via `realpath()` plus a walk to root, once per listed sub-folder per request).
-    * Centralized the `withFoldersize`/`withDu` option lookup in a memoized `Context::foldersize_mode()`, removing the duplicated computation in `Util`, `CacheWarmer` and `refresh-cache.php`.
-    * De-duplicated the custom-thumbnail (`_thumb`) detection: `get_items()` now reuses `Thumb::check_custom_thumb()`, and the supported-format list is a single `Thumb::CUSTOM_THUMB_EXT` constant.
-    * `CacheDB`: cached the `select_typeid` prepared statement, and `select()` consistently returns `null` when SQLite is unavailable.
-* **Docker/runtime**: added `REAL_IP_FROM` (and optional `REAL_IP_HEADER`) environment variables to declare trusted reverse proxies, generating `real_ip.conf` at startup; symlinked `/usr/bin/php` to `php84`; switched the Angie access log to a `vhost_combined`-style format while preserving `X-Forwarded-For`; set `clear_env = yes` in PHP-FPM so container secrets (`ENV_P`, `H5AI_ADMIN_PASSWORD`) are no longer exposed to PHP workers; refined the startup permission fixup to `755` on directories and `644` on files instead of `755` everywhere; the `HEALTHCHECK` no longer reports `unhealthy` when basic auth is enabled (treats `200` and `401` as healthy); removed a no-op `$?` check after `htpasswd`.
+* **Folder size performance (`du`)**: a single `du -bL` pass per subtree replaces the old per-folder `du -sbL` plus a full PHP re-walk; the cache-validation `mtime` map is derived from `du`'s own output. Background refresh computes all stale folders in one batched `du` process instead of one per folder. The now-redundant helpers are gone, and output parsing handles paths with spaces and malformed lines.
+* **Other optimizations**: memoized `Context::is_managed_path()` and the `foldersize` mode lookup (both were recomputed per listed sub-folder or duplicated across classes), de-duplicated the custom-thumbnail detection, cached the `select_typeid` prepared statement in `CacheDB`, and made `CacheDB::select()` consistently return `null` when SQLite is unavailable.
+* **Docker/runtime**: new `REAL_IP_FROM` and `REAL_IP_HEADER` environment variables declare trusted reverse proxies and generate `real_ip.conf` at startup; `/usr/bin/php` is symlinked to `php84`; the Angie access log uses a `vhost_combined`-style format and keeps `X-Forwarded-For`; `clear_env = yes` in PHP-FPM keeps container secrets out of PHP workers; the startup permission fixup uses `755` on directories and `644` on files instead of `755` everywhere; the `HEALTHCHECK` treats `401` as healthy so basic auth no longer flags the container unhealthy; removed a no-op `$?` check after `htpasswd`.
 
 
 ## v1.2.2-1 - *2026-06-26*
@@ -122,159 +106,102 @@
 
 ## v1.2.0 - *2026-06-21*
 
-* **PHP 8.4 Minimum Version**:
-    * Raised minimum PHP version from `7.0.0` to `8.4.0`.
-    * Modernized all PHP classes with typed/readonly properties, constructor promotion, return types, and union types.
-    * Adopted modern PHP idioms: `match` expressions, `str_starts_with()`/`str_ends_with()`/`str_contains()`, first-class callable syntax, `never` return type, `CommentStyle` enum, `\GdImage` type hints.
-    * Used PHP 8.4 array functions (`array_any()`, `array_all()`, `array_find()`) for cleaner iteration.
-* **Performance Optimizations**:
-    * Faster tar checksum with `unpack('C*')`, `FilesystemIterator` for directory reads, `glob()` for file listing, compile-time `__DIR__` resolution, vectorized `str_replace()`, and cached store lookups in hot loops.
-* **Code Cleanup**:
-    * Removed dead code (`Util::starts_with/ends_with` wrappers, unnecessary `method_exists()`, redundant checks), factored duplicated SQLite PRAGMA, and simplified helper methods.
-* **Bug Fixes**:
-    * Fixed audio cover art not displaying in player bar (inline `display: none` conflicted with CSS class toggle).
-    * Implemented image loading verification for thumbnails and audio cover art.
-* **Docker base image**: upgraded to PHP `8.4` (Alpine-based), including path updates for the `rar` extension and s6-overlay configuration.
+* **PHP 8.4 minimum**: raised from 7.0.0. All PHP classes modernized with typed/readonly properties, constructor promotion, return types, union types, `match` expressions, `str_starts_with()`/`str_ends_with()`/`str_contains()`, first-class callables, the `never` return type, a `CommentStyle` enum, `\GdImage` type hints, and the new 8.4 array functions `array_any()`/`array_all()`/`array_find()`.
+* **Performance**: faster tar checksums (`unpack('C*')`), `FilesystemIterator` directory reads, `glob()` file listings, compile-time `__DIR__` resolution, vectorized `str_replace()` and cached store lookups in hot loops.
+* **Cleanup**: removed dead code (`Util::starts_with()`/`ends_with()` wrappers, unnecessary `method_exists()` calls, redundant checks) and factored the duplicated SQLite PRAGMA.
+* **Fixes**: audio cover art displays in the player bar again (an inline `display: none` conflicted with the CSS class toggle); thumbnails and cover art now verify that the image actually loaded.
+* **Docker base image**: upgraded to PHP 8.4 (Alpine), with matching `rar` extension and s6-overlay paths.
 
 
 ## v1.2.0-1 - *2026-06-21*
 
-* **CI**: upgraded the Docker-in-Docker image from `24.0.5` to `28` across build, test and publish stages; extracted a reusable `.publish-template` job for multi-platform image publishing.
-* **Security headers**: replaced the deprecated `X-XSS-Protection` header with `Referrer-Policy` and `Content-Security-Policy` in the Angie configuration.
-* **PHP**: disabled OPcache JIT (`jit=disable`) for stability.
-* **PHP-FPM**: added an explicit `[global]` section (PID file, error log paths); tightened the socket permissions from `0666` to `0660` with `angie` group ownership.
-* **Cache ownership**: changed from `angie:www-data` to `angie:angie` for a consistent permission model.
-* **s6-overlay**: changed `S6_CMD_WAIT_FOR_SERVICES_MAXTIME` from `0` (infinite) to `30000` (30s) to detect stuck services.
-* **Makefile**: replaced hardcoded `sleep` waits with retry-based HTTP polling helpers (`wait_for_http`, `wait_for_http_auth`); switched the build command to `docker buildx build`.
-* **Fixed reproducible builds**: pinned the `php-rar` extension build to a specific git commit and copied the compiled `rar.so` via a stable intermediate path.
-* **Fixed init script safety**: added `set -e` to the permissions initialization script for fail-fast behavior on errors.
+* **CI**: Docker-in-Docker upgraded to 28 across build, test and publish stages, with a reusable template for multi-platform image publishing.
+* **Security headers**: `Referrer-Policy` and `Content-Security-Policy` replace the deprecated `X-XSS-Protection` in the Angie configuration.
+* **PHP**: OPcache JIT disabled for stability; PHP-FPM gets an explicit `[global]` section and a `0660` socket owned by the `angie` group; cache ownership becomes `angie:angie`.
+* **s6-overlay**: stuck services are now detected after 30s instead of being waited on forever.
+* **Build**: the `Makefile` polls HTTP with retries instead of hardcoded sleeps and uses `docker buildx build`; the `php-rar` extension build is pinned to a git commit for reproducibility; the permissions init script fails fast with `set -e`.
 
 
 ## v1.1.7 - *2026-06-21*
 
-* **Audio Preview & Thumbnails**:
-    * Added audio thumbnail generation using ffmpeg/avconv.
-    * Added a close/stop button to the audio player queue interface.
-* **Asynchronous Cache & Refresh**:
-    * Implemented background/asynchronous foldersize calculation and cache warming using a CLI helper script (`refresh-cache.php`).
-    * Added real-time folder item size and date refresh on location refresh events.
+* **Audio**: thumbnails are generated with ffmpeg/avconv, and the player queue gets a close/stop button.
+* **Cache**: folder sizes are computed and warmed in the background by a CLI helper (`refresh-cache.php`); item sizes and dates refresh on location refresh events.
 
 
 ## v1.1.6 - *2026-06-21*
 
-* **Tree State & Cache Enhancements**:
-    * Preserved existing tree node state when fetching, and rebuilt the tree from its root on location refresh events to prevent collapses.
-    * Improved caching by moving no-cache HTTP headers from `json_exit` to the directory listing API response only.
-    * Defaulted `ROOT_PATH` to the parent of `H5AI_PATH` instead of the hardcoded `/share` when `H5AI_ROOT_PATH` is unset.
-    * Added tracking for `item.isContentFetched` after fetching directory contents.
-* **Styling & Type Mapping Improvements**:
-    * Cleaned up dark theme details view CSS rules and removed unnecessary `!important` declarations.
-    * Expanded type mappings, adding `csv`, `kotlin`, `sql`, `swift`, `ts`, `avif`, and other common file extensions to `types.json` and `options.json`.
+* **Tree & cache**: tree node state survives fetches and the tree rebuilds from its root on refresh, preventing collapses; no-cache headers now apply only to the directory listing API response; `ROOT_PATH` defaults to the parent of `H5AI_PATH` instead of a hardcoded `/share`.
+* **Styling & types**: dark theme CSS cleanup, and new type mappings for `csv`, `kotlin`, `sql`, `swift`, `ts`, `avif` and other common extensions.
 
 
 ## v1.1.5 - *2026-06-20*
 
-* **Cache & Refresh Fixes**:
-    * Resolved aggressive caching of directory data by adding HTTP cache control headers to API responses.
-    * Fixed folder list refresh issues by ensuring the tree view updates upon location refresh events.
-    * Fixed a bug in the item model that marked parent content as fully fetched prematurely, causing stale directory listings.
-    * Restored search and filter input colors and visibility in dark mode.
+* **Cache & refresh fixes**: API responses send cache-control headers so browsers stop serving stale listings; the tree view updates on location refresh; fixed the item model marking parent content as fetched too early; restored search and filter input colors in dark mode.
 
 
 ## v1.1.4 - *2026-06-20*
 
-* **Zebra Striping & Dark Mode Hover Fixes**:
-    * Added alternating row background colors (zebra striping) in details view list for improved legibility.
-    * Fixed dark mode link hover color tone-on-tone illegibility (links turned black on hover, now turn to a soft light blue).
-    * Added text color hover transitions for file and folder items in dark mode (items now highlight in light blue on mouse hover, matching light theme behavior).
-* **Dark Mode & Styling Improvements**:
-    * Fixed styling overrides for admin password box `#pass` in dark mode by correcting broken CSS selectors.
-    * Added proper visibility and color styling for password box placeholder in dark mode.
-* **Less Files Linting**:
-    * Integrated Stylelint config to enforce formatting and coding standards on Less files.
-    * Cleaned up and automatically formatted all Less stylesheets, resolving 261 style issues.
-    * Removed obsolete vendor-prefixed properties from text preview stylesheets.
-* **Docker image**: added `php83-sqlite3`/`php83-pdo_sqlite` (SQLite3 caching support) and compiled the `rar` extension from source for PHP 8.3 compatibility; added `H5AI_ROOT_PATH=/share` for customizable root folder mapping; removed a redundant build-time cache-directory `chown` in the Dockerfile, relying entirely on the runtime s6-overlay permission setup.
+* **Details view & dark mode**: zebra striping in the details list for legibility; dark mode links no longer turn black on hover (they highlight in light blue, matching the light theme); fixed the admin password box styling and its placeholder visibility in dark mode.
+* **Less linting**: Stylelint now enforces formatting on the Less files; 261 style issues cleaned up and obsolete vendor prefixes removed.
+* **Docker image**: added SQLite3 caching support (`php83-sqlite3`/`php83-pdo_sqlite`), compiled the `rar` extension for PHP 8.3, added `H5AI_ROOT_PATH=/share` for root folder mapping, and dropped a redundant build-time `chown`.
 
 ## v1.1.3 - *2026-06-19*
 
-* **Version Display & Build Optimization**:
-    * Displayed the h5ai version dynamically in the info page header, page backlink, and toolbar backlink.
-    * Adjusted build versioning logic to append commit counter/hash only for non-production builds.
-    * Fixed the release notes extraction logic in CI/CD pipeline to properly parse headers with prefix/prefix-less versions.
-* **Docker**: configured `S6_CMD_WAIT_FOR_SERVICES_MAXTIME=0` to prevent s6-overlay timing out during slow container startup; optimized the startup permissions script to only `chown`/`chmod` files with incorrect owner/group or permissions, speeding up boot when cache volumes are already populated.
+* **Version display & build**: the h5ai version shows in the info page header and the backlinks; the commit counter/hash is only appended to non-production builds; fixed the release-notes extraction in CI.
+* **Docker**: `S6_CMD_WAIT_FOR_SERVICES_MAXTIME=0` prevents s6-overlay timing out on slow container startups; the permissions script only touches files that need it, speeding up boot when cache volumes are already populated.
 
 
 ## v1.1.2 - *2026-06-19*
 
-* **Version Display & Repository Migration**:
-    * Added dynamic display of the h5ai version inside the topbar backlink.
-    * Migrated all repository links globally from `manti-X` to `pad92`.
-    * Added comprehensive diagnostic and administration documentation under `doc/administration.md`.
-* **Docker/runtime**: added `H5AI_ADMIN_PASSWORD` to set the SHA-512 `passhash` in `options.json` at startup (a random password is generated and logged if unset); migrated process management from Supervisor to s6-overlay v3 (correct UNIX signal forwarding, automatic restarts), reducing the unpacked image size from 391MB to 321MB (~18%) by dropping Supervisord and its Python 3 runtime; added dynamic `TARGETARCH` mapping in the builder stage so the same Dockerfile builds both `amd64` and `arm64`.
+* Added the h5ai version to the topbar backlink, migrated repository links from `manti-X` to `pad92`, and added diagnostic and administration documentation under `doc/administration.md`.
+* **Docker/runtime**: `H5AI_ADMIN_PASSWORD` sets the admin `passhash` at startup (a random password is generated and logged if unset); process management moved from Supervisor to s6-overlay v3, dropping Supervisord and its Python runtime and shrinking the image from 391 MB to 321 MB; the same Dockerfile now builds both `amd64` and `arm64`.
 
 
 ## v1.1.1 - *2026-06-19*
 
-* **Infinite Recursion & Loop Prevention**:
-    * Implemented loop detection and symbolic link checks in recursive directory scans.
-    * Prevented PHP-FPM pool exhaustion by skipping directory symlinks (`!is_link()`) during recursive file size calculation, cache warming, folder searching, and zip archiving.
-    * Added visited realpath tracking to prevent loop traversals in deep or circular folder structures.
+* **Loop prevention**: recursive scans now skip directory symlinks and track visited realpaths, so circular folder structures no longer exhaust the PHP-FPM pool during size calculation, cache warming, search or zip archiving.
 
 
 ## v1.1.0 - *2026-06-19*
 
-* **Modern Audio Player Redesign**:
-    * Redesigned audio preview panel with a modern glassmorphic look, including progress/volume bars, track info, and playback queue.
-    * Enabled persistent audio playback while navigating directories (continuous play across folders).
-    * Integrated a playback queue supporting auto-play, skip, previous, shuffle, loop, and toggle queue list view.
-* **Code Optimization & Security**:
-    * Optimized folder size caching initialization to run contextually, improving performance.
-    * Secured SQLite3 CacheDB queries by escaping parameters.
-    * Reduced archive download segment size to 64KiB for smoother streaming.
-    * Suppressed warning outputs on path context regex matching.
-* **CI/CD & Security Auditing**:
-    * Created a GitLab CI/CD configuration to automate linting (`eslint`), unit testing (`scar`), building release ZIP packages (`gulp release`), publishing release packages, and creating GitLab Releases.
-    * Integrated Trivy filesystem scans (`trivy fs`) into the GitLab CI/CD pipeline and added a local `scan` target in the `Makefile` with optimized directory exclusions (`.npm_cache`, `node_modules`, `build`).
-* **Docker build**: switched the image builder stage to download the pre-compiled `h5ai` zip from the GitLab Generic Packages Registry instead of git-cloning and compiling from source (superseded by the in-tree multi-stage build after the monorepo merge).
+* **Audio player redesign**: glassmorphic look with progress/volume bars, track info and a playback queue (auto-play, skip, shuffle, loop); playback continues while navigating directories.
+* **Code & security**: folder size caching initializes contextually, SQLite CacheDB queries escape their parameters, and archive downloads stream in 64 KiB segments.
+* **CI**: a GitLab pipeline now lints, tests, builds and publishes release packages and creates GitLab Releases, with Trivy filesystem scans and a local `make scan` target.
+* **Docker build**: the builder stage downloaded the pre-compiled zip from the package registry instead of compiling from source (superseded by the in-tree multi-stage build after the monorepo merge).
 
 
 
 ## v1.0.0 - *2026-06-18*
 
-* **Gulp Migration & Thumbnail Improvements**:
-    * Migrated the build system from ghu to gulp and added WebP support to the thumbnail module.
-    * Limited image preview to 80% of screen size.
-    * Resolved CacheDB not found runtime error and fixed `is_readable` checks in the filesize module.
-    * Fixed ESLint warnings.
+* Migrated the build system from ghu to gulp, added WebP thumbnails, limited image preview to 80% of screen size, fixed a CacheDB runtime error and the `is_readable` checks in the filesize module, and cleaned up ESLint warnings.
 
 
 ## Docker packaging history *(pre-monorepo, from the former `docker-h5ai` repository)*
 
-* **v0.30.0-17** - *2026-06-18* — Migrated the web server from Nginx to Angie (`1.11.7-minimal`, Alpine-based); migrated configuration paths to `/etc/angie/angie.conf`, updated Supervisord task definitions, and switched file ownership/permissions to the `angie` user.
-* **v0.30.0-16** - *2026-06-18* — Upgraded the `nginx` base image from `1.26` to `1.30` and PHP to `8.3` (Alpine); upgraded OpenSSL to `3.3.7-r0` for security fixes and build compatibility.
-* **v0.30.0-15** - *2026-06-14* — Upgraded the built h5ai base to `0.30.0-pad92.8`: integrated upstream PR #765 for improved video thumbnail generation and prevention of a thumbnail DoS exploit, used `ffprobe`/`avprobe` to seek into a configurable percentage of the video duration (default 50%), limited client control over generated thumbnail sizes, and configured CSS `object-fit` for responsive square thumbnail cropping.
-* **v0.30.0-14** - *2026-06-13* — Upgraded the built h5ai base to `0.30.0-pad92.7`: added persistent folder-size caching and background cache warming (`warm-cache.php`), plus `cache` options in `options.json` and matching documentation.
-* **v0.30.0-13** - *2026-06-13* — Upgraded the built h5ai base to `0.30.0-pad92.6`; added `imagemagick-raw`/`libraw` to enable RAW photo previews.
-* **v0.30.0-12** - *2026-06-12* — Upgraded the built h5ai base to `0.30.0-pad92.5`; added `doc/configuration.md`; modernized the photo preview to show EXIF metadata in a responsive glassmorphic panel.
-* **v0.30.0-11** - *2026-06-12* — Upgraded the built h5ai base to `0.30.0-pad92.4`; optimized and standardized UI icon SVG markup.
-* **v0.30.0-10** - *2026-06-12* — Silenced a Supervisord critical warning when running as root without dropped privileges and a spurious `sh: where: not found` PHP command-check warning; hardened the permissions initialization script by creating cache folders before configuring their permissions.
-* **v0.30.0-9** - *2026-06-12* — Added a Supervisor initialization task (`init_perms.sh`) to set ownership (`nginx:www-data`) and write permissions (`755`) on cache directories at startup.
-* **v0.30.0-8** - *2026-06-12* — Upgraded the built h5ai base to `0.30.0-pad92.3`.
-* **v0.30.0-7** - *2026-06-12* — Upgraded the built h5ai base to `0.30.0-pad92.2`; configured CPU/memory limits in `docker-compose.yml`; added `custom.ini` with tuned PHP memory/execution-time limits, realpath cache and output buffering; tuned PHP-FPM pool concurrency (up to 20 workers) with recycling after 1000 requests; tuned OPcache and disabled file-status checks (`validate_timestamps = 0`) on the immutable image filesystem; cleaned up `docker-compose.yml`.
-* **v0.30.0-6** - *2026-06-12* — Upgraded the compiled h5ai base to `0.30.0-pad92.1` (the `pad92/h5ai` fork, integrating `movi-player`, an upgraded `marked`, and cross-origin isolation); documented persisting the public/private cache across container restarts via volume mounts.
-* **v0.30.0-5** - *2026-06-12* — Configured `release-cli` to generate GitLab Release pages from `CHANGELOG.md` tag descriptions; enabled `X-Frame-Options`/`X-Content-Type-Options`/`X-XSS-Protection`; blocked external access to `/_h5ai/private` (403); upgraded to Nginx `1.26` (Alpine-slim) and PHP `8.3`; upgraded the builder to Node 20; set Supervisord to auto-restart PHP-FPM/Nginx on failure; migrated CI from GitHub Actions to a 5-stage GitLab CI/CD pipeline (lint, build, test, scan, publish); replaced multiple build jobs with a parameterized multi-platform (`amd64`/`arm64`) Buildx pipeline with registry caching; moved Trivy scanning to local tarball scans; extended basic-auth protection to static file downloads and added `ENV_U`/`ENV_P` presence checks; rewrote auth test scripts to resolve gateways via container IP lookups.
-* **v0.30.0-4** - *2023-10-10* — Fixed HTTP real-IP configuration and log redirection.
-* **v0.30.0-3** - *2023-10-03* — Configured multi-platform builds (`amd64`, `arm64`, `arm/v7`) and Container Scanning/SAST in GitLab CI; updated Node versions and enabled OPcache; fixed a CI tagging bug.
-* **v0.30.0-2** - *2023-05-14* — Upgraded PHP to `8.1` and the Nginx base image to `1.22.1-alpine` (security fix); fixed PHP 8.1 compatibility issues and repository badge links.
-* **v0.30.0-1** - *2022-07-06* — Upgraded to PHP `8.0` and applied Dockerfile security upgrades.
-* **v0.30.0** - *2021-11-30* — Added Basic Authentication via `ENV_U`/`ENV_P`; added the MIT license file; cleaned up CI configuration.
-* **v0.29.2-2** - *2019-10-27* — Explicitly set Docker image version labels.
-* **v0.29.2-1** - *2019-07-29* — Switched the base image to `nginx:stable-alpine`.
-* **v0.29.2** - *2019-07-29* — Added Supervisord to manage Nginx and PHP-FPM; added Imagick and its system dependencies; upgraded the h5ai version and the Alpine base to `3.9`.
-* **v0.29.0-2** - *2018-11-20* — Cleaned up and optimized build/runtime dependencies.
-* **v0.29.0-1** - *2018-07-10* — Fixed PHP 7 error log paths.
-* **v0.29.0** - *2018-07-09* — Initial release: basic h5ai functionality on Nginx/PHP.
+* **v0.30.0-17** - *2026-06-18*: Migrated the web server from Nginx to Angie (`1.11.7-minimal`, Alpine-based); migrated configuration paths to `/etc/angie/angie.conf`, updated Supervisord task definitions, and switched file ownership/permissions to the `angie` user.
+* **v0.30.0-16** - *2026-06-18*: Upgraded the `nginx` base image from `1.26` to `1.30` and PHP to `8.3` (Alpine); upgraded OpenSSL to `3.3.7-r0` for security fixes and build compatibility.
+* **v0.30.0-15** - *2026-06-14*: Upgraded the built h5ai base to `0.30.0-pad92.8` (upstream PR #765: better video thumbnails, thumbnail DoS prevention, configurable seek percentage, limited client control over thumbnail sizes, CSS `object-fit` square cropping).
+* **v0.30.0-14** - *2026-06-13*: Upgraded the built h5ai base to `0.30.0-pad92.7`: added persistent folder-size caching and background cache warming (`warm-cache.php`), plus `cache` options in `options.json` and matching documentation.
+* **v0.30.0-13** - *2026-06-13*: Upgraded the built h5ai base to `0.30.0-pad92.6`; added `imagemagick-raw`/`libraw` to enable RAW photo previews.
+* **v0.30.0-12** - *2026-06-12*: Upgraded the built h5ai base to `0.30.0-pad92.5`; added `doc/configuration.md`; modernized the photo preview to show EXIF metadata in a responsive glassmorphic panel.
+* **v0.30.0-11** - *2026-06-12*: Upgraded the built h5ai base to `0.30.0-pad92.4`; optimized and standardized UI icon SVG markup.
+* **v0.30.0-10** - *2026-06-12*: Silenced a Supervisord critical warning when running as root without dropped privileges and a spurious `sh: where: not found` PHP command-check warning; hardened the permissions initialization script by creating cache folders before configuring their permissions.
+* **v0.30.0-9** - *2026-06-12*: Added a Supervisor initialization task (`init_perms.sh`) to set ownership (`nginx:www-data`) and write permissions (`755`) on cache directories at startup.
+* **v0.30.0-8** - *2026-06-12*: Upgraded the built h5ai base to `0.30.0-pad92.3`.
+* **v0.30.0-7** - *2026-06-12*: Upgraded the built h5ai base to `0.30.0-pad92.2`; configured CPU/memory limits in `docker-compose.yml`; added `custom.ini` with tuned PHP memory/execution-time limits, realpath cache and output buffering; tuned PHP-FPM pool concurrency (up to 20 workers) with recycling after 1000 requests; tuned OPcache and disabled file-status checks (`validate_timestamps = 0`) on the immutable image filesystem; cleaned up `docker-compose.yml`.
+* **v0.30.0-6** - *2026-06-12*: Upgraded the compiled h5ai base to `0.30.0-pad92.1` (the `pad92/h5ai` fork, integrating `movi-player`, an upgraded `marked`, and cross-origin isolation); documented persisting the public/private cache across container restarts via volume mounts.
+* **v0.30.0-5** - *2026-06-12*: Migrated CI from GitHub Actions to a 5-stage GitLab pipeline (lint, build, test, scan, publish) with a parameterized multi-platform (`amd64`/`arm64`) Buildx build using registry caching, GitLab Release generation from `CHANGELOG.md`, and Trivy scanning moved to local tarball scans; upgraded to Nginx `1.26` (Alpine-slim), PHP `8.3` and Node 20; enabled `X-Frame-Options`/`X-Content-Type-Options`/`X-XSS-Protection`; blocked external access to `/_h5ai/private`; extended basic-auth protection to static file downloads and added `ENV_U`/`ENV_P` presence checks; rewrote auth test scripts to resolve gateways via container IP lookups; set Supervisord to auto-restart PHP-FPM/Nginx on failure.
+* **v0.30.0-4** - *2023-10-10*: Fixed HTTP real-IP configuration and log redirection.
+* **v0.30.0-3** - *2023-10-03*: Configured multi-platform builds (`amd64`, `arm64`, `arm/v7`) and Container Scanning/SAST in GitLab CI; updated Node versions and enabled OPcache; fixed a CI tagging bug.
+* **v0.30.0-2** - *2023-05-14*: Upgraded PHP to `8.1` and the Nginx base image to `1.22.1-alpine` (security fix); fixed PHP 8.1 compatibility issues and repository badge links.
+* **v0.30.0-1** - *2022-07-06*: Upgraded to PHP `8.0` and applied Dockerfile security upgrades.
+* **v0.30.0** - *2021-11-30*: Added Basic Authentication via `ENV_U`/`ENV_P`; added the MIT license file; cleaned up CI configuration.
+* **v0.29.2-2** - *2019-10-27*: Explicitly set Docker image version labels.
+* **v0.29.2-1** - *2019-07-29*: Switched the base image to `nginx:stable-alpine`.
+* **v0.29.2** - *2019-07-29*: Added Supervisord to manage Nginx and PHP-FPM; added Imagick and its system dependencies; upgraded the h5ai version and the Alpine base to `3.9`.
+* **v0.29.0-2** - *2018-11-20*: Cleaned up and optimized build/runtime dependencies.
+* **v0.29.0-1** - *2018-07-10*: Fixed PHP 7 error log paths.
+* **v0.29.0** - *2018-07-09*: Initial release: basic h5ai functionality on Nginx/PHP.
 
 
 ## v0.33.0-pad92.1 - *2026-06-15*
