@@ -48,13 +48,37 @@ class Context {
         return Util::array_query($this->options, $keypath, $default);
     }
 
-    // [$withFoldersize, $withDu] for the current request. Constant per request,
-    // so it is memoized to avoid recomputing it for every listed item.
+    // [$withFoldersize, $withDu, $timeout, $background_timeout] for the current
+    // request. The two timeouts differ because a request must answer inside the
+    // pool's request_terminate_timeout while a CLI worker has no such limit;
+    // callers pick the one matching their context. Constant per request, so it
+    // is memoized to avoid recomputing it for every listed item.
     public function foldersize_mode(): array {
         return $this->foldersize_mode ??= [
             $this->query_option('foldersize.enabled', false),
             $this->setup->get('HAS_CMD_DU') && $this->query_option('foldersize.type', null) === 'shell-du',
+            $this->foldersize_timeout('foldersize.timeout', Filesize::DEFAULT_TIMEOUT),
+            $this->foldersize_timeout('foldersize.backgroundTimeout', Filesize::DEFAULT_BACKGROUND_TIMEOUT),
         ];
+    }
+
+    // A number is clamped into range, because an out-of-range one is still a
+    // deliberate choice. Anything non-numeric (null, a string, an array) is
+    // malformed and falls back to the default: casting it would yield 0 and
+    // silently cripple every du pass to the one-second floor.
+    private function foldersize_timeout(string $option, int $default): int {
+        $value = $this->query_option($option, $default);
+        if (!is_numeric($value)) {
+            $value = $default;
+        }
+        $value = (float) $value;
+        if (is_nan($value)) {
+            $value = (float) $default;
+        }
+        // Clamp as a float, then cast. Casting first would turn an overflowing
+        // literal such as 1e9999 into INF, then into 0, landing on the floor
+        // instead of the ceiling (and warning about it).
+        return (int) max(1, min(Filesize::MAX_TIMEOUT, $value));
     }
 
     public function get_types(): array {

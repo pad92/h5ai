@@ -1,6 +1,16 @@
 <?php
 
 class Filesize {
+    // Serving a request: search and fallback listings compute sizes inline, so
+    // this has to stay below the php-fpm pool's request_terminate_timeout for
+    // the fail-closed path below to run before the worker is killed from under
+    // it.
+    public const DEFAULT_TIMEOUT = 50;
+    // Warming or refreshing the cache from the CLI: no pool limit applies, and
+    // cutting a large tree short would leave it permanently uncached.
+    public const DEFAULT_BACKGROUND_TIMEOUT = 900;
+    public const MAX_TIMEOUT = 3600;
+
     private static array $cache = [];
     private static ?array $persistent_cache = null;
     private static bool $persistent_cache_dirty = false;
@@ -87,8 +97,8 @@ class Filesize {
         );
     }
 
-    public static function getSize(string $path, bool $withFoldersize, bool $withDu): ?int {
-        return new self()->size($path, $withFoldersize, $withDu);
+    public static function getSize(string $path, bool $withFoldersize, bool $withDu, int $timeout = self::DEFAULT_TIMEOUT): ?int {
+        return new self($timeout)->size($path, $withFoldersize, $withDu);
     }
 
     public static function set_async_mode(bool $enabled): void {
@@ -99,7 +109,7 @@ class Filesize {
         return array_unique(self::$stale_paths);
     }
 
-    public static function getCachedSize(string $path, bool $withFoldersize, bool $withDu): ?int {
+    public static function getCachedSize(string $path, bool $withFoldersize, bool $withDu, int $timeout = self::DEFAULT_TIMEOUT): ?int {
         if (array_key_exists($path, self::$cache)) {
             return self::$cache[$path];
         }
@@ -121,10 +131,10 @@ class Filesize {
             }
         }
 
-        return self::$cache[$path] = self::getSize($path, $withFoldersize, $withDu);
+        return self::$cache[$path] = self::getSize($path, $withFoldersize, $withDu, $timeout);
     }
 
-    private function __construct() {}
+    private function __construct(private readonly int $timeout) {}
 
     private function read_dir(string $path): array {
         if (!is_dir($path) || !is_readable($path)) {
@@ -196,12 +206,26 @@ class Filesize {
         return $size;
     }
 
+    // Bounded so a pass over a large or slow tree cannot run unchecked. It does
+    // not help against a mount that has hung outright: the child then sits in
+    // uninterruptible I/O where the kill signal stays pending, exactly like the
+    // plain directory reads elsewhere in this class. On abort the partial
+    // output is dropped rather than parsed: both callers treat a missing entry
+    // as "size unknown" and keep the previous cache entry, while a truncated
+    // tree would persist a wrong, too-small size.
     private function exec(array $cmdv): array {
-        $cmd = implode(' ', array_map(escapeshellarg(...), $cmdv));
-        $lines = [];
-        $rc = null;
-        exec($cmd, $lines, $rc);
-        return $lines;
+        $output = '';
+        $error = '';
+        $rc = Util::proc_open_cmdv($cmdv, $output, $error, $this->timeout);
+        // proc_open_cmdv() reports both its timeout and its output cap as 124
+        // without saying which, so the message names the two possibilities
+        // rather than asserting the wrong one.
+        if ($rc === 124) {
+            Util::log("folder size: `{$cmdv[0]}` aborted (timeout {$this->timeout}s or output limit)");
+            return [];
+        }
+        $output = rtrim($output, "\r\n");
+        return $output === '' ? [] : preg_split('/\r?\n/', $output);
     }
 
     // Single `du -bL` pass over the given paths. Without `-s`, du prints the
@@ -242,8 +266,8 @@ class Filesize {
     }
 
     // Compute and cache folder sizes for several paths with a single du call.
-    public static function refresh_du(array $paths): void {
-        new self()->batch_du($paths);
+    public static function refresh_du(array $paths, int $timeout = self::DEFAULT_TIMEOUT): void {
+        new self($timeout)->batch_du($paths);
     }
 
     private function batch_du(array $paths): void {

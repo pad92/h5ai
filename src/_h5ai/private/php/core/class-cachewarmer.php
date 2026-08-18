@@ -69,9 +69,10 @@ class CacheWarmer {
             }
         }
 
-        [$withFoldersize, $withDu] = $this->context->foldersize_mode();
+        // Runs from warm-cache.php on the CLI: use the background timeout.
+        [$withFoldersize, $withDu, , $timeout] = $this->context->foldersize_mode();
         if ($withFoldersize) {
-            Filesize::getCachedSize($path, $withFoldersize, $withDu);
+            Filesize::getCachedSize($path, $withFoldersize, $withDu, $timeout);
         }
     }
 }

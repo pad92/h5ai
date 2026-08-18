@@ -1,5 +1,5 @@
 # Stage 1: Build h5ai application from source
-FROM node:20-slim AS h5ai-builder
+FROM node:24-slim AS h5ai-builder
 
 WORKDIR /build
 COPY package.json package-lock.json ./
@@ -92,6 +92,7 @@ COPY slash/     /
 RUN ln -sf "$(command -v php84)" /usr/bin/php \
     && mkdir -p /etc/angie/conf.d \
     && ln -sf /dev/stderr /var/log/php84/error.log \
+    && ln -sf /dev/stderr /var/log/php84/slow.log \
     && ln -sf /dev/stdout /var/log/angie/access.log \
     && ln -sf /dev/stderr /var/log/angie/error.log \
     && chmod +x /etc/s6-overlay/s6-rc.d/init-perms-auth/up \

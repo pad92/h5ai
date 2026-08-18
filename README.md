@@ -31,7 +31,7 @@ This repository is a detached fork of the original [h5ai](https://github.com/lrs
   * `du` (for folder size calculation)
 
 ### Build-time (Development)
-* Node.js `18.18+` and npm (for building the project)
+* Node.js `22.22.2–22.x`, `24.15.0–24.x`, or `26.0.0+`, and npm (for building the project)
 
 > [!IMPORTANT]
 > `_h5ai/private/` must never be served as static content. Apache applies the
