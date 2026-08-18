@@ -114,8 +114,12 @@ Allows the user to filter the files displayed in the current folder using a text
 Calculates and displays the sizes of directories.
 > [!WARNING]
 > This operation can significantly slow down directory loading speeds, especially on large folders.
-- `enabled` (default: `false`).
+- `enabled` (default: `true`).
 - `type` (default: `"shell-du"`): Can be `"php"` (slow, adds up sizes of files recursively in PHP) or `"shell-du"` (uses command line `du`, faster but still potentially expensive).
+- `timeout` (default: `50`, maximum: `3600`): Maximum runtime in seconds of a single `du` pass started while serving a request, and only used when `type` is `"shell-du"`. Search results and fallback listings compute folder sizes inline, which is what this limit protects. When it expires h5ai kills the command and the affected folders keep the size they already had in the cache. Keep it below the `request_terminate_timeout` of your PHP-FPM pool (60 seconds in the Docker image), otherwise PHP-FPM kills the worker first and the cached size is lost.
+- `backgroundTimeout` (default: `900`, maximum: `3600`): Same limit for the `du` passes started by the CLI cache warmer and the background refresh worker. No pool limit applies to those, so this is much larger: cutting a genuinely large tree short would leave it permanently uncached and retried on every pass. Raise it if a full pass over your share needs longer.
+> [!NOTE]
+> A timeout only helps when the storage is slow. If a network mount hangs outright, the kernel leaves `du` in uninterruptible I/O where no signal can reach it, and plain directory reads block the same way, so h5ai cannot recover on its own and neither can PHP-FPM. The mount itself has to be repaired. NFS does offer `soft`, which makes calls fail instead of hang, but `nfs(5)` warns that it can cause silent data corruption, so it is not a general recommendation.
 
 #### `info`
 Shows an informational sidebar displaying file/folder details on hover or select.

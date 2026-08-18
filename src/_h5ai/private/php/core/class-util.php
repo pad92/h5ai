@@ -217,8 +217,8 @@ class Util {
     }
 
     public static function filesize(Context $context, string $path): ?int {
-        [$withFoldersize, $withDu] = $context->foldersize_mode();
-        return Filesize::getCachedSize($path, $withFoldersize, $withDu);
+        [$withFoldersize, $withDu, $timeout] = $context->foldersize_mode();
+        return Filesize::getCachedSize($path, $withFoldersize, $withDu, $timeout);
     }
 
     public static function get_mimetype(string $source_path): string {

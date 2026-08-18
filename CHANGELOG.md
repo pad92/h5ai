@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.3.3 - *2026-08-18*
+
+* **Bounded the `du` call behind folder sizes**: `Filesize::exec()` ran `du -bL` through a plain `exec()` with no execution limit. It was the last child-process call left unguarded after the archive and thumbnail helpers were hardened in v1.3.0, so on slow storage a single `du` pass could run for as long as it liked. Search results and fallback listings compute folder sizes inline, so that also stalled real requests, not just the background cache warmer. The call now goes through the existing bounded `Util::proc_open_cmdv()` helper, which terminates the child once the timeout expires and force-kills it if it ignores the signal. Output from an aborted pass is dropped instead of parsed, because half a `du` listing would persist a wrong, too-small size in `foldersizes.json`.
+* **New `foldersize.timeout` and `foldersize.backgroundTimeout` options** (capped at `3600` seconds each). Requests get `50` seconds, which stays under the `request_terminate_timeout` of the Docker image's PHP-FPM pool so h5ai keeps the size already in the cache instead of losing the worker mid-write. CLI cache warming and refreshing get `900` seconds, since no pool limit applies there and cutting a large tree short would leave it permanently uncached. If your share needs longer than 900 seconds for a full `du` pass, raise `backgroundTimeout`.
+* **Docker/php-fpm reliability**: the `www` pool had no `request_terminate_timeout`, so workers left behind by a slow request piled up until the pool was starved. They are now recycled after 60s, and a `slow.log` (forwarded to stderr like `error.log`) records any request past 10s. Note that neither mechanism can reclaim a worker blocked on a mount that has hung outright: the kernel keeps it in uninterruptible I/O, the signal stays pending, and no stack trace can be written. That case has to be fixed at the mount.
+* **Documentation**: `foldersize.enabled` was still documented as defaulting to `false`. It has defaulted to `true` since v1.3.1.
+
 ## v1.3.2 - *2026-07-29*
 
 * **Security scanning**: replaces Trivy with Grype/Syft in the CI pipeline and the `Makefile`.
