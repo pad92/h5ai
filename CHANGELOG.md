@@ -6,6 +6,7 @@
 * **New `foldersize.timeout` and `foldersize.backgroundTimeout` options** (capped at `3600` seconds each). Requests get `50` seconds, which stays under the `request_terminate_timeout` of the Docker image's PHP-FPM pool so h5ai keeps the size already in the cache instead of losing the worker mid-write. CLI cache warming and refreshing get `900` seconds, since no pool limit applies there and cutting a large tree short would leave it permanently uncached. If your share needs longer than 900 seconds for a full `du` pass, raise `backgroundTimeout`.
 * **Docker/php-fpm reliability**: the `www` pool had no `request_terminate_timeout`, so workers left behind by a slow request piled up until the pool was starved. They are now recycled after 60s, and a `slow.log` (forwarded to stderr like `error.log`) records any request past 10s. Note that neither mechanism can reclaim a worker blocked on a mount that has hung outright: the kernel keeps it in uninterruptible I/O, the signal stays pending, and no stack trace can be written. That case has to be fixed at the mount.
 * **Documentation**: `foldersize.enabled` was still documented as defaulting to `false`. It has defaulted to `true` since v1.3.1.
+* **Dependencies**: bumps `brace-expansion`, `undici`, `nanoid`, `fast-uri`, `js-yaml` and `less` (transitive, via `gulp-less`) within their existing semver ranges, clearing the high-severity findings flagged by the npm dependency scan.
 
 ## v1.3.2 - *2026-07-29*
 
