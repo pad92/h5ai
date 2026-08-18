@@ -1,5 +1,5 @@
 # Stage 1: Build h5ai application from source
-FROM node:20-slim AS h5ai-builder
+FROM node:24-slim AS h5ai-builder
 
 WORKDIR /build
 COPY package.json package-lock.json ./

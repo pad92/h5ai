@@ -50,7 +50,7 @@ cache:
 
 # Shared by every node-based job to avoid repeating image + install.
 .node-job:
-  image: node:20-slim
+  image: node:24-slim
   before_script:
     - npm ci
 
