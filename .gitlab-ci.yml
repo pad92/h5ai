@@ -143,6 +143,7 @@ build:candidate:
       docker buildx build \
         --platform linux/amd64,linux/arm64 \
         --push \
+        --provenance=false \
         --metadata-file build-metadata.json \
         $BUILD_ARGS \
         -t "$CANDIDATE_IMAGE" \
