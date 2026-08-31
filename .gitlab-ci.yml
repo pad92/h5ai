@@ -66,7 +66,7 @@ lint:app:
 
 lint:dockerfile:
   stage: lint
-  image: hadolint/hadolint:latest@sha256:32dac94127fd60b7b7e3fbfc65e1383b9b5e25c9bfd7b8536de7a539fe68a12d
+  image: ghcr.io/hadolint/hadolint:v2.15.1-debian@sha256:9a3944b7fddcb947d1ffd90829ac1a6e5c30479223358f249d8b96c7d0019e27
   needs: []
   cache: []
   script:
