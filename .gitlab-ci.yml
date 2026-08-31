@@ -22,8 +22,8 @@ variables:
   # credentials and, for the docker ones, the runner's Docker socket, so the
   # container holding them must not be swappable — pinning only the scanners
   # would leave that outer container mutable underneath them. Other job images
-  # (node, hadolint, php, curl, release-cli) and the privileged
-  # `tonistiigi/binfmt` helper are not pinned yet.
+  # (node, hadolint, php, curl, release-cli) and the privileged helper are
+  # pinned as well.
   DOCKER_IMAGE: "docker:28@sha256:2a232a42256f70d78e3cc5d2b5d6b3276710a0de0596c145f627ecfae90282ac"
   GRYPE_IMAGE: "anchore/grype:v0.116.0@sha256:fd4ab4d1042b522c896e73bdf09ab8bf384fa417df99d6dd0d6e1008c7e7c821"
   SYFT_IMAGE: "anchore/syft:v1.49.0@sha256:13b53ebabe3d215268c90cf8fb9b875f0183908245f376fd4b3a2cb69d21d484"
@@ -50,7 +50,7 @@ cache:
 
 # Shared by every node-based job to avoid repeating image + install.
 .node-job:
-  image: node:24-slim
+  image: node:24.17.0-slim@sha256:862263c612aa437e3037674b85419622a9d93bff80aa1eee5398dfe686375532
   before_script:
     - npm ci
 
@@ -66,7 +66,7 @@ lint:app:
 
 lint:dockerfile:
   stage: lint
-  image: hadolint/hadolint:latest-alpine
+  image: hadolint/hadolint:latest@sha256:32dac94127fd60b7b7e3fbfc65e1383b9b5e25c9bfd7b8536de7a539fe68a12d
   needs: []
   cache: []
   script:
@@ -100,8 +100,8 @@ build:app:
   needs:
     - job: lint:dockerfile
   before_script:
-    - docker run --privileged --rm tonistiigi/binfmt --uninstall qemu-* || true
-    - docker run --privileged --rm tonistiigi/binfmt --install all || true
+    - docker run --privileged --rm tonistiigi/binfmt:qemu-v10.2.3-68@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0 --uninstall qemu-* || true
+    - docker run --privileged --rm tonistiigi/binfmt:qemu-v10.2.3-68@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0 --install all || true
     - docker buildx create --name $BUILDER_NAME --use --bootstrap
     - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
     # Version/build metadata consumed by the Dockerfile ARGs (image labels).
@@ -170,7 +170,7 @@ test:app:
 
 test:php:
   stage: test
-  image: php:8.4-cli
+  image: php:8.4.24-cli@sha256:1368f1904f02ccab4fdb5f56e49cc78e0c7d9cc20202d7ed19530ec1e84f939c
   needs: []
   cache: []
   script:
@@ -281,10 +281,8 @@ scan:grype:image:
 # run explicitly with dev dependencies enabled and Grype matches the resulting
 # SBOM. Grype honours neither SYFT_* nor GRYPE_* forms of that setting.
 #
-# Advisory (`allow_failure: true`) while the backlog it reports is worked down;
-# it is deliberately absent from the publish jobs' `needs:` because a job that
-# cannot fail the pipeline cannot gate a release. Make it blocking and add it
-# back to those `needs:` once the reported dependencies are bumped.
+# This scan is blocking: a release must not proceed when the lockfile contains
+# a fixable high-severity dependency vulnerability.
 #
 # This runner uses Docker socket binding (no dind service): `docker run` here
 # talks to the host daemon and spawns *sibling* containers, so `-v
@@ -298,7 +296,6 @@ scan:grype:deps:
   needs: []
   cache: []
   image: $DOCKER_IMAGE
-  allow_failure: true
   script:
     - |
       JOB_CONTAINER_ID=$(docker ps -q -f "label=com.gitlab.gitlab-runner.job.id=$CI_JOB_ID")
@@ -326,18 +323,19 @@ scan:grype:deps:
 # the separate docker-h5ai repository — which now builds from source in-tree.
 publish:app:
   stage: publish
-  image: curlimages/curl:latest
+  image: curlimages/curl:8.21.0@sha256:7c12af72ceb38b7432ab85e1a265cff6ae58e06f95539d539b654f2cfa64bb13
   cache: []
   # needs (not just the stage barrier) so this job's own DAG position really
   # gates on the test suite, not only on build:app — see
   # .docker-publish-template below for the same requirement on image publish.
-  # scan:grype:deps is advisory (allow_failure) and so is not listed: it could
-  # not block this job even if it were.
+  # The dependency scan is listed explicitly because needs() disables the
+  # normal stage barrier for this job.
   needs:
     - job: build:app
       artifacts: true
     - job: test:app
     - job: test:php
+    - job: scan:grype:deps
   rules:
     - if: $CI_COMMIT_TAG
   script:
@@ -369,12 +367,12 @@ publish:app:
   # explicitly, otherwise the image could be promoted before (or even if) the
   # vulnerability scan fails. test:app/test:php/test:docker are listed for the
   # same reason: without them, a failing test would no longer block the
-  # published image. scan:grype:deps is advisory (allow_failure) and cannot
-  # gate anything, so listing it here would only be decorative.
+  # published image. The dependency scan is also required before promotion.
   needs:
     - job: build:candidate
       artifacts: true
     - job: scan:grype:image
+    - job: scan:grype:deps
     - job: test:app
     - job: test:php
     - job: test:docker
@@ -438,7 +436,7 @@ publish:dockerhub:
 
 create_release:
   stage: release
-  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  image: registry.gitlab.com/gitlab-org/release-cli:v0.24.0
   cache: []
   # publish:dockerhub is intentionally not required: it is optional (gated on
   # DOCKERHUB_* secrets) and the release notes only reference the GitLab

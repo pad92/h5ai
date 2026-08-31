@@ -152,19 +152,29 @@ const dropEvent = ev => {
     ev.preventDefault();
 };
 
+const isEditableTarget = target => {
+    const tagName = target && target.tagName;
+    return tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT' || target?.isContentEditable;
+};
+
 const defaultControls = ev => {
     const key = ev.keyCode;
+    const keyName = ev.key;
 
-    if (key === 27) { // esc
+    if (isEditableTarget(ev.target)) {
+        return;
+    }
+
+    if (keyName === 'Escape' || key === 27) {
         dropEvent(ev);
         exit();
-    } else if (key === 8 || key === 37) { // backspace, left
+    } else if (keyName === 'ArrowLeft' || key === 8 || key === 37) {
         dropEvent(ev);
         prev();
-    } else if (key === 13 || key === 32 || key === 39) { // enter, space, right
+    } else if (keyName === 'ArrowRight' || key === 13 || key === 32 || key === 39) {
         dropEvent(ev);
         next();
-    } else if (key === 70) { // f
+    } else if (keyName?.toLowerCase() === 'f' || key === 70) {
         dropEvent(ev);
         toggleFullscreen();
     }
@@ -172,17 +182,22 @@ const defaultControls = ev => {
 
 const videoControls = ev => {
     const key = ev.keyCode;
+    const keyName = ev.key;
 
-    if (key === 27) { // esc
+    if (isEditableTarget(ev.target)) {
+        return;
+    }
+
+    if (keyName === 'Escape' || key === 27) {
         dropEvent(ev);
         exit();
-    } else if (key === 8 || key === 188) { // backspace === 8; , ===188
+    } else if (keyName === 'ArrowLeft' || key === 8 || key === 188) {
         dropEvent(ev);
         prev();
-    } else if (key === 13 || key === 190) { // enter === 13; . ===190
+    } else if (keyName === 'ArrowRight' || key === 13 || key === 190) {
         dropEvent(ev);
         next();
-    } else if (key === 70) { // f
+    } else if (keyName?.toLowerCase() === 'f' || key === 70) {
         dropEvent(ev);
         toggleFullscreen();
     }
