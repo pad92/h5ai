@@ -18,6 +18,7 @@ class Thumb {
     const IMG_EXT = ['jpg', 'jpe', 'jpeg', 'jp2', 'jpx', 'tiff', 'webp', 'ico', 'png', 'bmp', 'gif'];
     // Formats accepted for user-provided custom thumbnails in a `_thumb` folder.
     const CUSTOM_THUMB_EXT = ['png', 'jpg', 'jpeg', 'webp'];
+    private const MAX_ARCHIVE_THUMB_BYTES = 16 * 1024 * 1024;
 
     public const HANDLED_TYPES = [
         'img' => ['img', 'img-bmp', 'img-jpg', 'img-gif', 'img-png', 'img-raw', 'img-tiff', 'img-svg', 'img-webp'],
@@ -539,8 +540,12 @@ class Thumb {
                     $stat = $za->statIndex($i);
                     $ext = pathinfo($stat['name'], PATHINFO_EXTENSION);
                     if ($ext !== '' && in_array(strtolower($ext), self::IMG_EXT, true)) {
+                        $content = $za->getFromIndex($i, self::MAX_ARCHIVE_THUMB_BYTES + 1);
+                        if ($content === false || strlen($content) > self::MAX_ARCHIVE_THUMB_BYTES) {
+                            continue;
+                        }
                         $extracted = fopen('php://temp/maxmemory:' . 2 * 1024 * 1024, 'r+');
-                        fwrite($extracted, $za->getFromIndex($i));
+                        fwrite($extracted, $content);
                         break;
                     }
                 }
@@ -569,9 +574,13 @@ class Thumb {
                 if ($ext !== '' && in_array(strtolower($ext), self::IMG_EXT, true)) {
                     $stream = $entry->getStream();
                     if ($stream !== false) {
-                        $extracted = fopen('php://temp/maxmemory:' . 2 * 1024 * 1024, 'r+');
-                        fwrite($extracted, stream_get_contents($stream));
+                        $content = stream_get_contents($stream, self::MAX_ARCHIVE_THUMB_BYTES + 1);
                         fclose($stream);
+                        if ($content === false || strlen($content) > self::MAX_ARCHIVE_THUMB_BYTES) {
+                            continue;
+                        }
+                        $extracted = fopen('php://temp/maxmemory:' . 2 * 1024 * 1024, 'r+');
+                        fwrite($extracted, $content);
                         break;
                     }
                 }
@@ -629,7 +638,7 @@ class Image {
     public function save_dest_webp(string $filename, int $quality = 80): void {
         if ($this->dest !== null) {
             @imagewebp($this->dest, $filename, $quality);
-            @chmod($filename, 0775);
+            @chmod($filename, 0644);
         }
     }
 
@@ -653,10 +662,10 @@ class Image {
 
         if ($height === 0) {
             if ($src_r >= 1) {
-                $height = (int) (1.0 * $width / $src_r);
+                $height = max(1, (int) (1.0 * $width / $src_r));
             } else {
                 $height = $width;
-                $width = (int) (1.0 * $height * $src_r);
+                $width = max(1, (int) (1.0 * $height * $src_r));
             }
             if ($width > $this->width) {
                 $width = $this->width;

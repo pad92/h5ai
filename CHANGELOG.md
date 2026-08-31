@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.3.4 - *2026-08-31*
+
+* **Image previews**: keyboard navigation now supports the `ArrowLeft` and
+  `ArrowRight` keys while preserving the existing preview shortcuts.
+* **PHP hardening**: thumbnail dimensions are clamped safely, archive thumbnail
+  extraction is bounded, folder-size scans no longer follow symlinks, and
+  generated thumbnails use non-executable permissions.
+* **Build security**: Docker and CI image references are pinned to reviewed
+  patch releases and immutable digests. s6-overlay downloads are verified with
+  official SHA-256 checksums, and the dependency vulnerability scan now blocks
+  publication.
+
 ## v1.3.3 - *2026-08-18*
 
 * **Folder sizes**: the `du` pass now runs through the bounded `Util::proc_open_cmdv()` helper instead of a plain `exec()`, so it can no longer run forever on slow storage. It was the last unguarded child-process call, and it also stalled real requests since search results and fallback listings compute folder sizes inline. Output from an aborted pass is thrown away rather than parsed, because a truncated listing would write a wrong size into `foldersizes.json`.

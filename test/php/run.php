@@ -15,6 +15,7 @@ require_once __DIR__ . '/../../src/_h5ai/private/php/core/class-item.php';
 require_once __DIR__ . '/../../src/_h5ai/private/php/core/class-filesize.php';
 require_once __DIR__ . '/../../src/_h5ai/private/php/ext/class-search.php';
 require_once __DIR__ . '/../../src/_h5ai/private/php/ext/class-archive.php';
+require_once __DIR__ . '/../../src/_h5ai/private/php/ext/class-thumb.php';
 
 final class TestSetup extends Setup {
     public function __construct(private readonly array $values) {}
@@ -93,6 +94,21 @@ $addDir = new ReflectionMethod($limitedArchive, 'add_dir');
 $addDir->invoke($limitedArchive, $root, '.');
 $limitExceeded = new ReflectionProperty($limitedArchive, 'limit_exceeded');
 check($limitExceeded->getValue($limitedArchive), 'whole-folder archive entry limits must be enforced');
+
+if (function_exists('imagecreatetruecolor')) {
+    $wideImage = imagecreatetruecolor(4097, 1);
+    $wideImageStream = fopen('php://temp', 'r+');
+    imagepng($wideImage, $wideImageStream);
+    imagedestroy($wideImage);
+    $wideImageObject = new Image();
+    try {
+        check($wideImageObject->set_source_data($wideImageStream), 'wide test image must be readable');
+        $wideImageObject->thumb(4096, 0);
+    } catch (\Throwable $exception) {
+        throw new RuntimeException('wide images must not cause thumbnail dimension errors: ' . $exception->getMessage());
+    }
+    fclose($wideImageStream);
+}
 
 // Rows 1-2 pin the clamp: an out-of-range number must not reintroduce an
 // unbounded du pass, nor collapse below the one-second floor. Rows 3-4 pin the
