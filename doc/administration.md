@@ -2,6 +2,11 @@
 
 The h5ai diagnostic page (the "info page") is located at `/_h5ai/public/index.php`. It checks system compatibility and shows which optional features are available on the host.
 
+The Docker image exposes `GET /healthz` as a lightweight container health
+endpoint. It is handled directly by Angie and does not execute PHP or scan the
+served share, so it remains responsive even when a mounted filesystem is slow.
+Basic authentication does not protect this endpoint.
+
 > [!NOTE]
 > For customizing h5ai's features, icons, view options, search, previews, and translations, see the [Configuration Guide](configuration.md).
 

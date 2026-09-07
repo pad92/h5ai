@@ -169,6 +169,18 @@ docker-test: docker-build
 		--health-interval=2s --health-timeout=5s --health-retries=3 --health-start-period=2s $(TEST_IMAGE)
 	@SUCCESS=false; \
 	for i in $$(seq 1 $(TEST_RETRIES)); do \
+		if curl -s -I $(TEST_URL)healthz | grep -q "HTTP/1.1 200 OK"; then SUCCESS=true; break; fi; \
+		sleep 1; \
+	done; \
+	if [ "$$SUCCESS" = "true" ]; then \
+		echo "✓ Unauthenticated health endpoint returned 200 despite basic auth"; \
+	else \
+		echo "✗ Health endpoint test failed"; \
+		docker rm -f h5ai-test-health; \
+		exit 1; \
+	fi
+	@SUCCESS=false; \
+	for i in $$(seq 1 $(TEST_RETRIES)); do \
 		status=$$(docker inspect --format '{{.State.Health.Status}}' h5ai-test-health 2>/dev/null); \
 		if [ "$$status" = "healthy" ]; then SUCCESS=true; break; fi; \
 		sleep 2; \

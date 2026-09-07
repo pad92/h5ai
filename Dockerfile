@@ -116,10 +116,10 @@ LABEL maintainer="pad92" \
 EXPOSE 80
 
 ENTRYPOINT ["/init"]
-# Accept 200 (open) and 401 (basic auth enabled) as healthy; fail only if
-# Angie is unreachable. Uses busybox wget so the image does not need curl.
+# The endpoint is served directly by Angie and does not execute PHP or inspect
+# the mounted share. Uses busybox wget so the image does not need curl.
 # 127.0.0.1 instead of localhost: busybox wget prefers ::1 while Angie
 # listens on IPv4 only.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
-    CMD wget -S -T 5 -O /dev/null http://127.0.0.1/ 2>&1 \
-    | grep -qE 'HTTP/1\.[01] (200|401)' || exit 1
+    CMD wget -S -T 5 -O /dev/null http://127.0.0.1/healthz 2>&1 \
+    | grep -qE 'HTTP/1\.[01] 200' || exit 1

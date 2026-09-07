@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.3.4 - *2026-09-07*
+
+* **Docker hotfix**: the healthcheck now uses the lightweight Angie `/healthz`
+  endpoint instead of loading the h5ai root listing. A slow mounted share can
+  no longer block the healthcheck and make Traefik stop routing traffic to the
+  container.
+
 ## v1.3.3 - *2026-08-18*
 
 * **Folder sizes**: the `du` pass now runs through the bounded `Util::proc_open_cmdv()` helper instead of a plain `exec()`, so it can no longer run forever on slow storage. It was the last unguarded child-process call, and it also stalled real requests since search results and fallback listings compute folder sizes inline. Output from an aborted pass is thrown away rather than parsed, because a truncated listing would write a wrong size into `foldersizes.json`.
