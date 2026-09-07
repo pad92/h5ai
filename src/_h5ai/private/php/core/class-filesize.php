@@ -228,7 +228,7 @@ class Filesize {
         return $output === '' ? [] : preg_split('/\r?\n/', $output);
     }
 
-    // Single `du -bL` pass over the given paths. Without `-s`, du prints the
+    // Single `du -b` pass over the given paths. Without `-s`, du prints the
     // cumulative apparent size of every directory it visits, so one process
     // yields the sizes of the whole subtree of every path at once.
     // Returns a map [dir_path => size].
@@ -236,7 +236,7 @@ class Filesize {
         if (empty($paths)) {
             return [];
         }
-        $lines = $this->exec(['du', '-bL', ...$paths]);
+        $lines = $this->exec(['du', '-b', ...$paths]);
 
         $sizes = [];
         foreach ($lines as $line) {

@@ -1,11 +1,23 @@
 # Changelog
 
-## v1.3.4 - *2026-09-07*
+## v1.3.5 - *2026-09-07*
 
 * **Docker hotfix**: the healthcheck now uses the lightweight Angie `/healthz`
   endpoint instead of loading the h5ai root listing. A slow mounted share can
   no longer block the healthcheck and make Traefik stop routing traffic to the
   container.
+
+## v1.3.4 - *2026-08-31*
+
+* **Image previews**: keyboard navigation now supports the `ArrowLeft` and
+  `ArrowRight` keys while preserving the existing preview shortcuts.
+* **PHP hardening**: thumbnail dimensions are clamped safely, archive thumbnail
+  extraction is bounded, folder-size scans no longer follow symlinks, and
+  generated thumbnails use non-executable permissions.
+* **Build security**: Docker and CI image references are pinned to reviewed
+  patch releases and immutable digests. s6-overlay downloads are verified with
+  official SHA-256 checksums, and the dependency vulnerability scan now blocks
+  publication.
 
 ## v1.3.3 - *2026-08-18*
 

@@ -1,5 +1,5 @@
 # Stage 1: Build h5ai application from source
-FROM node:24-slim AS h5ai-builder
+FROM node:24.17.0-slim@sha256:862263c612aa437e3037674b85419622a9d93bff80aa1eee5398dfe686375532 AS h5ai-builder
 
 WORKDIR /build
 COPY package.json package-lock.json ./
@@ -10,10 +10,13 @@ COPY gulpfile.js eslint.config.js ./
 RUN npm run build
 
 # Stage 2: Fetch s6-overlay and compile the php-rar extension
-FROM php:8.4-alpine AS deps-builder
+FROM php:8.4.24-alpine@sha256:26e3f1de7f6aa3e8ea15584d803c5e088c57df89ff02a3ecf2dc855a4282d8d7 AS deps-builder
 
-ARG S6_OVERLAY_VERSION=3.2.3.0
+ARG S6_OVERLAY_VERSION=3.2.3.2
 ARG TARGETARCH
+ARG S6_NOARCH_SHA256=5379750ed30a84bbd2e2dd74847ba6b5bd29cd0b2e3ea2ec58049b57eb2eda12
+ARG S6_X86_64_SHA256=e6befcc96a437a3831386ecfc51808c5d3e939dc5fe3c02ae9284599e8aa2408
+ARG S6_AARCH64_SHA256=b17f17a82e7a515c682a91edaf2ffdabb73f891981b6c1fd712115693a2f8b4c
 
 RUN case "${TARGETARCH}" in \
     "amd64") S6_ARCH="x86_64" ;; \
@@ -21,8 +24,10 @@ RUN case "${TARGETARCH}" in \
     *) echo "Unsupported TARGETARCH: '${TARGETARCH}'" >&2; exit 1 ;; \
     esac \
     && apk add --no-cache curl unzip xz \
-    && curl -L -o /tmp/s6-overlay-noarch.tar.xz "https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-noarch.tar.xz" \
-    && curl -L -o /tmp/s6-overlay-arch.tar.xz "https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-${S6_ARCH}.tar.xz" \
+    && curl --fail --location --proto '=https' --tlsv1.2 -o /tmp/s6-overlay-noarch.tar.xz "https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-noarch.tar.xz" \
+    && curl --fail --location --proto '=https' --tlsv1.2 -o /tmp/s6-overlay-arch.tar.xz "https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}/s6-overlay-${S6_ARCH}.tar.xz" \
+    && echo "${S6_NOARCH_SHA256}  /tmp/s6-overlay-noarch.tar.xz" | sha256sum -c - \
+    && if [ "${S6_ARCH}" = "x86_64" ]; then echo "${S6_X86_64_SHA256}  /tmp/s6-overlay-arch.tar.xz" | sha256sum -c -; else echo "${S6_AARCH64_SHA256}  /tmp/s6-overlay-arch.tar.xz" | sha256sum -c -; fi \
     && mkdir -p /s6-overlay \
     && tar -C /s6-overlay -Jxpf /tmp/s6-overlay-noarch.tar.xz \
     && tar -C /s6-overlay -Jxpf /tmp/s6-overlay-arch.tar.xz \
@@ -47,7 +52,7 @@ RUN apk add --no-cache --virtual .build-deps git autoconf g++ make \
     && apk del .build-deps \
     && rm -rf /tmp/php-rar
 
-FROM docker.angie.software/angie:1.11.8-minimal
+FROM docker.angie.software/angie:1.11.8-minimal@sha256:02ff4e727661bf292b551b294a68b6f3036914f0a2a5349199f17fede125a025
 
 ARG H5AI_VERSION
 ENV H5AI_VERSION=${H5AI_VERSION}
