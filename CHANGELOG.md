@@ -6,6 +6,8 @@
   endpoint instead of loading the h5ai root listing. A slow mounted share can
   no longer block the healthcheck and make Traefik stop routing traffic to the
   container.
+* **Dependencies**: updated the transitive `fast-uri` dependency from 3.1.5 to
+  3.1.7, removing the four high-severity findings reported by the CI scan.
 
 ## v1.3.4 - *2026-08-31*
 
