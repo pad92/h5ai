@@ -1,6 +1,6 @@
 # Changelog
 
-## v1.3.5 - *2026-09-07*
+## v1.3.6 - *2026-09-10*
 
 * **Docker hotfix**: the healthcheck now uses the lightweight Angie `/healthz`
   endpoint instead of loading the h5ai root listing. A slow mounted share can
