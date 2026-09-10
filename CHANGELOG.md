@@ -8,6 +8,9 @@
   container.
 * **Dependencies**: updated the transitive `fast-uri` dependency from 3.1.5 to
   3.1.7, removing the four high-severity findings reported by the CI scan.
+* **Folder-size cache**: the server-side fallback listing now uses the cold
+  cache, so the root page does not wait for `du`. Stale or missing folder sizes
+  are refreshed asynchronously and only for the affected folders.
 
 ## v1.3.4 - *2026-08-31*
 

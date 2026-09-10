@@ -105,6 +105,18 @@ class Filesize {
         self::$async_mode = $enabled;
     }
 
+    public static function begin_async_mode(): void {
+        self::$stale_paths = [];
+        self::$async_mode = true;
+    }
+
+    public static function end_async_mode(): array {
+        self::$async_mode = false;
+        $stale_paths = array_unique(self::$stale_paths);
+        self::$stale_paths = [];
+        return $stale_paths;
+    }
+
     public static function get_stale_paths(): array {
         return array_unique(self::$stale_paths);
     }

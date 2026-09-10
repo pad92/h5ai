@@ -270,28 +270,29 @@ class Context {
             return [];
         }
 
-        Filesize::set_async_mode(true);
-
+        Filesize::begin_async_mode();
         $cache = [];
-        $folder = Item::get($this, $this->to_path($href), $cache);
+        try {
+            $folder = Item::get($this, $this->to_path($href), $cache);
 
-        if ($what >= 3 && $folder !== null) {
-            foreach ($folder->get_content($cache) as $item) {
-                $item->get_content($cache);
+            if ($what >= 3 && $folder !== null) {
+                foreach ($folder->get_content($cache) as $item) {
+                    $item->get_content($cache);
+                }
+                $folder = $folder->get_parent($cache);
             }
-            $folder = $folder->get_parent($cache);
-        }
 
-        while ($what >= 2 && $folder !== null) {
-            $folder->get_content($cache);
-            $folder = $folder->get_parent($cache);
-        }
+            while ($what >= 2 && $folder !== null) {
+                $folder->get_content($cache);
+                $folder = $folder->get_parent($cache);
+            }
 
-        if ($what === 1 && $folder !== null) {
-            $folder->get_content($cache);
+            if ($what === 1 && $folder !== null) {
+                $folder->get_content($cache);
+            }
+        } finally {
+            $stale_paths = Filesize::end_async_mode();
         }
-
-        Filesize::set_async_mode(false);
 
         uasort($cache, Item::cmp(...));
         $result = [];
@@ -324,7 +325,6 @@ class Context {
             unset($item_obj);
         }
 
-        $stale_paths = Filesize::get_stale_paths();
         if (!empty($stale_paths)) {
             $this->trigger_folder_refresh($stale_paths);
         }
@@ -332,7 +332,7 @@ class Context {
         return $result;
     }
 
-    private function trigger_folder_refresh(array $paths): void {
+    public function trigger_folder_refresh(array $paths): void {
         $marker = $this->setup->get('CACHE_PRV_PATH') . '/refresh.requested';
         if (is_file($marker) && (time() - (int) @filemtime($marker)) > 300) {
             @unlink($marker);

@@ -32,7 +32,17 @@ class Bootstrap {
             $public_href = $setup->get('PUBLIC_HREF');
             $x_head_tags = $context->get_x_head_html();
             $fallback_mode = $context->is_fallback_mode();
-            $fallback_html = new Fallback($context)->get_html();
+            // The fallback table is rendered for the no-JavaScript path even
+            // when the browser will use the application UI. It must use the
+            // cold folder-size cache too, otherwise a root request runs du
+            // before the HTML can be sent.
+            Filesize::begin_async_mode();
+            try {
+                $fallback_html = new Fallback($context)->get_html();
+            } finally {
+                $stale_paths = Filesize::end_async_mode();
+            }
+            $context->trigger_folder_refresh($stale_paths);
             require __DIR__ . '/pages/index.php';
         }
     }
