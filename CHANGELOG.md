@@ -2,17 +2,20 @@
 
 ## v1.3.6 - *2026-09-10*
 
+* **Dependencies**: the transitive `js-yaml` and `colord` dependencies were
+  updated to versions containing their latest security fixes.
+* **Folder-size cache**: the server-side fallback listing now uses the cold
+  cache, so the root page does not wait for `du`. Stale or missing folder sizes
+  are refreshed asynchronously and only for the affected folders.
+
+## v1.3.5 - *2026-09-07*
+
 * **Docker hotfix**: the healthcheck now uses the lightweight Angie `/healthz`
   endpoint instead of loading the h5ai root listing. A slow mounted share can
   no longer block the healthcheck and make Traefik stop routing traffic to the
   container.
 * **Dependencies**: updated the transitive `fast-uri` dependency from 3.1.5 to
   3.1.7, removing the four high-severity findings reported by the CI scan.
-  The transitive `js-yaml` and `colord` dependencies were also updated to
-  versions containing their latest security fixes.
-* **Folder-size cache**: the server-side fallback listing now uses the cold
-  cache, so the root page does not wait for `du`. Stale or missing folder sizes
-  are refreshed asynchronously and only for the affected folders.
 
 ## v1.3.4 - *2026-08-31*
 
