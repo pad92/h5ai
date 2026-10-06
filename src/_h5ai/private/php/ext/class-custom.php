@@ -10,7 +10,7 @@ class Custom {
 
         foreach (self::EXTENSIONS as $ext) {
             $file = $path . '/' . $file_prefix . '.' . $name . '.' . $ext;
-            if (is_readable($file)) {
+            if ($this->context->is_custom_file($file)) {
                 $content = file_get_contents($file);
                 $type = $ext;
                 return;

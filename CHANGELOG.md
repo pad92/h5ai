@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+* **Security**: custom header/footer files now share the filesystem access checks
+  used by downloads and thumbnails. Symlinks outside the share or into h5ai's
+  public/private directories are rejected; ordinary hidden custom files and
+  inheritance still work.
+* **Downloads**: accept browser form submissions alongside JSON requests and fix
+  validation of selected-file arrays, which previously raised a PHP error.
+* **PHP TAR archives**: preserve complete names and paths using PAX headers when
+  ustar fields are too small, and include these headers in the response length.
+  Whole-folder archives now use relative paths.
+* **Architecture and tests**: extract filesystem policy from `Context` and TAR
+  header encoding from `Archive`. Add HTTP regression coverage for custom files,
+  download transport and archive extraction, plus a browser form submission test.
+
 ## v1.3.5 - *2026-09-07*
 
 * **Docker hotfix**: the healthcheck now uses the lightweight Angie `/healthz`

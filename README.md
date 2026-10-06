@@ -52,6 +52,11 @@ might work on other configurations):
 > npm run build
 ~~~
 
+Run `npm test` for the JavaScript tests and `npm run test:php` for PHP security
+and HTTP regression tests. The PHP suite requires PHP 8.4+, the `tar` command,
+and permission to start a temporary HTTP server on `127.0.0.1`. It verifies
+custom-file access and downloads using temporary fixtures, then removes them.
+
 
 ## Docker Image
 

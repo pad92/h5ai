@@ -11,6 +11,8 @@ require_once __DIR__ . '/../../src/_h5ai/private/php/core/class-session.php';
 require_once __DIR__ . '/../../src/_h5ai/private/php/core/class-request.php';
 require_once __DIR__ . '/../../src/_h5ai/private/php/core/class-setup.php';
 require_once __DIR__ . '/../../src/_h5ai/private/php/core/class-context.php';
+require_once __DIR__ . '/../../src/_h5ai/private/php/core/class-pathpolicy.php';
+require_once __DIR__ . '/../../src/_h5ai/private/php/ext/class-tarheader.php';
 require_once __DIR__ . '/../../src/_h5ai/private/php/core/class-item.php';
 require_once __DIR__ . '/../../src/_h5ai/private/php/core/class-filesize.php';
 require_once __DIR__ . '/../../src/_h5ai/private/php/ext/class-search.php';
@@ -181,3 +183,4 @@ rmdir($conf);
 rmdir($tmp);
 
 echo "PHP security tests passed\n";
+require __DIR__ . '/http.php';

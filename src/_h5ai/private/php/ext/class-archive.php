@@ -35,7 +35,7 @@ class Archive {
         }
 
         if (count($this->dirs) === 0 && count($this->files) === 0 && !$has_requested_hrefs) {
-            $this->add_dir($this->base_path, $type === 'php-tar' ? '/' : '.');
+            $this->add_dir($this->base_path, '.');
         }
         if ($this->limit_exceeded) {
             return false;
@@ -78,11 +78,20 @@ class Archive {
 
     private function php_tar(array $dirs, array $files): bool {
         $filesizes = [];
-        $total_size = 512 * count($dirs) + 1024;
-        foreach (array_keys($files) as $real_file) {
+        $headers = [];
+        $total_size = 1024;
+        foreach ($dirs as $real_dir => $archived_dir) {
+            $headers[$real_dir] = TarHeader::encode($archived_dir, 0, @filemtime($real_dir), '5');
+            $total_size += strlen($headers[$real_dir]);
+        }
+        foreach ($files as $real_file => $archived_file) {
             $size = filesize($real_file);
+            if ($size === false) {
+                return false;
+            }
             $filesizes[$real_file] = $size;
-            $total_size += 512 + $size;
+            $headers[$real_file] = TarHeader::encode($archived_file, $size, @filemtime($real_file), '0');
+            $total_size += strlen($headers[$real_file]) + $size;
             if ($size % 512 !== 0) {
                 $total_size += 512 - ($size % 512);
             }
@@ -91,7 +100,7 @@ class Archive {
         header('Content-Length: ' . $total_size);
 
         foreach ($dirs as $real_dir => $archived_dir) {
-            echo $this->php_tar_header($archived_dir, 0, @filemtime($real_dir . DIRECTORY_SEPARATOR . '.'), 5);
+            echo $headers[$real_dir];
         }
 
         foreach ($files as $real_file => $archived_file) {
@@ -100,7 +109,7 @@ class Archive {
             }
             $size = $filesizes[$real_file];
 
-            echo $this->php_tar_header($archived_file, $size, @filemtime($real_file), 0);
+            echo $headers[$real_file];
             $this->print_file($real_file);
 
             if ($size % 512 !== 0) {
@@ -111,37 +120,6 @@ class Archive {
         echo str_repeat(self::NULL_BYTE, 1024);
 
         return true;
-    }
-
-    private function php_tar_header(string $filename, int $size, int|false $mtime, int $type): string {
-        $name = substr(basename($filename), -99);
-        $prefix = substr(Util::normalize_path(dirname($filename)), -154);
-        if ($prefix === '.') {
-            $prefix = '';
-        }
-
-        $header =
-            str_pad($name, 100, self::NULL_BYTE)
-            . '0000755' . self::NULL_BYTE
-            . '0000000' . self::NULL_BYTE
-            . '0000000' . self::NULL_BYTE
-            . str_pad(decoct($size), 11, '0', STR_PAD_LEFT) . self::NULL_BYTE
-            . str_pad(decoct($mtime), 11, '0', STR_PAD_LEFT) . self::NULL_BYTE
-            . '        '
-            . str_pad($type, 1)
-            . str_repeat(self::NULL_BYTE, 100)
-            . 'ustar' . self::NULL_BYTE
-            . '00'
-            . str_repeat(self::NULL_BYTE, 80)
-            . str_pad($prefix, 155, self::NULL_BYTE)
-            . str_repeat(self::NULL_BYTE, 12);
-        assert(strlen($header) === 512);
-
-        $checksum = array_sum(unpack('C*', $header));
-        $checksum = str_pad(decoct($checksum), 6, '0', STR_PAD_LEFT) . self::NULL_BYTE . ' ';
-        $header = substr_replace($header, $checksum, 148, 8);
-
-        return $header;
     }
 
     private function print_file(string $file): void {
