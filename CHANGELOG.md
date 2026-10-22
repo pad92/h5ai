@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.3.6 - *2026-10-22*
+
+* **Security**: PHP build and CI images now use 8.4.27. The runtime image build
+  rejects older PHP versions, fixing CVE-2026-109618. Updated the npm
+  dependencies reported by the security scan in `package-lock.json`.
+
 ## v1.3.5 - *2026-09-07*
 
 * **Docker hotfix**: the healthcheck now uses the lightweight Angie `/healthz`

@@ -10,7 +10,7 @@ COPY gulpfile.js eslint.config.js ./
 RUN npm run build
 
 # Stage 2: Fetch s6-overlay and compile the php-rar extension
-FROM php:8.4.24-alpine@sha256:26e3f1de7f6aa3e8ea15584d803c5e088c57df89ff02a3ecf2dc855a4282d8d7 AS deps-builder
+FROM php:8.4.27-alpine@sha256:7a8ab5b60ecd4aa1a1e47120390b5d044c11a8067936e496cdde89040d857c80 AS deps-builder
 
 ARG S6_OVERLAY_VERSION=3.2.3.2
 ARG TARGETARCH
@@ -87,6 +87,8 @@ RUN apk upgrade --no-cache && apk add --no-cache \
     tzdata \
     zip \
     && apk del angie-console-light
+
+RUN php84 -r 'if (version_compare(PHP_VERSION, "8.4.27", "<")) { fwrite(STDERR, "PHP 8.4.27 or later is required for the security fixes.\n"); exit(1); }'
 
 COPY --from=deps-builder /h5ai/build/_h5ai /usr/share/h5ai/_h5ai
 COPY --from=deps-builder /s6-overlay/ /

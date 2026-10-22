@@ -171,7 +171,7 @@ test:app:
 
 test:php:
   stage: test
-  image: php:8.4.24-cli@sha256:1368f1904f02ccab4fdb5f56e49cc78e0c7d9cc20202d7ed19530ec1e84f939c
+  image: php:8.4.27-cli@sha256:a4ae1f57e22b89a0a69c5e085b3010ee727d094e1542d249e48a01bec3c44810
   needs: []
   cache: []
   script:
