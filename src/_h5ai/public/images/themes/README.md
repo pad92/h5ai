@@ -2,7 +2,7 @@
 
 This directory will contain any themes you add. At the moment there are only
 icon themes supported. The folder structure is: `<theme-name>/<type>.<ext>`,
-with `<ext>` one of `svg`, `png`, `jpg` or `webp`.
+with `<ext>` one of `svg`, `png`, `jpg`, `jpeg` or `webp` (extension matching is case-insensitive).
 
 To select a theme use the option `view > theme` in file `conf/options.json`.
 

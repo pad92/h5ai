@@ -1,50 +1,78 @@
 {
     "passhash": "",
-
     "resources": {
         "scripts": [],
         "styles": []
     },
-
     "view": {
         "binaryPrefix": false,
         "disableSidebar": false,
         "fallbackMode": false,
         "fastBrowsing": true,
-        "fonts": ["Ubuntu", "Roboto", "Helvetica", "Arial", "sans-serif"],
-        "fontsMono": ["Ubuntu Mono", "Monaco", "Lucida Sans Typewriter", "monospace"],
-        "hidden": ["^\\.", "^\\_", "^_h5ai", "robots.txt", "ads.txt"],
+        "fonts": [
+            "Ubuntu",
+            "Roboto",
+            "Helvetica",
+            "Arial",
+            "sans-serif"
+        ],
+        "fontsMono": [
+            "Ubuntu Mono",
+            "Monaco",
+            "Lucida Sans Typewriter",
+            "monospace"
+        ],
+        "hidden": [
+            "^\\.",
+            "^_h5ai",
+            "robots.txt",
+            "ads.txt"
+        ],
         "hideFolders": false,
         "hideIf403": true,
         "hideParentFolder": false,
         "maxIconSize": 40,
-        "modes": ["details", "grid", "icons"],
+        "modes": [
+            "details",
+            "grid",
+            "icons"
+        ],
         "modeToggle": false,
         "setParentFolderLabels": true,
-        "sizes": [20, 40, 60, 80, 100, 140, 180, 220, 260, 300],
+        "sizes": [
+            20,
+            40,
+            60,
+            80,
+            100,
+            140,
+            180,
+            220,
+            260,
+            300
+        ],
         "theme": "default",
-        "unmanaged": ["index.html", "index.htm", "index.php"],
+        "unmanaged": [
+            "index.html",
+            "index.htm",
+            "index.php"
+        ],
         "unmanagedInNewWindow": false
     },
-
     "cache": {
         "warm_at_startup": true,
         "warm_interval": 86400
     },
-
     "autorefresh": {
         "enabled": true,
         "interval": 5000
     },
-
     "crumb": {
         "enabled": true
     },
-
     "custom": {
         "enabled": true
     },
-
     "download": {
         "enabled": true,
         "type": "shell-zip",
@@ -54,21 +82,18 @@
         "maxBytes": 10737418240,
         "timeout": 300
     },
-
     "filter": {
         "enabled": true,
         "advanced": true,
         "debounceTime": 100,
         "ignorecase": true
     },
-
     "foldersize": {
         "enabled": true,
         "type": "shell-du",
         "timeout": 50,
         "backgroundTimeout": 900
     },
-
     "info": {
         "enabled": true,
         "show": false,
@@ -78,31 +103,38 @@
         "qrFillDark": "#fff",
         "qrBackDark": "#212121"
     },
-
     "l10n": {
         "enabled": true,
         "lang": "en",
         "useBrowserLang": true
     },
-
     "piwik-analytics": {
         "enabled": false,
         "baseURL": "some/url",
         "idSite": 1
     },
-
     "preview-aud": {
         "enabled": true,
         "autoplay": true,
-        "types": ["aud"]
+        "types": [
+            "aud"
+        ]
     },
-
     "preview-img": {
         "enabled": true,
         "size": 1000,
-        "types": ["img", "img-bmp", "img-gif", "img-ico", "img-jpg", "img-png", "img-raw", "img-svg", "img-webp"]
+        "types": [
+            "img",
+            "img-bmp",
+            "img-gif",
+            "img-ico",
+            "img-jpg",
+            "img-png",
+            "img-raw",
+            "img-svg",
+            "img-webp"
+        ]
     },
-
     "preview-txt": {
         "enabled": true,
         "styles": {
@@ -137,13 +169,17 @@
             "txt-xml": 1
         }
     },
-
     "preview-vid": {
         "enabled": true,
         "autoplay": true,
-        "types": ["vid-mkv", "vid-mov", "vid-mp4", "vid-mpg", "vid-webm"]
+        "types": [
+            "vid-mkv",
+            "vid-mov",
+            "vid-mp4",
+            "vid-mpg",
+            "vid-webm"
+        ]
     },
-
     "search": {
         "enabled": true,
         "advanced": true,
@@ -153,13 +189,11 @@
         "maxDepth": 64,
         "maxPatternLength": 256
     },
-
     "select": {
         "enabled": true,
         "clickndrag": true,
         "checkboxes": true
     },
-
     "sort": {
         "enabled": true,
         "column": 0,
@@ -168,14 +202,42 @@
         "natural": true,
         "folders": 0
     },
-
     "thumbnails": {
         "enabled": true,
-        "img": ["img-bmp", "img-gif", "img-ico", "img-jpg", "img-png", "img-raw", "img-svg", "img-tiff", "img-webp"],
-        "mov": ["vid-avi", "vid-mkv", "vid-flv", "vid-swf", "vid-mov", "vid-mp4", "vid-mpg", "vid-webm", "vid-wmv", "vid-ts"],
-        "doc": ["x-pdf", "x-ps"],
-        "ar": ["ar-zip", "ar-rar"],
-        "aud": ["aud"],
+        "img": [
+            "img-bmp",
+            "img-gif",
+            "img-ico",
+            "img-jpg",
+            "img-png",
+            "img-raw",
+            "img-svg",
+            "img-tiff",
+            "img-webp"
+        ],
+        "mov": [
+            "vid-avi",
+            "vid-mkv",
+            "vid-flv",
+            "vid-swf",
+            "vid-mov",
+            "vid-mp4",
+            "vid-mpg",
+            "vid-webm",
+            "vid-wmv",
+            "vid-ts"
+        ],
+        "doc": [
+            "x-pdf",
+            "x-ps"
+        ],
+        "ar": [
+            "ar-zip",
+            "ar-rar"
+        ],
+        "aud": [
+            "aud"
+        ],
         "delay": 1,
         "size": 240,
         "seek": 50,
@@ -186,11 +248,9 @@
         "allowGraphicsMagick": false,
         "blocklist": []
     },
-
     "title": {
         "enabled": true
     },
-
     "tree": {
         "enabled": true,
         "show": true,

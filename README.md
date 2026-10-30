@@ -19,16 +19,16 @@ This repository is a detached fork of the original [h5ai](https://github.com/lrs
 
 ### Runtime (Server-side)
 * PHP `8.4.0+`
-* Web server (Apache httpd `2.4+` with `mod_authz_core` (loaded by default), lighttpd, nginx, cherokee, Angie, etc.)
-* PHP extensions (depending on enabled features):
-  * `GD` (required for default WebP image thumbnails, WebP support must be enabled)
-  * `Imagick` (recommended for optimized high-performance image resizing, WebP support must be enabled)
-  * `exif` (recommended for EXIF rotation and fast thumbnail extraction)
-* Command-line helpers (optional):
-  * `ffmpeg` or `avconv` (for video thumbnails)
-  * ImageMagick (`convert`) (for hardened PDF/document thumbnails; GraphicsMagick is an opt-in compatibility fallback)
-  * `tar` and `zip` (for packaged downloads)
-  * `du` (for folder size calculation)
+* Web server: Apache httpd `2.4+` with `mod_authz_core`, lighttpd, nginx, Cherokee, or Angie. h5ai recognizes these server names; the bundled deployment examples cover Apache, lighttpd, nginx, and Angie.
+* PHP extensions depend on the enabled features:
+  * GD with WebP support is required for server-generated thumbnails, which are stored as WebP.
+  * Imagick is an optional backend for image resizing; its availability depends on the host's ImageMagick build and delegates.
+  * `exif` enables embedded-thumbnail extraction and EXIF orientation handling where supported.
+* Command-line helpers are needed only for the corresponding configured feature or backend:
+  * `ffmpeg` or `avconv` for video and audio thumbnails.
+  * ImageMagick (`convert`) for document thumbnails such as PDF. GraphicsMagick is an opt-in compatibility fallback and does not use the bundled ImageMagick policy.
+  * `tar` and `zip` for downloads configured to use those command-line archive formats; the PHP TAR writer does not need them.
+  * `du` for folder sizes when `foldersize.type` is `shell-du`.
 
 ### Build-time (Development)
 * Node.js `22.22.2–22.x`, `24.15.0–24.x`, or `26.0.0+`, and npm (for building the project)
