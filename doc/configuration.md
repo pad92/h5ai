@@ -38,7 +38,7 @@ Customize the general look and feel of the index page.
 | `fastBrowsing` | `boolean` | `true` | Uses the HTML5 History API to navigate folders without reloading the whole page. |
 | `fonts` | `array` | `["Ubuntu", ...]` | Font family names for normal text. Ubuntu ships self-hosted (no `fonts.googleapis.com` request); other names fall back to whatever the browser/OS provides. |
 | `fontsMono` | `array` | `["Ubuntu Mono", ...]` | Font family names for monospace text. Ubuntu Mono ships self-hosted; other names fall back to whatever the browser/OS provides. |
-| `hidden` | `array` | `["^\\.", "^_h5ai"]` | Regular expressions matching files/directories that should be hidden from the index. |
+| `hidden` | `array` | `["^\\.", "^_h5ai", "robots.txt", "ads.txt"]` | Regular expressions matching files/directories that should be hidden from the index. The defaults hide dot-prefixed names, `_h5ai`, and names matching `robots.txt` or `ads.txt`; other names beginning with `_` remain visible unless you add a matching pattern. |
 | `hideFolders` | `boolean` | `false` | Hides all folders from the main file listing. |
 | `hideIf403` | `boolean` | `true` | Hides files/folders that are unreadable by the web server (avoiding 403 Forbidden errors). |
 | `hideParentFolder` | `boolean` | `false` | Hides the link to navigate to the parent folder. |
@@ -218,9 +218,8 @@ Generates preview thumbnails for images, videos, and document files.
 - `blocklist` (default: `[]`): Array of types for which thumbnail generation is explicitly disabled. Removing a type from one of the arrays above (`img`, `mov`, etc.) implicitly adds it to the blocklist.
 
 > [!TIP]
-> **Failed thumbnail caching (`CacheDB`)**
-> If the `sqlite3` PHP module is enabled, h5ai automatically initializes a caching database at `_h5ai/private/cache/thumbs_cache.db`. This database keeps track of files that failed thumbnail generation or files whose types were misdetected. If a file fails to generate a thumbnail (e.g. due to corrupt files, unsupported codecs, or memory limits), its failure state is cached. Future directory requests read this state from the SQLite database directly, completely bypassing resource-heavy regeneration attempts.
-> The cache automatically invalidates entries if the source file's modification time changes or if the server's backend configuration/capabilities change.
+> **Archive thumbnail cache (`CacheDB`)**
+> If the `sqlite3` PHP module is enabled, h5ai creates `_h5ai/private/cache/thumbs_cache.db` when thumbnail handling initializes the database. The cache stores archive thumbnail outcomes, including archive parsing errors and types that were misdetected during thumbnail generation. It does not cache every failed thumbnail operation: failures from ordinary image, video, audio or document thumbnail generation are not recorded as negative cache entries. Archive entries are reconsidered when the source modification time is newer than the cached timestamp or the detected backend capabilities change.
 
 #### `title`
 Updates the browser window/tab title with the path of the current folder.

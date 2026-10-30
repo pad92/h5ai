@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.3.6 - *2026-10-30*
+
+* **Configuration**: names beginning with `_` are no longer hidden by default, except `_h5ai`; dot-prefixed names, `robots.txt` and `ads.txt` remain hidden.
+* **Docker development**: corrected the Compose share mount and removed a bind mount that masked the h5ai files included in the image, fixing the 404 on `/`.
+* **Documentation**: clarified supported server names and feature-specific runtime dependencies, documented `jpeg` theme icons, and corrected the scope of SQLite-backed archive thumbnail caching.
+* **Dependencies**: refreshed locked transitive npm packages, including `fast-uri`, `js-yaml`, `undici`, and `brace-expansion`.
+
 ## v1.3.5 - *2026-09-07*
 
 * **Docker hotfix**: the healthcheck now uses the lightweight Angie `/healthz`
