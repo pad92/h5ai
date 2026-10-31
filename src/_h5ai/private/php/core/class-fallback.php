@@ -4,6 +4,19 @@ class Fallback {
     public function __construct(private readonly Context $context) {}
 
     public function get_html(?string $path = null): string {
+        // This table is also generated before sending the JavaScript UI.
+        // Cold folder sizes must not delay the initial HTML response.
+        Filesize::begin_async_mode();
+        try {
+            $html = $this->render_html($path);
+        } finally {
+            $stale_paths = Filesize::end_async_mode();
+        }
+        $this->context->trigger_folder_refresh($stale_paths);
+        return $html;
+    }
+
+    private function render_html(?string $path): string {
         $path ??= $this->context->get_current_path();
         $fallback_images_href = $this->context->get_setup()->get('PUBLIC_HREF') . 'images/fallback/';
 

@@ -11,8 +11,11 @@ require_once __DIR__ . '/../../src/_h5ai/private/php/core/class-session.php';
 require_once __DIR__ . '/../../src/_h5ai/private/php/core/class-request.php';
 require_once __DIR__ . '/../../src/_h5ai/private/php/core/class-setup.php';
 require_once __DIR__ . '/../../src/_h5ai/private/php/core/class-context.php';
+require_once __DIR__ . '/../../src/_h5ai/private/php/core/class-pathpolicy.php';
+require_once __DIR__ . '/../../src/_h5ai/private/php/ext/class-tarheader.php';
 require_once __DIR__ . '/../../src/_h5ai/private/php/core/class-item.php';
 require_once __DIR__ . '/../../src/_h5ai/private/php/core/class-filesize.php';
+require_once __DIR__ . '/../../src/_h5ai/private/php/core/class-fallback.php';
 require_once __DIR__ . '/../../src/_h5ai/private/php/ext/class-search.php';
 require_once __DIR__ . '/../../src/_h5ai/private/php/ext/class-archive.php';
 require_once __DIR__ . '/../../src/_h5ai/private/php/ext/class-custom.php';
@@ -32,6 +35,14 @@ final class TestSetup extends Setup {
 function check(bool $condition, string $message): void {
     if (!$condition) {
         throw new RuntimeException($message);
+    }
+}
+
+final class ListingTestContext extends Context {
+    public array $refreshPaths = [];
+
+    public function trigger_folder_refresh(array $paths): void {
+        $this->refreshPaths = $paths;
     }
 }
 
@@ -81,6 +92,49 @@ foreach ([1, 2] as $listingAttempt) {
     $listing = array_column($context->get_items('/', 1), null, 'href');
     check($listing['/inside.txt']['size'] === 6, 'API listings must retain regular file sizes');
     check($listing['/match-0.txt']['size'] === 1, 'API listings must preserve distinct sizes for sorting');
+}
+$context->trigger_folder_refresh([]); // Empty work must not touch the cache or launch a worker.
+
+$savedOptions = file_get_contents($conf . '/options.json');
+$listingOptions = json_decode($savedOptions, true);
+$listingOptions['foldersize'] = ['enabled' => true, 'type' => 'shell-du'];
+file_put_contents($conf . '/options.json', json_encode($listingOptions));
+$listingSetup = new TestSetup([
+    'ROOT_PATH' => $root, 'ROOT_HREF' => '/',
+    'PUBLIC_PATH' => $root . '/_h5ai/public', 'PUBLIC_HREF' => '/_h5ai/public/',
+    'PRIVATE_PATH' => $root . '/_h5ai/private', 'CONF_PATH' => $conf, 'HAS_CMD_DU' => true,
+]);
+$listingContext = new ListingTestContext(new Session($store), new Request([], ''), $listingSetup);
+$savedPath = getenv('PATH');
+$duMarker = $tmp . '/du-invoked';
+file_put_contents($tmp . '/du', "#!/bin/sh\nprintf invoked > " . escapeshellarg($duMarker) . "\nexit 1\n");
+chmod($tmp . '/du', 0700);
+putenv('PATH=' . $tmp . ':' . $savedPath);
+try {
+    $listingCache = new ReflectionProperty(Filesize::class, 'cache');
+    $listingPersistentCache = new ReflectionProperty(Filesize::class, 'persistent_cache');
+    $listingPersistentCache->setValue(null, []);
+    $listingCache->setValue(null, []);
+    $coldListing = array_column($listingContext->get_items('/', 1), null, 'href');
+    check($coldListing['/inside.txt']['size'] === 6, 'cold folder caches must not hide regular file sizes');
+    check($coldListing['/']['size'] === null, 'cold folder sizes must remain unknown until refreshed');
+    check(in_array($root, $listingContext->refreshPaths, true), 'cold API listings must queue folder refreshes');
+
+    $listingCache->setValue(null, []);
+    $html = (new Fallback($listingContext))->get_html($root);
+    check(str_contains($html, 'inside.txt'), 'cold fallback listings must render files');
+    check(in_array($root, $listingContext->refreshPaths, true), 'cold fallback listings must queue folder refreshes');
+    check(!file_exists($duMarker), 'initial HTML and API listings must not execute du synchronously');
+    check(Filesize::get_stale_paths() === [], 'listing refresh queues must be drained after rendering');
+} finally {
+    putenv($savedPath === false ? 'PATH' : 'PATH=' . $savedPath);
+    file_put_contents($conf . '/options.json', $savedOptions);
+    unlink($tmp . '/du');
+    if (file_exists($duMarker)) {
+        unlink($duMarker);
+    }
+    $listingCache->setValue(null, []);
+    $listingPersistentCache->setValue(null, null);
 }
 
 $urlEncodedRequest = new Request(
@@ -429,3 +483,4 @@ rmdir($httpRoot);
 rmdir($tmp);
 
 echo "PHP security tests passed\n";
+require __DIR__ . '/http.php';

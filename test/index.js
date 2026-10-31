@@ -21,5 +21,6 @@ require('./tests/unit/util/parsePatten');
 require('./tests/unit/util/media');
 require('./tests/unit/preview-md');
 require('./tests/unit/types-md');
+require('./tests/unit/server');
 
 pin_html();

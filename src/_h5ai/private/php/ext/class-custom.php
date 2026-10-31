@@ -7,23 +7,11 @@ class Custom {
 
     private function read_custom_file(string $path, string $name, ?string &$content, ?string &$type): void {
         $file_prefix = $this->context->get_setup()->get('FILE_PREFIX');
-        $setup = $this->context->get_setup();
-        $root_path = realpath($setup->get('ROOT_PATH'));
-        $public_path = realpath($setup->get('PUBLIC_PATH'));
-        $private_path = realpath($setup->get('PRIVATE_PATH'));
-        $root_prefix = $root_path === false ? null : rtrim($root_path, '/') . '/';
-        $public_prefix = $public_path === false ? null : rtrim($public_path, '/') . '/';
-        $private_prefix = $private_path === false ? null : rtrim($private_path, '/') . '/';
 
         foreach (self::EXTENSIONS as $ext) {
             $file = $path . '/' . $file_prefix . '.' . $name . '.' . $ext;
-            $real_file = realpath($file);
-            if ($root_prefix !== null && $real_file !== false
-                && str_starts_with($real_file, $root_prefix)
-                && ($public_prefix === null || !str_starts_with($real_file, $public_prefix))
-                && ($private_prefix === null || !str_starts_with($real_file, $private_prefix))
-                && is_file($real_file) && is_readable($real_file)) {
-                $content = file_get_contents($real_file);
+            if ($this->context->is_custom_file($file)) {
+                $content = file_get_contents($file);
                 $type = $ext;
                 return;
             }

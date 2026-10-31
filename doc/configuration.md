@@ -89,12 +89,16 @@ If the files end in `.md`, they are rendered as Markdown.
 - `enabled` (default: `true`).
 
 The search for `headers`/`footers` files always stops at the web root folder.
+Custom files must resolve to regular, readable files inside the shared root,
+outside h5ai's public and private directories. Symlinks to other locations are
+ignored. Custom filenames may remain hidden from directory listings.
 
 #### `download`
 Allows packaging and downloading of selected directory entries.
 - `enabled` (default: `true`).
 - `type` (default: `"shell-zip"`): The type of archiving:
   - `"php-tar"`: uses h5ai's streaming PHP TAR writer (no external dependency).
+    Long names and paths use POSIX PAX headers, preserving them without truncation.
   - `"shell-tar"`: uses the `tar` command line tool.
   - `"shell-zip"`: uses the `zip` command line tool (`apt install zip`).
 - `packageName` (default: `null`): The default name of the archive package. If `null`, uses the current file or folder name.

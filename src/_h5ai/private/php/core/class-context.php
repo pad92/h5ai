@@ -12,9 +12,8 @@ class Context {
     private array $options;
     private string $passhash;
     private ?array $types = null;
-    private array $managed_cache = [];
+    private readonly PathPolicy $paths;
     private ?array $foldersize_mode = null;
-    private ?array $canonical_paths = null;
 
     public function __construct(
         private readonly Session $session,
@@ -26,6 +25,7 @@ class Context {
         $this->passhash = $this->query_option('passhash', '');
         $this->options['hasCustomPasshash'] = $this->passhash !== '';
         unset($this->options['passhash']);
+        $this->paths = new PathPolicy($this->setup, $this->options);
     }
 
     public function get_session(): Session {
@@ -137,121 +137,35 @@ class Context {
     }
 
     public function to_href(string $path, bool $trailing_slash = true): string {
-        $rel_path = substr($path, strlen($this->setup->get('ROOT_PATH')));
-        $parts = explode('/', $rel_path);
-        $encoded_parts = array_map(rawurlencode(...), array_filter($parts, static fn(string $part): bool => $part !== ''));
-
-        return Util::normalize_path($this->setup->get('ROOT_HREF') . implode('/', $encoded_parts), $trailing_slash);
+        return $this->paths->to_href($path, $trailing_slash);
     }
 
     public function to_path(string $href): string {
-        $rel_href = substr($href, strlen($this->setup->get('ROOT_HREF')));
-        return Util::normalize_path($this->setup->get('ROOT_PATH') . '/' . rawurldecode($rel_href));
+        return $this->paths->to_path($href);
     }
 
     public function is_hidden(string $name): bool {
-        if ($name === '.' || $name === '..') {
-            return true;
-        }
-
-        return array_any(
-            $this->query_option('view.hidden', []),
-            fn(string $re): bool => (bool) @preg_match(Util::wrap_pattern($re), $name),
-        );
+        return $this->paths->is_hidden($name);
     }
 
     public function read_dir(string $path): array {
-        $names = [];
-        if (is_dir($path)) {
-            foreach (scandir($path) as $name) {
-                if ($this->is_hidden($name) || $this->is_hidden($this->to_href($path) . $name)) {
-                    continue;
-                }
-                if (!is_readable($path . '/' . $name)) {
-                    Util::log('permission denied while listing: ' . $path . '/' . $name);
-                    if ($this->query_option('view.hideIf403', false)) {
-                        continue;
-                    }
-                }
-                $names[] = $name;
-            }
-        }
-        return $names;
+        return $this->paths->read_dir($path);
     }
 
     public function is_managed_href(string $href): bool {
-        return $this->is_managed_path($this->to_path($href));
+        return $this->paths->is_managed_href($href);
     }
 
     public function is_managed_file(string $path): bool {
-        if (!is_file($path)) {
-            return false;
-        }
-
-        [$root_real, $public_real, $private_real] = $this->canonical_paths();
-        $file_real = realpath($path);
-        if ($root_real === false || $file_real === false
-            || !str_starts_with($file_real, $root_real . '/')) {
-            return false;
-        }
-        if (($public_real !== false && str_starts_with($file_real, $public_real . '/'))
-            || ($private_real !== false && str_starts_with($file_real, $private_real . '/'))) {
-            return false;
-        }
-
-        return $this->is_managed_path(dirname($path)) && !$this->is_hidden(basename($path));
+        return $this->paths->is_managed_file($path);
     }
 
     public function is_managed_path(string $path): bool {
-        // Result is stable within a request but the check is costly (realpath +
-        // walking up to the root), and it runs once per listed sub-folder.
-        return $this->managed_cache[$path] ??= $this->compute_is_managed_path($path);
+        return $this->paths->is_managed_path($path);
     }
 
-    private function compute_is_managed_path(string $path): bool {
-        if (!is_dir($path) || str_contains($path, '../') || str_contains($path, '/..') || $path === '..') {
-            return false;
-        }
-
-        // Canonicalize and ensure the resolved path stays within the served root.
-        // realpath() also resolves symlinks, so a symlinked directory pointing
-        // outside the root is rejected here.
-        [$root_real, $public_real, $private_real] = $this->canonical_paths();
-        $path_real = realpath($path);
-        if ($root_real === false || $path_real === false
-            || ($path_real !== $root_real && !str_starts_with($path_real, $root_real . '/'))) {
-            return false;
-        }
-
-        if (($public_real !== false && ($path_real === $public_real || str_starts_with($path_real, $public_real . '/')))
-            || ($private_real !== false && ($path_real === $private_real || str_starts_with($path_real, $private_real . '/')))) {
-            return false;
-        }
-
-        if (array_any($this->query_option('view.unmanaged', []), fn(string $name): bool => file_exists($path . '/' . $name))) {
-            return false;
-        }
-
-        $root_path = $this->setup->get('ROOT_PATH');
-        while ($path !== $root_path) {
-            if (@is_dir($path . '/_h5ai/private/conf')) {
-                return false;
-            }
-            $parent_path = Util::normalize_path(dirname($path));
-            if ($parent_path === $path) {
-                return false;
-            }
-            $path = $parent_path;
-        }
-        return true;
-    }
-
-    private function canonical_paths(): array {
-        return $this->canonical_paths ??= [
-            realpath($this->setup->get('ROOT_PATH')),
-            realpath($this->setup->get('PUBLIC_PATH')),
-            realpath($this->setup->get('PRIVATE_PATH')),
-        ];
+    public function is_custom_file(string $path): bool {
+        return $this->paths->is_custom_file($path);
     }
 
     public function get_current_path(): string {
@@ -333,6 +247,9 @@ class Context {
     }
 
     public function trigger_folder_refresh(array $paths): void {
+        if ($paths === []) {
+            return;
+        }
         $marker = $this->setup->get('CACHE_PRV_PATH') . '/refresh.requested';
         if (is_file($marker) && (time() - (int) @filemtime($marker)) > 300) {
             @unlink($marker);

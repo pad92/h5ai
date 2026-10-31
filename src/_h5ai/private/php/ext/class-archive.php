@@ -35,7 +35,7 @@ class Archive {
         }
 
         if (count($this->dirs) === 0 && count($this->files) === 0 && !$has_requested_hrefs) {
-            $this->add_dir($this->base_path, $type === 'php-tar' ? '/' : '.');
+            $this->add_dir($this->base_path, '.');
         }
         if ($this->limit_exceeded) {
             return false;
@@ -78,34 +78,29 @@ class Archive {
 
     private function php_tar(array $dirs, array $files): bool {
         $filesizes = [];
-        $dir_headers = [];
-        $file_headers = [];
+        $headers = [];
         $total_size = 1024;
         foreach ($dirs as $real_dir => $archived_dir) {
-            $dir_headers[$real_dir] = $this->php_tar_entry_header(
-                $archived_dir,
-                0,
-                @filemtime($real_dir . DIRECTORY_SEPARATOR . '.'),
-                5,
-            );
-            $total_size += strlen($dir_headers[$real_dir]);
+            $headers[$real_dir] = TarHeader::encode($archived_dir, 0, @filemtime($real_dir), '5');
+            $total_size += strlen($headers[$real_dir]);
         }
-        foreach (array_keys($files) as $real_file) {
+        foreach ($files as $real_file => $archived_file) {
             $size = filesize($real_file);
+            if ($size === false) {
+                return false;
+            }
             $filesizes[$real_file] = $size;
-            $file_headers[$real_file] = $this->php_tar_entry_header(
-                $files[$real_file],
-                $size,
-                @filemtime($real_file),
-                0,
-            );
-            $total_size += strlen($file_headers[$real_file]) + $size + (512 - ($size % 512)) % 512;
+            $headers[$real_file] = TarHeader::encode($archived_file, $size, @filemtime($real_file), '0');
+            $total_size += strlen($headers[$real_file]) + $size;
+            if ($size % 512 !== 0) {
+                $total_size += 512 - ($size % 512);
+            }
         }
 
         header('Content-Length: ' . $total_size);
 
-        foreach ($dir_headers as $header) {
-            echo $header;
+        foreach ($dirs as $real_dir => $archived_dir) {
+            echo $headers[$real_dir];
         }
 
         foreach ($files as $real_file => $archived_file) {
@@ -114,7 +109,7 @@ class Archive {
             }
             $size = $filesizes[$real_file];
 
-            echo $file_headers[$real_file];
+            echo $headers[$real_file];
             $this->print_file($real_file);
 
             if ($size % 512 !== 0) {
@@ -125,84 +120,6 @@ class Archive {
         echo str_repeat(self::NULL_BYTE, 1024);
 
         return true;
-    }
-
-    private function php_tar_entry_header(string $filename, int $size, int|false $mtime, int $type): string {
-        $path_parts = $this->ustar_path_parts($filename);
-        if ($path_parts !== null && preg_match('/[^\x20-\x7E]/', $filename) !== 1) {
-            return $this->php_tar_header($filename, $size, $mtime, $type);
-        }
-
-        $record = $this->pax_path_record($filename);
-        $pax_name = 'PaxHeaders/' . substr(hash('sha256', $filename), 0, 24);
-        $pax_header = $this->php_tar_header($pax_name, strlen($record), $mtime, 'x');
-        $pax_padding = (512 - (strlen($record) % 512)) % 512;
-
-        return $pax_header
-            . $record
-            . str_repeat(self::NULL_BYTE, $pax_padding)
-            . $this->php_tar_header('PaxEntry', $size, $mtime, $type);
-    }
-
-    private function ustar_path_parts(string $filename): ?array {
-        $path = rtrim($filename, '/');
-        if ($path === '' && $filename === '/') {
-            return ['', '/'];
-        }
-        if (strlen($path) <= 100) {
-            return [$path, ''];
-        }
-
-        $offset = strlen($path);
-        while (($slash = strrpos(substr($path, 0, $offset), '/')) !== false) {
-            $prefix = substr($path, 0, $slash);
-            $name = substr($path, $slash + 1);
-            if ($prefix !== '' && strlen($prefix) <= 155 && strlen($name) <= 100) {
-                return [$name, $prefix];
-            }
-            $offset = $slash;
-        }
-
-        return null;
-    }
-
-    private function pax_path_record(string $path): string {
-        $payload = 'path=' . $path . "\n";
-        $length = strlen($payload) + 2;
-        do {
-            $record = $length . ' ' . $payload;
-            $next_length = strlen($record);
-            if ($next_length === $length) {
-                return $record;
-            }
-            $length = $next_length;
-        } while (true);
-    }
-
-    private function php_tar_header(string $filename, int $size, int|false $mtime, int|string $type): string {
-        [$name, $prefix] = $this->ustar_path_parts($filename) ?? ['PaxEntry', ''];
-        $header =
-            str_pad($name, 100, self::NULL_BYTE)
-            . '0000755' . self::NULL_BYTE
-            . '0000000' . self::NULL_BYTE
-            . '0000000' . self::NULL_BYTE
-            . str_pad(decoct($size), 11, '0', STR_PAD_LEFT) . self::NULL_BYTE
-            . str_pad(decoct($mtime), 11, '0', STR_PAD_LEFT) . self::NULL_BYTE
-            . '        '
-            . str_pad((string) $type, 1)
-            . str_repeat(self::NULL_BYTE, 100)
-            . 'ustar' . self::NULL_BYTE
-            . '00'
-            . str_repeat(self::NULL_BYTE, 80)
-            . str_pad($prefix, 155, self::NULL_BYTE)
-            . str_repeat(self::NULL_BYTE, 12);
-        assert(strlen($header) === 512);
-
-        $checksum = array_sum(unpack('C*', $header));
-        $checksum = str_pad(decoct($checksum), 6, '0', STR_PAD_LEFT) . self::NULL_BYTE . ' ';
-        $header = substr_replace($header, $checksum, 148, 8);
-
-        return $header;
     }
 
     private function print_file(string $file): void {

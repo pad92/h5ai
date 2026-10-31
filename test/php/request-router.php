@@ -11,9 +11,11 @@ require_once __DIR__ . '/../../src/_h5ai/private/php/core/class-session.php';
 require_once __DIR__ . '/../../src/_h5ai/private/php/core/class-request.php';
 require_once __DIR__ . '/../../src/_h5ai/private/php/core/class-setup.php';
 require_once __DIR__ . '/../../src/_h5ai/private/php/core/class-context.php';
+require_once __DIR__ . '/../../src/_h5ai/private/php/core/class-pathpolicy.php';
 require_once __DIR__ . '/../../src/_h5ai/private/php/core/class-item.php';
 require_once __DIR__ . '/../../src/_h5ai/private/php/core/class-filesize.php';
 require_once __DIR__ . '/../../src/_h5ai/private/php/ext/class-archive.php';
+require_once __DIR__ . '/../../src/_h5ai/private/php/ext/class-tarheader.php';
 require_once __DIR__ . '/../../src/_h5ai/private/php/core/class-api.php';
 
 final class RequestTestSetup extends Setup {
@@ -40,7 +42,7 @@ $setup = new RequestTestSetup([
     'PRIVATE_PATH' => $root . '/_h5ai/private',
     'CONF_PATH' => $root . '/_h5ai/conf',
 ]);
-$request = new Request($_REQUEST, file_get_contents('php://input'), $_SERVER['CONTENT_TYPE'] ?? '');
+$request = Request::from_globals();
 $store = [];
 $context = new Context(new Session($store), $request, $setup);
 (new Api($context))->apply();
