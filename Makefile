@@ -148,6 +148,7 @@ docker-test: docker-build
 	@docker exec h5ai-test-noauth cat $(OPTIONS_JSON) | grep -qE '"passhash":[[:space:]]*""' || { echo "FAIL: empty passhash should remain empty when no password is configured"; docker rm -f h5ai-test-noauth; exit 1; }
 	@if docker logs h5ai-test-noauth 2>&1 | grep -q "Generated random h5ai administration password"; then echo "FAIL: startup must not generate or log an admin password"; docker rm -f h5ai-test-noauth; exit 1; fi
 	docker rm -f h5ai-test-noauth
+	sh test/docker/test-php-tar.sh $(TEST_IMAGE) $(TEST_HOST)
 
 	@echo "Testing container with basic authentication..."
 	$(TEST_RUN) --name h5ai-test-auth -e ENV_U=admin -e ENV_P=secret $(TEST_IMAGE)

@@ -3,6 +3,7 @@
 ## v1.3.7 - *Unreleased*
 
 * **Archive downloads**: browser form submissions now use PHP's parsed form fields. Multiple selected files work, while malformed JSON API requests remain rejected.
+* **PHP TAR archives**: PAX headers preserve long paths and non-ASCII names. The reported `Content-Length` includes extended headers and their padding.
 * **Docker administration**: startup preserves the configured admin hash when `H5AI_ADMIN_PASSWORD` is unset. Explicit overrides use PHP `password_hash()`, and generated passwords are no longer logged.
 
 ## v1.3.6 - *2026-10-30*
