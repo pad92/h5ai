@@ -67,7 +67,7 @@ Configure automatic background cache warming (for pre-generating thumbnails and 
 > The task is executed with low scheduling priority to prevent resource starvation.
 > 
 > **How invalidation works**
-> The computed folder sizes are saved in `_h5ai/private/cache/foldersizes.json`. Each entry records the modification times (`mtime`) of the directory and its descendant folders, and expires after five minutes. Directory changes invalidate affected entries immediately. Changes to the contents of an existing file may not change a directory's `mtime`, so those changes are picked up when the entry expires. On a listing request, an expired size is served from cache while h5ai starts a background refresh; a successful refresh replaces it. If the refresh fails or the storage is slow or unavailable, the old value can remain until a later refresh succeeds. Synchronous size requests recompute expired entries inline.
+> The computed folder sizes are saved in `_h5ai/private/cache/foldersizes.json`. Each entry expires after five minutes. Changes to directory entries also invalidate an entry during synchronous reads; changes to an existing file may not change its directory's `mtime`, so those are picked up when the entry expires. Listings do not wait for file-size lookups or expired folder-size calculations: unavailable sizes are omitted while h5ai refreshes expired folder entries in the background. Fresh cached folder sizes can still be shown during this period. If a refresh fails or storage is slow or unavailable, the size remains unknown until a later refresh succeeds. Synchronous size requests recompute expired entries inline.
 
 ### Extensions configuration
 

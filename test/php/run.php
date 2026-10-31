@@ -236,10 +236,21 @@ file_put_contents($sizeFile, 'small');
 $dirMtime = filemtime($sizeDir);
 $persistentCache = new ReflectionProperty(Filesize::class, 'persistent_cache');
 $requestCache = new ReflectionProperty(Filesize::class, 'cache');
-Filesize::set_async_mode(false);
 $persistentCache->setValue(null, [
     $sizeDir => ['size' => 5, 'cached_at' => time() - Filesize::CACHE_TTL - 1, 'dirs' => [$sizeDir => $dirMtime]],
 ]);
+$requestCache->setValue(null, []);
+Filesize::set_async_mode(true);
+check(
+    Filesize::getCachedSize($sizeFile, true, false, Filesize::DEFAULT_TIMEOUT, false) === null,
+    'listing requests must leave a file size unknown instead of querying it inline',
+);
+check(
+    Filesize::getCachedSize($sizeDir, true, false, Filesize::DEFAULT_TIMEOUT, true) === null,
+    'listing requests must leave an expired folder size unknown while it refreshes',
+);
+check(in_array($sizeDir, Filesize::get_stale_paths(), true), 'expired listing sizes must be queued for background refresh');
+Filesize::set_async_mode(false);
 $requestCache->setValue(null, []);
 file_put_contents($sizeFile, 'a much larger existing file');
 clearstatcache(true, $sizeDir);

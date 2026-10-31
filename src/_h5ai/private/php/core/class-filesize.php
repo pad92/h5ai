@@ -91,12 +91,19 @@ class Filesize {
         self::$persistent_cache_dirty = true;
     }
 
-    private static function is_cache_entry_valid(mixed $entry): bool {
+    private static function is_cache_entry_fresh(mixed $entry): bool {
         if (!is_array($entry) || !isset($entry['size'], $entry['cached_at'], $entry['dirs'])
             || !is_int($entry['size']) || !is_int($entry['cached_at']) || !is_array($entry['dirs'])) {
             return false;
         }
         if ($entry['cached_at'] > time() || time() - $entry['cached_at'] > self::CACHE_TTL) {
+            return false;
+        }
+        return true;
+    }
+
+    private static function is_cache_entry_valid(mixed $entry): bool {
+        if (!self::is_cache_entry_fresh($entry)) {
             return false;
         }
         return array_all(
@@ -117,9 +124,35 @@ class Filesize {
         return array_unique(self::$stale_paths);
     }
 
-    public static function getCachedSize(string $path, bool $withFoldersize, bool $withDu, int $timeout = self::DEFAULT_TIMEOUT): ?int {
+    public static function getCachedSize(
+        string $path,
+        bool $withFoldersize,
+        bool $withDu,
+        int $timeout = self::DEFAULT_TIMEOUT,
+        ?bool $isFolder = null,
+    ): ?int {
         if (array_key_exists($path, self::$cache)) {
             return self::$cache[$path];
+        }
+
+        if (self::$async_mode) {
+            if ($isFolder === false || $isFolder === null) {
+                // Do not make rendering a listing wait for per-file metadata on
+                // a slow mount. Callers without the item type also fail closed.
+                return self::$cache[$path] = null;
+            }
+            if ($isFolder && $withFoldersize) {
+                self::init_persistent_cache();
+                if (array_key_exists($path, self::$persistent_cache)) {
+                    $entry = self::$persistent_cache[$path];
+                    if (self::is_cache_entry_fresh($entry)) {
+                        return self::$cache[$path] = $entry['size'];
+                    }
+                }
+                self::$stale_paths[] = $path;
+                return self::$cache[$path] = null;
+            }
+            return self::$cache[$path] = null;
         }
 
         if (is_dir($path) && $withFoldersize) {
@@ -129,13 +162,6 @@ class Filesize {
                 if (self::is_cache_entry_valid($entry)) {
                     return self::$cache[$path] = $entry['size'];
                 }
-                if (self::$async_mode) {
-                    self::$stale_paths[] = $path;
-                    return self::$cache[$path] = $entry['size'];
-                }
-            } elseif (self::$async_mode) {
-                self::$stale_paths[] = $path;
-                return self::$cache[$path] = null;
             }
         }
 

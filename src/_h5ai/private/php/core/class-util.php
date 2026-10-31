@@ -216,9 +216,9 @@ class Util {
         return @exec($cmd, $unused, $rc) !== false && $rc === 0;
     }
 
-    public static function filesize(Context $context, string $path): ?int {
+    public static function filesize(Context $context, string $path, ?bool $is_folder = null): ?int {
         [$withFoldersize, $withDu, $timeout] = $context->foldersize_mode();
-        return Filesize::getCachedSize($path, $withFoldersize, $withDu, $timeout);
+        return Filesize::getCachedSize($path, $withFoldersize, $withDu, $timeout, $is_folder);
     }
 
     public static function get_mimetype(string $source_path): string {
