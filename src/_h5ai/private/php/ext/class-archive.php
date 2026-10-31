@@ -110,7 +110,9 @@ class Archive {
             $size = $filesizes[$real_file];
 
             echo $headers[$real_file];
-            $this->print_file($real_file);
+            if (!$this->print_file($real_file, $size)) {
+                return false;
+            }
 
             if ($size % 512 !== 0) {
                 echo str_repeat(self::NULL_BYTE, 512 - ($size % 512));
@@ -122,18 +124,43 @@ class Archive {
         return true;
     }
 
-    private function print_file(string $file): void {
-        if ($fd = fopen($file, 'rb')) {
-            while (!feof($fd)) {
+    // Emits exactly $size bytes, the size already announced in the tar header
+    // and in Content-Length. A file that shrank or became unreadable since is
+    // padded with NUL bytes, and one that grew is cut, so the archive keeps
+    // its structure. Returns false only when the client went away.
+    private function print_file(string $file, int $size): bool {
+        $remaining = $size;
+        $fd = @fopen($file, 'rb');
+        if ($fd === false) {
+            Util::log('archive: cannot read ' . $file . ', padding its entry');
+        } else {
+            while ($remaining > 0 && !feof($fd)) {
                 if (connection_aborted()) {
+                    fclose($fd);
+                    return false;
+                }
+                $chunk = fread($fd, min(self::$SEGMENT_SIZE, $remaining));
+                if ($chunk === false) {
                     break;
                 }
-                print fread($fd, self::$SEGMENT_SIZE);
+                $remaining -= strlen($chunk);
+                echo $chunk;
                 @ob_flush();
                 @flush();
             }
             fclose($fd);
+            if ($remaining > 0) {
+                Util::log('archive: ' . $file . ' shrank while archiving, padding its entry');
+            }
         }
+
+        // Pad in segments so a large missing file never builds one huge string.
+        while ($remaining > 0) {
+            $pad = min(self::$SEGMENT_SIZE, $remaining);
+            echo str_repeat(self::NULL_BYTE, $pad);
+            $remaining -= $pad;
+        }
+        return true;
     }
 
     private function add_hrefs(string|array $hrefs): void {

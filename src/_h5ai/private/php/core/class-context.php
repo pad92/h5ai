@@ -215,8 +215,7 @@ class Context {
         }
 
         $db = null;
-        $height = $this->options['thumbnails']['size'] ?? 240;
-        $width = (int) floor($height * (4 / 3));
+        [$width, $height] = Thumb::default_dimensions($this);
 
         if ($this->query_option('thumbnails.enabled', false) && $this->setup->get('HAS_PHP_WEBP')) {
             foreach ($result as &$item_obj) {
@@ -300,8 +299,7 @@ class Context {
         $hrefs = [];
         $thumbs = [];
         $filetypes = [];
-        $height = $this->options['thumbnails']['size'] ?? 240;
-        $width = (int) floor($height * (4 / 3));
+        [$width, $height] = Thumb::default_dimensions($this);
         $db = new CacheDB($this->setup);
 
         $max_batch = max(1, (int) $this->query_option('thumbnails.maxBatchSize', 40));

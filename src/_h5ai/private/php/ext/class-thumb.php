@@ -19,6 +19,7 @@ class Thumb {
     // Formats accepted for user-provided custom thumbnails in a `_thumb` folder.
     const CUSTOM_THUMB_EXT = ['png', 'jpg', 'jpeg', 'webp'];
     private const MAX_ARCHIVE_THUMB_BYTES = 16 * 1024 * 1024;
+    public const DEFAULT_SIZE = 240;
 
     public const HANDLED_TYPES = [
         'img' => ['img', 'img-bmp', 'img-jpg', 'img-gif', 'img-png', 'img-raw', 'img-tiff', 'img-svg', 'img-webp'],
@@ -72,6 +73,14 @@ class Thumb {
         unset($this->image);
     }
 
+    // [width, height] of a listing thumbnail. thumbnails.js sends no
+    // dimensions, so these are the only sizes the browser ever asks for: the
+    // cache warmer must produce exactly these to be of any use.
+    public static function default_dimensions(Context $context): array {
+        $height = max(1, (int) $context->query_option('thumbnails.size', self::DEFAULT_SIZE));
+        return [(int) floor($height * 4 / 3), $height];
+    }
+
     public function get_type(): ?FileType {
         return $this->type;
     }
@@ -96,24 +105,20 @@ class Thumb {
         return null;
     }
 
-    public function thumb(int|string $arg1, ?int $arg2 = null, ?int $arg3 = null, ?int $arg4 = null): ?string {
-        if ($arg3 !== null && $arg4 !== null) {
-            $type = $arg1;
-            $source_href = $arg2;
-            $width = $arg3;
-            $height = $arg4;
+    // Retargets this instance at another source before generating its
+    // thumbnail, so a tree walk can reuse one instance and its CacheDB.
+    public function thumb_for(string $type, string $source_href, int $width, int $height): ?string {
+        $this->source_path = $this->context->to_path($source_href);
+        $this->source_hash = sha1($this->source_path);
+        $this->mtime = @filemtime($this->source_path);
+        $this->type = new FileType($this->context, $type);
+        $this->attempt = 0;
+        $this->image = null;
 
-            $this->source_path = $this->context->to_path($source_href);
-            $this->source_hash = sha1($this->source_path);
-            $this->mtime = @filemtime($this->source_path);
-            $this->type = new FileType($this->context, $type);
-            $this->attempt = 0;
-            $this->image = null;
-        } else {
-            $width = (int) $arg1;
-            $height = (int) $arg2;
-        }
+        return $this->thumb($width, $height);
+    }
 
+    public function thumb(int $width, int $height): ?string {
         $this->thumb_width = $width;
         $this->thumb_height = $height;
 
@@ -400,8 +405,7 @@ class Thumb {
                 $req_width = $this->thumb_width;
                 $req_height = $this->thumb_height;
                 if (!isset($req_width) || $req_width <= 0) {
-                    $height_opt = $this->context->query_option('thumbnails.size', 240);
-                    $req_width = (int) floor($height_opt * (4 / 3));
+                    [$req_width] = self::default_dimensions($this->context);
                 }
                 $req_height ??= 0;
                 if ($req_height < 0) {
@@ -465,12 +469,9 @@ class Thumb {
         }
 
         rewind($capture_data);
-        $magic = fread($capture_data, 3);
-        $is_image = !empty($magic) && bin2hex($magic) === 'ffd8ff';
-
-        if (!$is_image) {
+        if (!self::has_capture_signature((string) fread($capture_data, 12))) {
             fclose($capture_data);
-            throw new \Exception($error);
+            throw new \Exception($error ?: 'thumbnail command produced no image');
         }
         $success = $image->set_source_data($capture_data);
         fclose($capture_data);
@@ -479,6 +480,13 @@ class Thumb {
         }
         $this->image ??= $image;
         return true;
+    }
+
+    // Output formats of the capture commands: ffmpeg/avconv write JPEG
+    // (image2 muxer), convert/gm write WebP (see CONVERT_CMDV).
+    public static function has_capture_signature(string $head): bool {
+        return str_starts_with($head, "\xFF\xD8\xFF")
+            || (str_starts_with($head, 'RIFF') && substr($head, 8, 4) === 'WEBP');
     }
 
     private function compute_duration(array $cmdv, string $source_path): string {

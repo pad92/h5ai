@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+* **Document thumbnails**: PDF and PostScript thumbnails rendered by ImageMagick or GraphicsMagick are accepted again. The capture check expected JPEG, but these commands write WebP.
+* **Cache warmer**: thumbnail warming no longer stops with a type error on the first file. It generates only the size that listings request, for the configured types minus the blocklist, archives included.
+* **PHP TAR archives**: each entry is written at the size announced in its header. A file that shrinks, grows or becomes unreadable during the download is padded or cut, so the archive and its `Content-Length` stay consistent.
+* **Configuration**: a comment following a JSON string that ends in an escaped backslash (such as `"C:\\"`) is now stripped, instead of making `options.json` fall back to defaults.
+
 ## v1.3.7 - *2026-10-31*
 
 * **File sizes**: non-finite values such as `Infinity` are rejected instead of being shown as a size.
