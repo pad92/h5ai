@@ -2,7 +2,7 @@ IMAGE_NAME ?= h5ai-local
 TAG ?= latest
 TEST_HOST ?= localhost
 TEST_RETRIES ?= 15
-TEST_CONTAINERS = h5ai-test-noauth h5ai-test-auth h5ai-test-admin-pass h5ai-test-random-pass h5ai-test-options h5ai-test-health h5ai-test-realip
+TEST_CONTAINERS = h5ai-test-noauth h5ai-test-auth h5ai-test-admin-pass h5ai-test-admin-preserve h5ai-test-admin-readonly h5ai-test-options h5ai-test-health h5ai-test-realip
 
 TEST_IMAGE = $(IMAGE_NAME):$(TAG)
 TEST_URL = http://$(TEST_HOST):8890/
@@ -90,15 +90,13 @@ define wait_for_http
 endef
 
 # Shell helper: assert_passhash <password> <ok-msg> <fail-msg> <container>
-# Reads an options.json on stdin and compares its passhash to sha512(<password>).
+# Reads an options.json on stdin and verifies its passhash with PHP.
 define assert_passhash
 	assert_passhash() { \
-		expected_hash=$$(printf '%s' "$$1" | sha512sum | cut -d' ' -f1); \
-		actual_hash=$$(grep -oE '"passhash":[[:space:]]*"[^"]*"' | cut -d'"' -f4); \
-		if [ "$$actual_hash" = "$$expected_hash" ]; then \
-			echo "✓ $$2"; \
+		if docker exec -i "$$4" php84 -r '$$options = json_decode(stream_get_contents(STDIN), true); exit(is_array($$options) && password_verify($$argv[1], $$options["passhash"] ?? "") ? 0 : 1);' "$$1"; then \
+			echo "PASS: $$2"; \
 		else \
-			echo "✗ $$3: expected $$expected_hash, got $$actual_hash"; \
+			echo "FAIL: $$3"; \
 			docker rm -f "$$4"; \
 			exit 1; \
 		fi; \
@@ -123,7 +121,34 @@ docker-test: docker-build
 	@echo "Testing container without authentication..."
 	$(TEST_RUN) --name h5ai-test-noauth $(TEST_IMAGE)
 	$(call wait_for_http,,HTTP/1.1 200 OK,✓ Public index page returned 200 OK,✗ Public index page test failed,h5ai-test-noauth)
+	@curl -fsS -D /tmp/h5ai-form-download.headers -o /tmp/h5ai-form-download.zip \
+		--data-urlencode 'action=download' --data-urlencode 'as=selected.zip' \
+		--data-urlencode 'type=shell-zip' --data-urlencode 'baseHref=/' \
+		--data-urlencode 'hrefs[0]=/doc/configuration.md' --data-urlencode 'hrefs[1]=/doc/administration.md' \
+		$(TEST_URL)_h5ai/public/index.php
+	@grep -qi 'Content-Disposition: attachment; filename="selected.zip"' /tmp/h5ai-form-download.headers
+	@unzip -Z1 /tmp/h5ai-form-download.zip | grep -qx 'doc/configuration.md'
+	@unzip -Z1 /tmp/h5ai-form-download.zip | grep -qx 'doc/administration.md'
+	@echo "PASS: browser-style form download contains both selected files"
+	@curl -fsS -o /tmp/h5ai-single-download.zip \
+		--data-urlencode 'action=download' --data-urlencode 'as=single.zip' \
+		--data-urlencode 'type=shell-zip' --data-urlencode 'baseHref=/' \
+		--data-urlencode 'hrefs=/doc/configuration.md' $(TEST_URL)_h5ai/public/index.php
+	@unzip -Z1 /tmp/h5ai-single-download.zip | grep -qx 'doc/configuration.md'
+	@curl -fsS -o /tmp/h5ai-invalid-hrefs-response \
+		--data-urlencode 'action=download' --data-urlencode 'as=invalid.zip' \
+		--data-urlencode 'type=shell-zip' --data-urlencode 'baseHref=/' \
+		--data-urlencode 'hrefs[0][invalid]=nested' $(TEST_URL)_h5ai/public/index.php
+	@grep -q 'hrefs must be a string or an array of strings' /tmp/h5ai-invalid-hrefs-response
+	@curl -fsS -o /tmp/h5ai-malformed-json-response -H 'Content-Type: application/json' \
+		--data '{malformed' $(TEST_URL)_h5ai/public/index.php
+	@grep -q 'request body must be a JSON object' /tmp/h5ai-malformed-json-response
+	@rm -f /tmp/h5ai-form-download.headers /tmp/h5ai-form-download.zip /tmp/h5ai-single-download.zip \
+		/tmp/h5ai-invalid-hrefs-response /tmp/h5ai-malformed-json-response
+	@docker exec h5ai-test-noauth cat $(OPTIONS_JSON) | grep -qE '"passhash":[[:space:]]*""' || { echo "FAIL: empty passhash should remain empty when no password is configured"; docker rm -f h5ai-test-noauth; exit 1; }
+	@if docker logs h5ai-test-noauth 2>&1 | grep -q "Generated random h5ai administration password"; then echo "FAIL: startup must not generate or log an admin password"; docker rm -f h5ai-test-noauth; exit 1; fi
 	docker rm -f h5ai-test-noauth
+	sh test/docker/test-php-tar.sh $(TEST_IMAGE) $(TEST_HOST)
 
 	@echo "Testing container with basic authentication..."
 	$(TEST_RUN) --name h5ai-test-auth -e ENV_U=admin -e ENV_P=secret $(TEST_IMAGE)
@@ -137,21 +162,29 @@ docker-test: docker-build
 	@$(assert_passhash); \
 	docker exec h5ai-test-admin-pass cat $(OPTIONS_JSON) \
 		| assert_passhash "myadminpassword" "h5ai admin password successfully updated in options.json" "h5ai admin password test failed" h5ai-test-admin-pass
+	@if docker logs h5ai-test-admin-pass 2>&1 | grep -Fq "myadminpassword"; then echo "FAIL: admin password appeared in container logs"; docker rm -f h5ai-test-admin-pass; exit 1; fi
 	docker rm -f h5ai-test-admin-pass
 
-	@echo "Testing container with generated random h5ai administration password..."
-	$(TEST_RUN) --name h5ai-test-random-pass $(TEST_IMAGE)
-	$(call wait_for_http,,HTTP/1.1 200 OK,✓ Container ready,✗ Container failed to start,h5ai-test-random-pass)
-	@$(assert_passhash); \
-	generated_pass=$$(docker logs h5ai-test-random-pass 2>&1 | grep "Generated random h5ai administration password" | awk -F': ' '{print $$2}' | tr -d '\r\n'); \
-	if [ -z "$$generated_pass" ]; then \
-		echo "✗ Failed to find generated password in container logs"; \
-		docker rm -f h5ai-test-random-pass; \
-		exit 1; \
-	fi; \
-	docker exec h5ai-test-random-pass cat $(OPTIONS_JSON) \
-		| assert_passhash "$$generated_pass" "Random h5ai admin password successfully generated, printed to logs, and updated in options.json" "Random h5ai admin password test failed" h5ai-test-random-pass
-	docker rm -f h5ai-test-random-pass
+	@echo "Testing that a configured admin hash survives startup without an override..."
+	docker run --rm --entrypoint cat $(TEST_IMAGE) $(OPTIONS_JSON) > /tmp/h5ai-admin-options.json
+	docker run --rm --entrypoint php84 $(TEST_IMAGE) -r 'echo password_hash("configuredadminpassword", PASSWORD_DEFAULT);' > /tmp/h5ai-admin-options-hash
+	@sed -E "s|(\"passhash\":[[:space:]]*\")[^\"]*(\")|\1$$(cat /tmp/h5ai-admin-options-hash)\2|" /tmp/h5ai-admin-options.json > /tmp/h5ai-admin-options-configured.json
+	$(TEST_RUN) --name h5ai-test-admin-preserve -v /tmp/h5ai-admin-options-configured.json:$(OPTIONS_JSON) $(TEST_IMAGE)
+	$(call wait_for_http,,HTTP/1.1 200 OK,✓ Container ready,✗ Container failed to start,h5ai-test-admin-preserve)
+	@$(assert_passhash); docker exec h5ai-test-admin-preserve cat $(OPTIONS_JSON) | assert_passhash "configuredadminpassword" "Existing configured hash still authenticates" "Existing admin hash was not preserved" h5ai-test-admin-preserve
+	@docker exec h5ai-test-admin-preserve cat $(OPTIONS_JSON) > /tmp/h5ai-admin-options-current.json
+	@expected_hash=$$(cat /tmp/h5ai-admin-options-hash); actual_hash=$$(grep -oE '"passhash":[[:space:]]*"[^\"]*"' /tmp/h5ai-admin-options-current.json | cut -d'"' -f4); \
+	if [ "$$actual_hash" != "$$expected_hash" ]; then echo "FAIL: existing passhash changed during startup"; docker rm -f h5ai-test-admin-preserve; exit 1; fi
+	@if docker logs h5ai-test-admin-preserve 2>&1 | grep -q "Generated random h5ai administration password"; then echo "FAIL: startup must not generate or log an admin password"; docker rm -f h5ai-test-admin-preserve; exit 1; fi
+	docker rm -f h5ai-test-admin-preserve
+	$(TEST_RUN) --name h5ai-test-admin-readonly -v /tmp/h5ai-admin-options-configured.json:$(OPTIONS_JSON):ro $(TEST_IMAGE)
+	$(call wait_for_http,,HTTP/1.1 200 OK,✓ Container ready,✗ Container failed to start,h5ai-test-admin-readonly)
+	@$(assert_passhash); docker exec h5ai-test-admin-readonly cat $(OPTIONS_JSON) | assert_passhash "configuredadminpassword" "Read-only options.json keeps its configured hash" "Read-only admin hash was not preserved" h5ai-test-admin-readonly
+	docker rm -f h5ai-test-admin-readonly
+	@docker run -d --name h5ai-test-admin-readonly-override -v /tmp/h5ai-admin-options-configured.json:$(OPTIONS_JSON):ro -e H5AI_ADMIN_PASSWORD=overridepassword $(TEST_IMAGE)
+	@sleep 2; if docker logs h5ai-test-admin-readonly-override 2>&1 | grep -Fq "is not writable"; then echo "PASS: explicit password override fails on read-only options.json"; else echo "FAIL: read-only password override error was not reported"; docker logs h5ai-test-admin-readonly-override; docker rm -f h5ai-test-admin-readonly-override; exit 1; fi
+	docker rm -f h5ai-test-admin-readonly-override
+	rm -f /tmp/h5ai-admin-options.json /tmp/h5ai-admin-options-hash /tmp/h5ai-admin-options-configured.json /tmp/h5ai-admin-options-current.json
 
 	@echo "Testing container with a bind-mounted custom options.json..."
 	docker run --rm --entrypoint cat $(TEST_IMAGE) $(OPTIONS_JSON) > /tmp/h5ai-test-options.json

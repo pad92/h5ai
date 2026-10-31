@@ -1,0 +1,43 @@
+#!/bin/sh
+
+set -eu
+
+OUTPUT=
+HEADER_FILE=
+URL=
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --output|-o) OUTPUT=$2; shift 2 ;;
+        --dump-header|-D) HEADER_FILE=$2; shift 2 ;;
+        --write-out|-w|--data-urlencode|--header|-H) shift 2 ;;
+        --head|-I|--silent|-s|--show-error|-S|--fail|--get|-G) shift ;;
+        https://*) URL=$1; shift ;;
+        *) shift ;;
+    esac
+done
+
+case "$URL" in
+    https://auth.docker.io/*)
+        printf '{"token":"mock-token"}' > "$OUTPUT"
+        exit 0
+        ;;
+esac
+
+if [ "${CURL_NETWORK_ERROR:-0}" = 1 ]; then
+    echo 'mock registry network failure' >&2
+    exit 7
+fi
+
+tag=${URL##*/}
+status=${CURL_HTTP_STATUS:-}
+digest=$(awk -v tag="$tag" '$1 == tag { print $2; exit }' "$REGISTRY_STATE")
+if [ -z "$status" ]; then
+    if [ -n "$digest" ]; then status=200; else status=404; fi
+fi
+
+printf 'HTTP/1.1 %s mock\r\n' "$status" > "$HEADER_FILE"
+if [ "$status" = 200 ]; then
+    if [ -z "$digest" ]; then digest=$EXPECTED_DIGEST; fi
+    printf 'Docker-Content-Digest: %s\r\n' "$digest" >> "$HEADER_FILE"
+fi
+printf '%s' "$status"

@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.3.7 - *2026-10-31*
+
+* **CI coverage**: JavaScript and PHP tests now generate Cobertura reports. The GitLab coverage badge uses combined line counts, including untested source files. PHP coverage excludes the separate HTTP server processes.
+
+* **Docker base images**: updated Angie to 1.12.4 on Alpine 3.24 and refreshed the pinned PHP 8.4.27 build image to Alpine 3.24. The minimum runtime version check remains in place. Open merge requests run one pipeline instead of duplicate branch and MR pipelines.
+* **Archive downloads**: browser form submissions now use PHP's parsed form fields. Multiple selected files work, while malformed JSON API requests remain rejected.
+* **PHP TAR archives**: PAX headers preserve long paths, non-ASCII names and values outside ustar numeric limits. Whole-folder archives use relative paths. The reported `Content-Length` includes extended headers and their padding.
+* **Custom files**: header/footer content shares the filesystem policy used by downloads, preserving hidden custom files while rejecting symlinks outside the share and into h5ai internals.
+* **Docker administration**: startup preserves the configured admin hash when `H5AI_ADMIN_PASSWORD` is unset or empty. Explicit overrides use PHP `password_hash()`, and generated passwords are no longer logged.
+* **Folder sizes**: cached totals expire after five minutes, so changes to existing files are eventually picked up even when their directory modification times stay unchanged. Initial HTML and API listings refresh missing or expired folder sizes in the background. Regular file sizes remain available for display and sorting.
+* **Docker publication**: stable aliases advance only for the newest stable release. GitLab and Docker Hub promotions share a CI lock, preventing concurrent jobs from racing alias updates.
+
 ## v1.3.6 - *2026-10-30*
 
 * **Configuration**: names beginning with `_` are no longer hidden by default, except `_h5ai`; dot-prefixed names, `robots.txt` and `ads.txt` remain hidden.

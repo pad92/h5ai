@@ -52,11 +52,27 @@ might work on other configurations):
 > npm run build
 ~~~
 
+Run `npm test` for the JavaScript tests and `npm run test:php` for PHP security
+and HTTP regression tests. The PHP suite requires PHP 8.4+, the `tar` command,
+and permission to start a temporary HTTP server on `127.0.0.1`. It verifies
+custom-file access and downloads using temporary fixtures, then removes them.
+
+CI also measures line coverage. `npm run test:coverage` writes JavaScript
+reports to `coverage/js/`, including source files the tests never load. The PHP
+job uses PHPUnit and Xdebug to cover `src/_h5ai/private/php/`, including untested
+files, and writes its report to `coverage/php/`. PHP coverage measures the main
+test process; the separate HTTP server processes still run their checks but do
+not contribute coverage. Both jobs upload Cobertura reports for GitLab diff
+annotations. The `test:coverage` job combines covered and total line counts
+from both languages into the percentage shown by the project badge. A successful
+pipeline on the default branch updates that badge.
+
 
 ## Docker Image
 
 A ready-to-use Docker image is published to Docker Hub as [`pad92/docker-h5ai`][dockerhub].
 It runs on Angie 1.11+ (Alpine) and PHP 8.4, with s6-overlay as the process supervisor.
+Docker Hub protects tags matching `^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9]+)?$` from changes. Stable releases update `latest` and the major/minor aliases only when they are the newest stable Git tag. Prereleases keep their versioned tags and leave stable aliases unchanged. The `devel` tag follows `master`.
 
 [![Docker Pulls](https://img.shields.io/docker/pulls/pad92/docker-h5ai.svg)](https://hub.docker.com/r/pad92/docker-h5ai/)
 

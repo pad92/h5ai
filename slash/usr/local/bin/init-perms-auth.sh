@@ -70,30 +70,36 @@ options_json_writable() {
 
 if [ -n "${H5AI_ADMIN_PASSWORD}" ]; then
     echo "Configuring h5ai admin password..."
-    H5AI_ADMIN_PASSHASH=$(echo -n "${H5AI_ADMIN_PASSWORD}" | sha512sum | cut -d' ' -f1)
-elif [ -f "${OPTIONS_JSON}" ] && ! options_json_writable; then
-    # Read-only custom mount: the operator manages the passhash themselves.
-    echo "H5AI_ADMIN_PASSWORD not set and ${OPTIONS_JSON} is read-only: keeping the existing passhash"
-else
-    echo "H5AI_ADMIN_PASSWORD not set. Generating a random password..."
-    RANDOM_PASS=$(php84 -r 'echo bin2hex(random_bytes(16));')
-    echo "--------------------------------------------------------"
-    echo "Generated random h5ai administration password: ${RANDOM_PASS}"
-    echo "--------------------------------------------------------"
-    H5AI_ADMIN_PASSHASH=$(echo -n "${RANDOM_PASS}" | sha512sum | cut -d' ' -f1)
-fi
-
-if [ -n "${H5AI_ADMIN_PASSHASH}" ] && [ -f "${OPTIONS_JSON}" ]; then
-    if ! options_json_writable; then
+    if [ ! -f "${OPTIONS_JSON}" ] || ! options_json_writable; then
         echo "ERROR: H5AI_ADMIN_PASSWORD is set but ${OPTIONS_JSON} is not writable (read-only mount?)" >&2
         exit 1
     fi
+    if ! H5AI_ADMIN_PASSHASH=$(printf '%s' "${H5AI_ADMIN_PASSWORD}" | php84 -r '
+        $password = stream_get_contents(STDIN);
+        $hash = password_hash($password, PASSWORD_DEFAULT);
+        if ($hash === false) {
+            fwrite(STDERR, "password_hash failed\n");
+            exit(1);
+        }
+        echo $hash;
+    '); then
+        echo "ERROR: could not hash H5AI_ADMIN_PASSWORD" >&2
+        exit 1
+    fi
+elif [ -f "${OPTIONS_JSON}" ]; then
+    # The configured hash is authoritative unless an explicit override is set.
+    echo "H5AI_ADMIN_PASSWORD not set; keeping the configured passhash (login stays disabled if it is empty)"
+else
+    echo "WARNING: ${OPTIONS_JSON} is missing; admin password was not configured" >&2
+fi
+
+if [ -n "${H5AI_ADMIN_PASSHASH}" ] && [ -f "${OPTIONS_JSON}" ]; then
     # Rewrite through a temp file + cat instead of sed -i: sed -i renames a
     # temp file over the target, which fails with EBUSY when options.json is
     # a single-file bind mount.
     TMP_OPTIONS=$(mktemp)
     trap 'rm -f "${TMP_OPTIONS}"' EXIT
-    sed -E 's/"passhash":[[:space:]]*"[^"]*"/"passhash": "'"${H5AI_ADMIN_PASSHASH}"'"/g' "${OPTIONS_JSON}" > "${TMP_OPTIONS}"
+    sed -E 's|"passhash":[[:space:]]*"[^"]*"|"passhash": "'"${H5AI_ADMIN_PASSHASH}"'"|g' "${OPTIONS_JSON}" > "${TMP_OPTIONS}"
     if ! grep -qF "\"${H5AI_ADMIN_PASSHASH}\"" "${TMP_OPTIONS}"; then
         echo "WARNING: 'passhash' key not found in ${OPTIONS_JSON}; admin password was not applied" >&2
     fi

@@ -67,7 +67,7 @@ Configure automatic background cache warming (for pre-generating thumbnails and 
 > The task is executed with low scheduling priority to prevent resource starvation.
 > 
 > **How invalidation works**
-> The computed folder sizes are saved in `_h5ai/private/cache/foldersizes.json`. Along with each directory's size, it stores the modification times (`mtime`) of the directory and all of its descendant subfolders. When a page is requested, h5ai checks if the directory's own `mtime` or any of its descendant folders' `mtime`s have changed on disk. If so, only the affected folders are invalidated and recomputed on the fly, so the cache stays accurate without a full rescan.
+> The computed folder sizes are saved in `_h5ai/private/cache/foldersizes.json`. Each entry expires after five minutes. Changes to directory entries also invalidate an entry during synchronous reads; changes to an existing file may not change its directory's `mtime`, so those are picked up when the entry expires. Initial HTML and API listings use fresh cached folder sizes and refresh missing or expired entries in the background. If a refresh fails, the folder size remains unknown until a later refresh succeeds. Regular file sizes use the metadata already read for each item and remain available for display and sorting. Synchronous folder-size requests recompute expired entries inline. Ordinary directory and metadata reads can still block on an unavailable mount.
 
 ### Extensions configuration
 
@@ -89,12 +89,16 @@ If the files end in `.md`, they are rendered as Markdown.
 - `enabled` (default: `true`).
 
 The search for `headers`/`footers` files always stops at the web root folder.
+Custom files must resolve to regular, readable files inside the shared root,
+outside h5ai's public and private directories. Symlinks to other locations are
+ignored. Custom filenames may remain hidden from directory listings.
 
 #### `download`
 Allows packaging and downloading of selected directory entries.
 - `enabled` (default: `true`).
 - `type` (default: `"shell-zip"`): The type of archiving:
   - `"php-tar"`: uses h5ai's streaming PHP TAR writer (no external dependency).
+    Long names and paths use POSIX PAX headers, preserving them without truncation.
   - `"shell-tar"`: uses the `tar` command line tool.
   - `"shell-zip"`: uses the `zip` command line tool (`apt install zip`).
 - `packageName` (default: `null`): The default name of the archive package. If `null`, uses the current file or folder name.

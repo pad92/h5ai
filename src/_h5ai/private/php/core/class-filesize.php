@@ -1,11 +1,14 @@
 <?php
 
 class Filesize {
-    // Serving a request: search and fallback listings compute sizes inline, so
+    // Serving a request: synchronous searches can compute sizes inline, so
     // this has to stay below the php-fpm pool's request_terminate_timeout for
     // the fail-closed path below to run before the worker is killed from under
     // it.
     public const DEFAULT_TIMEOUT = 50;
+    // Directory mtimes do not change when an existing file is rewritten. A
+    // bounded lifetime therefore limits how long such a change can go unseen.
+    public const CACHE_TTL = 300;
     // Warming or refreshing the cache from the CLI: no pool limit applies, and
     // cutting a large tree short would leave it permanently uncached.
     public const DEFAULT_BACKGROUND_TIMEOUT = 900;
@@ -81,14 +84,26 @@ class Filesize {
         self::$persistent_cache[$path] = [
             'size' => $size,
             'mtime' => @filemtime($path),
+            'cached_at' => time(),
             'dirs' => $dirs,
         ];
         self::$dirty_entries[$path] = self::$persistent_cache[$path];
         self::$persistent_cache_dirty = true;
     }
 
+    private static function is_cache_entry_fresh(mixed $entry): bool {
+        if (!is_array($entry) || !isset($entry['size'], $entry['cached_at'], $entry['dirs'])
+            || !is_int($entry['size']) || !is_int($entry['cached_at']) || !is_array($entry['dirs'])) {
+            return false;
+        }
+        if ($entry['cached_at'] > time() || time() - $entry['cached_at'] > self::CACHE_TTL) {
+            return false;
+        }
+        return true;
+    }
+
     private static function is_cache_entry_valid(mixed $entry): bool {
-        if (!is_array($entry) || !isset($entry['dirs']) || !is_array($entry['dirs'])) {
+        if (!self::is_cache_entry_fresh($entry)) {
             return false;
         }
         return array_all(
@@ -105,13 +120,55 @@ class Filesize {
         self::$async_mode = $enabled;
     }
 
+    public static function begin_async_mode(): void {
+        self::$stale_paths = [];
+        self::$async_mode = true;
+    }
+
+    public static function end_async_mode(): array {
+        self::$async_mode = false;
+        $stale_paths = array_unique(self::$stale_paths);
+        self::$stale_paths = [];
+        return $stale_paths;
+    }
+
     public static function get_stale_paths(): array {
         return array_unique(self::$stale_paths);
     }
 
-    public static function getCachedSize(string $path, bool $withFoldersize, bool $withDu, int $timeout = self::DEFAULT_TIMEOUT): ?int {
+    public static function getCachedSize(
+        string $path,
+        bool $withFoldersize,
+        bool $withDu,
+        int $timeout = self::DEFAULT_TIMEOUT,
+        ?bool $isFolder = null,
+    ): ?int {
         if (array_key_exists($path, self::$cache)) {
             return self::$cache[$path];
+        }
+
+        if (self::$async_mode) {
+            if ($isFolder === false) {
+                // Item has just read this path's type and mtime, so PHP can
+                // reuse the same cached stat result for the regular file size.
+                $size = @filesize($path);
+                return self::$cache[$path] = $size === false ? null : $size;
+            }
+            if ($isFolder === null) {
+                return self::$cache[$path] = null;
+            }
+            if ($isFolder && $withFoldersize) {
+                self::init_persistent_cache();
+                if (array_key_exists($path, self::$persistent_cache)) {
+                    $entry = self::$persistent_cache[$path];
+                    if (self::is_cache_entry_fresh($entry)) {
+                        return self::$cache[$path] = $entry['size'];
+                    }
+                }
+                self::$stale_paths[] = $path;
+                return self::$cache[$path] = null;
+            }
+            return self::$cache[$path] = null;
         }
 
         if (is_dir($path) && $withFoldersize) {
@@ -121,13 +178,6 @@ class Filesize {
                 if (self::is_cache_entry_valid($entry)) {
                     return self::$cache[$path] = $entry['size'];
                 }
-                if (self::$async_mode) {
-                    self::$stale_paths[] = $path;
-                    return self::$cache[$path] = $entry['size'];
-                }
-            } elseif (self::$async_mode) {
-                self::$stale_paths[] = $path;
-                return self::$cache[$path] = null;
             }
         }
 

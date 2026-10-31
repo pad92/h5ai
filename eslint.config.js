@@ -3,7 +3,7 @@ const stylistic = require('@stylistic/eslint-plugin');
 
 module.exports = [
     {
-        ignores: ['build/**', 'local/**', 'node_modules/**', '.npm/**', '.npm_cache/**']
+        ignores: ['coverage/**', 'build/**', 'local/**', 'node_modules/**', '.npm/**', '.npm_cache/**']
     },
     {
         plugins: {

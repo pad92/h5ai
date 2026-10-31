@@ -41,7 +41,7 @@ class Item {
         $this->is_folder = is_dir($this->path);
         $this->href = $context->to_href($this->path, $this->is_folder);
         $this->date = @filemtime($this->path);
-        $this->size = Util::filesize($context, $this->path);
+        $this->size = Util::filesize($context, $this->path, $this->is_folder);
     }
 
     public function to_json_object(): array {

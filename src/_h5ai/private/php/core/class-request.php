@@ -3,12 +3,34 @@
 class Request {
     private readonly array $params;
 
-    public function __construct(array $params, string $body) {
-        $data = json_decode($body, true);
-        if ($body !== '' && !is_array($data)) {
-            Util::json_fail(Util::ERR_ILLIGAL_PARAM, 'request body must be a JSON object');
+    public static function from_globals(): self {
+        $params = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' ? $_POST : $_GET;
+        return new self($params, file_get_contents('php://input'), $_SERVER['CONTENT_TYPE'] ?? '');
+    }
+
+    public function __construct(array $params, string $body, string $content_type = '') {
+        $content_type = strtolower(trim(explode(';', $content_type, 2)[0]));
+
+        if ($body === '' || in_array($content_type, ['application/x-www-form-urlencoded', 'multipart/form-data'], true)) {
+            $this->params = $params;
+            return;
         }
-        $this->params = is_array($data) ? $data : $params;
+
+        if ($content_type !== 'application/json'
+            && !(str_starts_with($content_type, 'application/') && str_ends_with($content_type, '+json'))) {
+            Util::json_fail(Util::ERR_ILLIGAL_PARAM, 'unsupported request body content type');
+            $this->params = [];
+            return;
+        }
+
+        $data = json_decode($body, true);
+        if (!is_array($data) || !str_starts_with(ltrim($body), '{')) {
+            Util::json_fail(Util::ERR_ILLIGAL_PARAM, 'request body must be a JSON object');
+            $this->params = [];
+            return;
+        }
+
+        $this->params = $data;
     }
 
     public function query(string $keypath = '', mixed $default = Util::NO_DEFAULT): mixed {
