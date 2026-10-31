@@ -77,6 +77,125 @@ $setup = new TestSetup([
 $store = [];
 $context = new Context(new Session($store), new Request([], ''), $setup);
 
+$httpRoot = $tmp . '/http-root';
+mkdir($httpRoot . '/_h5ai/public', 0700, true);
+mkdir($httpRoot . '/_h5ai/private', 0700, true);
+mkdir($httpRoot . '/_h5ai/conf', 0700, true);
+file_put_contents($httpRoot . '/first.txt', 'first');
+file_put_contents($httpRoot . '/second.txt', 'second');
+file_put_contents($httpRoot . '/_h5ai/conf/options.json', json_encode([
+    'passhash' => '',
+    'view' => ['hidden' => [], 'unmanaged' => []],
+    'download' => ['enabled' => true],
+]));
+$socket = stream_socket_server('tcp://127.0.0.1:0', $socketError, $socketErrorMessage);
+check($socket !== false, 'a local socket must be available for HTTP request tests');
+$socketAddress = stream_socket_get_name($socket, false);
+$port = (int) substr(strrchr($socketAddress, ':'), 1);
+fclose($socket);
+$server = proc_open(
+    [PHP_BINARY, '-S', "127.0.0.1:{$port}", __DIR__ . '/request-router.php'],
+    [0 => ['pipe', 'r'], 1 => ['file', '/dev/null', 'a'], 2 => ['file', '/dev/null', 'a']],
+    $serverPipes,
+    null,
+    ['H5AI_TEST_ROOT' => $httpRoot],
+);
+check(is_resource($server), 'the PHP test web server must start');
+fclose($serverPipes[0]);
+$serverReady = false;
+for ($attempt = 0; $attempt < 50; $attempt++) {
+    $probe = @fsockopen('127.0.0.1', $port, $probeError, $probeErrorMessage, 0.05);
+    if (is_resource($probe)) {
+        fclose($probe);
+        $serverReady = true;
+        break;
+    }
+    usleep(20000);
+}
+$httpPost = static function (string $body, string $contentType, string $query = '') use ($port): array {
+    $options = ['http' => [
+        'method' => 'POST',
+        'header' => "Content-Type: {$contentType}\r\nConnection: close\r\n",
+        'content' => $body,
+        'ignore_errors' => true,
+        'timeout' => 3,
+    ]];
+    $response = file_get_contents("http://127.0.0.1:{$port}/" . $query, false, stream_context_create($options));
+    preg_match('/^HTTP\/\S+\s+(\d+)/', $http_response_header[0] ?? '', $matches);
+    return [$response, (int) ($matches[1] ?? 0)];
+};
+$tarEntryNames = static function (string $tar): array {
+    $names = [];
+    $offset = 0;
+    while ($offset + 512 <= strlen($tar)) {
+        $header = substr($tar, $offset, 512);
+        if ($header === str_repeat("\0", 512)) {
+            break;
+        }
+        $name = rtrim(substr($header, 0, 100), "\0");
+        if ($name !== '') {
+            $names[] = basename($name);
+        }
+        $size = octdec(trim(substr($header, 124, 12), " \0"));
+        $offset += 512 + (int) (ceil($size / 512) * 512);
+    }
+    return $names;
+};
+try {
+    check($serverReady, 'the PHP test web server must accept HTTP connections');
+    $formFields = [
+        'action' => 'download',
+        'as' => 'selected.tar',
+        'type' => 'php-tar',
+        'baseHref' => '/',
+        'hrefs' => '',
+    ];
+    $urlEncodedBody = http_build_query($formFields);
+    foreach (['/first.txt', '/second.txt'] as $index => $href) {
+        $urlEncodedBody .= '&' . http_build_query(["hrefs[{$index}]" => $href]);
+    }
+    [$response, $status] = $httpPost($urlEncodedBody, 'application/x-www-form-urlencoded');
+    check($status === 200 && is_string($response), 'a URL-encoded browser download request must succeed over HTTP');
+    $names = $tarEntryNames($response);
+    check(in_array('first.txt', $names, true) && in_array('second.txt', $names, true), 'a multiple-file form download must include every selected file');
+
+    $multipartFields = $formFields;
+    foreach (['/first.txt', '/second.txt'] as $index => $href) {
+        $multipartFields["hrefs[{$index}]"] = $href;
+    }
+    $multipartBody = '';
+    foreach ($multipartFields as $name => $value) {
+        $multipartBody .= "--h5ai-test-boundary\r\n"
+            . "Content-Disposition: form-data; name=\"{$name}\"\r\n\r\n{$value}\r\n";
+    }
+    $multipartBody .= "--h5ai-test-boundary--\r\n";
+    [$response, $status] = $httpPost(
+        $multipartBody,
+        'multipart/form-data; boundary=h5ai-test-boundary',
+    );
+    check($status === 200 && is_string($response), 'a multipart browser download request must be accepted over HTTP');
+    $names = $tarEntryNames($response);
+    check(in_array('first.txt', $names, true) && in_array('second.txt', $names, true), 'a multipart download must include every selected file');
+
+    [$response, $status] = $httpPost(
+        http_build_query(array_replace($formFields, ['hrefs' => '/first.txt'])),
+        'application/x-www-form-urlencoded',
+    );
+    check($status === 200 && is_string($response) && in_array('first.txt', $tarEntryNames($response), true), 'string href selections must remain supported through the API');
+
+    [$response] = $httpPost(
+        'action=download&as=bad.tar&type=php-tar&baseHref=%2F&hrefs%5B0%5D=%2Ffirst.txt&hrefs%5B1%5D%5Bx%5D=invalid',
+        'application/x-www-form-urlencoded',
+    );
+    check(is_string($response) && str_contains($response, Util::ERR_ILLIGAL_PARAM), 'download selections with non-string elements must be rejected cleanly');
+
+    [$response] = $httpPost('{"action":', 'application/json', '?action=download');
+    check(is_string($response) && str_contains($response, Util::ERR_ILLIGAL_PARAM), 'malformed JSON must be rejected without falling back to query parameters');
+} finally {
+    proc_terminate($server);
+    proc_close($server);
+}
+
 check(!$context->login_admin(''), 'administrator login must be disabled without a configured hash');
 check($context->is_managed_file($root . '/inside.txt'), 'regular files inside root must be managed');
 check(!$context->is_managed_file($root . '/outside-link.txt'), 'file symlinks escaping root must be rejected');
@@ -211,6 +330,14 @@ unlink($outside);
 unlink($conf . '/options.json');
 unlink($conf . '/types.json');
 rmdir($conf);
+unlink($httpRoot . '/first.txt');
+unlink($httpRoot . '/second.txt');
+unlink($httpRoot . '/_h5ai/conf/options.json');
+rmdir($httpRoot . '/_h5ai/conf');
+rmdir($httpRoot . '/_h5ai/public');
+rmdir($httpRoot . '/_h5ai/private');
+rmdir($httpRoot . '/_h5ai');
+rmdir($httpRoot);
 rmdir($tmp);
 
 echo "PHP security tests passed\n";

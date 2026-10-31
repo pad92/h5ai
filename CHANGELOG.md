@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+* **Downloads**: browser archive forms now accept URL-encoded and multipart submissions, including multiple selected files. JSON API bodies remain validated by their content type.
+
 ## v1.3.6 - *2026-10-30*
 
 * **Configuration**: names beginning with `_` are no longer hidden by default, except `_h5ai`; dot-prefixed names, `robots.txt` and `ads.txt` remain hidden.
