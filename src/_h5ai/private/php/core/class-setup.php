@@ -1,6 +1,10 @@
 <?php
 
 class Setup {
+    // Command-line tools whose availability is probed and cached in cmds.json.
+    private const SYS_CMDS = ['avconv', 'avprobe', 'convert', 'du', 'ffmpeg', 'ffprobe', 'gm', 'tar', 'zip'];
+    private const LOOKUP_CMDS = ['command', 'which', 'where'];
+
     private array $store = [];
     private readonly bool $refresh;
 
@@ -17,8 +21,7 @@ class Setup {
 
     private function set(string $key, string|bool $value): void {
         if (array_key_exists($key, $this->store)) {
-            Util::log('setup key already taken: ' . $key);
-            exit;
+            throw new LogicException('setup key already taken: ' . $key);
         }
 
         $this->store[$key] = $value;
@@ -26,8 +29,7 @@ class Setup {
 
     public function get(string $key): string|bool {
         if (!array_key_exists($key, $this->store)) {
-            Util::log('setup key not found: ' . $key);
-            exit;
+            throw new LogicException('setup key not found: ' . $key);
         }
 
         return $this->store[$key];
@@ -121,7 +123,10 @@ class Setup {
         $cmds_cache_path = Util::normalize_path($this->get('CACHE_PRV_PATH') . '/cmds.json', false);
 
         $cmds = Json::load($cmds_cache_path);
-        if (count($cmds) === 0 || $this->refresh) {
+        // A cache written by an older release may lack tools probed since:
+        // probe again rather than fail on the missing HAS_CMD_* key.
+        $is_incomplete = array_diff([...self::LOOKUP_CMDS, ...self::SYS_CMDS], array_keys($cmds)) !== [];
+        if ($is_incomplete || $this->refresh) {
             $cmds['command'] = Util::exec_0('command -v command 2>/dev/null');
             $cmds['which'] = Util::exec_0('which which 2>/dev/null');
             $cmds['where'] = false;
@@ -133,7 +138,7 @@ class Setup {
                 default => false,
             };
 
-            foreach (['avconv', 'convert', 'du', 'ffmpeg', 'gm', 'tar', 'zip'] as $c) {
+            foreach (self::SYS_CMDS as $c) {
                 $cmds[$c] = ($cmd !== false) && Util::exec_0($cmd . ' ' . $c . ' 2>/dev/null');
             }
 
@@ -166,9 +171,11 @@ class Setup {
                 'HAS_WRITABLE_CACHE_PUB',
                 'HAS_WRITABLE_CACHE_PRV',
                 'HAS_CMD_AVCONV',
+                'HAS_CMD_AVPROBE',
                 'HAS_CMD_CONVERT',
                 'HAS_CMD_DU',
                 'HAS_CMD_FFMPEG',
+                'HAS_CMD_FFPROBE',
                 'HAS_CMD_GM',
                 'HAS_CMD_TAR',
                 'HAS_CMD_ZIP',

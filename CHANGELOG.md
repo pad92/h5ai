@@ -6,6 +6,10 @@
 * **Cache warmer**: thumbnail warming no longer stops with a type error on the first file. It generates only the size that listings request, for the configured types minus the blocklist, archives included.
 * **PHP TAR archives**: each entry is written at the size announced in its header. A file that shrinks, grows or becomes unreadable during the download is padded or cut, so the archive and its `Content-Length` stay consistent.
 * **Configuration**: a comment following a JSON string that ends in an escaped backslash (such as `"C:\\"`) is now stripped, instead of making `options.json` fall back to defaults.
+* **Search**: results no longer run `du` while answering. Like listings, they use cached folder sizes and queue missing ones for the background refresh, so `foldersize.timeout` no longer affects any request.
+* **Thumbnail cache size**: explicitly sized thumbnails, such as image preview samples, have their width rounded up to a multiple of 256 pixels and keep their aspect ratio. A client can no longer fill the cache with one file per requested pixel size.
+* **Command detection**: only a logged-in administrator can make the info page probe command-line tools again. `ffprobe` and `avprobe` are now detected: without them, video thumbnails use an early frame instead of failing. An outdated `cmds.json` is rebuilt, and a missing setup key raises an error instead of producing a blank page.
+* **Thumbnail type cache**: an unopenable, corrupt or table-less `thumbs_cache.db` disables the cache or rebuilds its schema instead of failing the request.
 
 ## v1.3.7 - *2026-10-31*
 

@@ -6,14 +6,7 @@ class Fallback {
     public function get_html(?string $path = null): string {
         // This table is also generated before sending the JavaScript UI.
         // Cold folder sizes must not delay the initial HTML response.
-        Filesize::begin_async_mode();
-        try {
-            $html = $this->render_html($path);
-        } finally {
-            $stale_paths = Filesize::end_async_mode();
-        }
-        $this->context->trigger_folder_refresh($stale_paths);
-        return $html;
+        return $this->context->with_cached_folder_sizes(fn(): string => $this->render_html($path));
     }
 
     private function render_html(?string $path): string {

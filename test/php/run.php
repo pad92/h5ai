@@ -484,4 +484,5 @@ rmdir($tmp);
 
 echo "PHP security tests passed\n";
 require __DIR__ . '/formats.php';
+require __DIR__ . '/robustness.php';
 require __DIR__ . '/http.php';

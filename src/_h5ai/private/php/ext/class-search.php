@@ -53,11 +53,13 @@ class Search {
     }
 
     public function get_items(string $href, ?string $pattern = null, bool $ignorecase = false): array {
-        $cache = [];
         $root = $this->context->to_path($href);
-        return array_map(
-            fn(string $path): array => Item::get($this->context, $path, $cache)->to_json_object(),
-            $this->get_paths($root, $pattern, $ignorecase),
-        );
+        return $this->context->with_cached_folder_sizes(function () use ($root, $pattern, $ignorecase): array {
+            $cache = [];
+            return array_map(
+                fn(string $path): array => Item::get($this->context, $path, $cache)->to_json_object(),
+                $this->get_paths($root, $pattern, $ignorecase),
+            );
+        });
     }
 }

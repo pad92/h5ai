@@ -117,7 +117,18 @@ class Context {
     }
 
     public function is_admin(): bool {
-        return (bool) $this->session->get(self::AS_ADMIN_SESSION_KEY);
+        return self::is_admin_session($this->session);
+    }
+
+    private static function is_admin_session(Session $session): bool {
+        return (bool) $session->get(self::AS_ADMIN_SESSION_KEY);
+    }
+
+    // Decided before Setup exists, since Setup probes the host on creation.
+    // Re-probing runs a shell command per tool, and the info page asks for
+    // it on every load, so only an administrator session triggers it.
+    public static function wants_setup_refresh(Request $request, Session $session): bool {
+        return $request->query_boolean('refresh', false) && self::is_admin_session($session);
     }
 
     public function is_api_request(): bool {
@@ -184,9 +195,8 @@ class Context {
             return [];
         }
 
-        Filesize::begin_async_mode();
-        $cache = [];
-        try {
+        $cache = $this->with_cached_folder_sizes(function () use ($href, $what): array {
+            $cache = [];
             $folder = Item::get($this, $this->to_path($href), $cache);
 
             if ($what >= 3 && $folder !== null) {
@@ -204,9 +214,8 @@ class Context {
             if ($what === 1 && $folder !== null) {
                 $folder->get_content($cache);
             }
-        } finally {
-            $stale_paths = Filesize::end_async_mode();
-        }
+            return $cache;
+        });
 
         uasort($cache, Item::cmp(...));
         $result = [];
@@ -238,10 +247,20 @@ class Context {
             unset($item_obj);
         }
 
-        if (!empty($stale_paths)) {
-            $this->trigger_folder_refresh($stale_paths);
-        }
+        return $result;
+    }
 
+    // Runs $build with folder sizes served from the cache only: a request
+    // never waits on du. Folders missing from the cache or expired are
+    // handed to the background refresh worker afterwards.
+    public function with_cached_folder_sizes(callable $build): mixed {
+        Filesize::begin_async_mode();
+        try {
+            $result = $build();
+        } finally {
+            $stale_paths = Filesize::end_async_mode();
+        }
+        $this->trigger_folder_refresh($stale_paths);
         return $result;
     }
 
@@ -299,11 +318,9 @@ class Context {
         $hrefs = [];
         $thumbs = [];
         $filetypes = [];
-        [$width, $height] = Thumb::default_dimensions($this);
         $db = new CacheDB($this->setup);
 
         $max_batch = max(1, (int) $this->query_option('thumbnails.maxBatchSize', 40));
-        $max_dimension = max(1, (int) $this->query_option('thumbnails.maxDimension', 4096));
 
         foreach (array_slice($requests, 0, $max_batch) as $req) {
             if (!is_array($req) || !isset($req['type'], $req['href'])
@@ -331,8 +348,7 @@ class Context {
                 continue;
             }
 
-            $req_width = min($max_dimension, max(1, isset($req['width']) ? (int) $req['width'] : $width));
-            $req_height = min($max_dimension, max(0, isset($req['height']) ? (int) $req['height'] : $height));
+            [$req_width, $req_height] = Thumb::request_dimensions($this, $req);
             $hrefs[] = $thumbs[$path]->thumb($req_width, $req_height);
 
             if ($thumbs[$path]->get_type()?->was_wrong()) {

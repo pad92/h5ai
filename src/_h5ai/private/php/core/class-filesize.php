@@ -1,10 +1,11 @@
 <?php
 
 class Filesize {
-    // Serving a request: synchronous searches can compute sizes inline, so
-    // this has to stay below the php-fpm pool's request_terminate_timeout for
-    // the fail-closed path below to run before the worker is killed from under
-    // it.
+    // du limit for a size computed while serving a request. Requests read
+    // folder sizes from the cache (Context::with_cached_folder_sizes), so
+    // this only matters for a caller outside that path; it must stay below
+    // the php-fpm pool's request_terminate_timeout so the fail-closed path
+    // below runs before the worker is killed from under it.
     public const DEFAULT_TIMEOUT = 50;
     // Directory mtimes do not change when an existing file is rewritten. A
     // bounded lifetime therefore limits how long such a change can go unseen.

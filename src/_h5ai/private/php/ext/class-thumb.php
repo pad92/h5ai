@@ -20,6 +20,10 @@ class Thumb {
     const CUSTOM_THUMB_EXT = ['png', 'jpg', 'jpeg', 'webp'];
     private const MAX_ARCHIVE_THUMB_BYTES = 16 * 1024 * 1024;
     public const DEFAULT_SIZE = 240;
+    // Width granularity of explicitly sized thumbnails (image preview samples).
+    public const SAMPLE_WIDTH_STEP = 256;
+    // Seek position, in seconds, when a video's duration cannot be probed.
+    private const FALLBACK_SEEK = '0.1';
 
     public const HANDLED_TYPES = [
         'img' => ['img', 'img-bmp', 'img-jpg', 'img-gif', 'img-png', 'img-raw', 'img-tiff', 'img-svg', 'img-webp'],
@@ -79,6 +83,22 @@ class Thumb {
     public static function default_dimensions(Context $context): array {
         $height = max(1, (int) $context->query_option('thumbnails.size', self::DEFAULT_SIZE));
         return [(int) floor($height * 4 / 3), $height];
+    }
+
+    // [width, height] for one entry of a thumbs API request. Listing requests
+    // carry no size and get default_dimensions(). An explicit size (image
+    // preview samples) keeps the source aspect ratio (height 0) and has its
+    // width rounded up to a SAMPLE_WIDTH_STEP multiple, capped by
+    // thumbnails.maxDimension: every variant is cached on disk, so the client
+    // must not be able to ask for one per pixel.
+    public static function request_dimensions(Context $context, array $req): array {
+        if (!isset($req['width']) && !isset($req['height'])) {
+            return self::default_dimensions($context);
+        }
+        $max_dimension = max(1, (int) $context->query_option('thumbnails.maxDimension', 4096));
+        $width = max(1, is_numeric($req['width'] ?? null) ? (int) $req['width'] : 1);
+        $width = (int) ceil($width / self::SAMPLE_WIDTH_STEP) * self::SAMPLE_WIDTH_STEP;
+        return [min($max_dimension, $width), 0];
     }
 
     public function get_type(): ?FileType {
@@ -264,36 +284,30 @@ class Thumb {
     }
 
     private function capture_mov(): bool {
-        if ($this->setup->get('HAS_CMD_FFMPEG')) {
-            $probe_cmd = self::FFPROBE_CMDV;
-            $conv_cmd = self::FFMPEG_CMDV;
-        } elseif ($this->setup->get('HAS_CMD_AVCONV')) {
-            $probe_cmd = self::AVPROBE_CMDV;
-            $conv_cmd = self::AVCONV_CMDV;
-        } else {
-            return false;
-        }
-        try {
-            $timestamp = $this->compute_duration($probe_cmd, $this->source_path);
-            return $this->do_capture($conv_cmd, $timestamp);
-        } catch (\Exception) {
-            return $this->capture('file');
-        }
+        return $this->capture_video(false);
     }
 
+    // SWF/FLV needs the seek (-ss) placed after the input (-i); see FFMPEG_SWF_CMDV.
     private function capture_swf(): bool {
+        return $this->capture_video(true);
+    }
+
+    private function capture_video(bool $seek_after_input): bool {
         if ($this->setup->get('HAS_CMD_FFMPEG')) {
-            $probe_cmd = self::FFPROBE_CMDV;
-            $conv_cmd = self::FFMPEG_SWF_CMDV;
+            $probe_cmd = $this->setup->get('HAS_CMD_FFPROBE') ? self::FFPROBE_CMDV : null;
+            $conv_cmd = $seek_after_input ? self::FFMPEG_SWF_CMDV : self::FFMPEG_CMDV;
         } elseif ($this->setup->get('HAS_CMD_AVCONV')) {
-            $probe_cmd = self::AVPROBE_CMDV;
-            $conv_cmd = self::AVCONV_SWF_CMDV;
+            $probe_cmd = $this->setup->get('HAS_CMD_AVPROBE') ? self::AVPROBE_CMDV : null;
+            $conv_cmd = $seek_after_input ? self::AVCONV_SWF_CMDV : self::AVCONV_CMDV;
         } else {
             return false;
         }
         try {
-            $timestamp = $this->compute_duration($probe_cmd, $this->source_path);
-            // SWF/FLV needs the seek (-ss) placed after the input (-i); see FFMPEG_SWF_CMDV.
+            // Without a probe the duration is unknown: grab an early frame
+            // instead of failing every video thumbnail.
+            $timestamp = $probe_cmd !== null
+                ? $this->compute_duration($probe_cmd, $this->source_path)
+                : self::FALLBACK_SEEK;
             return $this->do_capture($conv_cmd, $timestamp);
         } catch (\Exception) {
             return $this->capture('file');
@@ -504,7 +518,7 @@ class Thumb {
             if (!empty($error) && str_contains($error, 'misdetection possible')) {
                 throw new \Exception($error);
             }
-            return '0.1';
+            return self::FALLBACK_SEEK;
         }
         $duration = (float) $output;
         return (string) round(

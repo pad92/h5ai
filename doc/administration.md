@@ -82,6 +82,8 @@ After deployment, verify that `/_h5ai/private/conf/options.json` returns 403 or
 
 Once logged in, the page displays a series of checks covering core features and optional extensions. Here is what each test verifies and what to do when it fails.
 
+h5ai caches the command-line tools it finds in `_h5ai/private/cache/cmds.json`. Opening this page while logged in probes them again, so install or remove a tool and reload the page to update the results. Anonymous visits never trigger the probes. The cache is also rebuilt automatically when it lacks a tool that a newer h5ai release checks for.
+
 ### Core checks
 
 * **h5ai version**: Checks if the running version matches an official release format.

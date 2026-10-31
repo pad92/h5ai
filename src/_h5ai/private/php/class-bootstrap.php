@@ -16,7 +16,7 @@ class Bootstrap {
 
         $session = new Session($_SESSION);
         $request = Request::from_globals();
-        $setup = new Setup($request->query_boolean('refresh', false));
+        $setup = new Setup(Context::wants_setup_refresh($request, $session));
         $context = new Context($session, $request, $setup);
 
         self::trigger_background_warming($context);
