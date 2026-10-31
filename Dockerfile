@@ -10,7 +10,7 @@ COPY gulpfile.js eslint.config.js ./
 RUN npm run build
 
 # Stage 2: Fetch s6-overlay and compile the php-rar extension
-FROM php:8.4.27-alpine@sha256:7a8ab5b60ecd4aa1a1e47120390b5d044c11a8067936e496cdde89040d857c80 AS deps-builder
+FROM php:8.4.27-alpine3.24@sha256:d8784155c4d37986be9ddd7a8950df7e78998cc48e35472cd69e2b9371424a65 AS deps-builder
 
 ARG S6_OVERLAY_VERSION=3.2.3.2
 ARG TARGETARCH
@@ -52,7 +52,7 @@ RUN apk add --no-cache --virtual .build-deps git autoconf g++ make \
     && apk del .build-deps \
     && rm -rf /tmp/php-rar
 
-FROM docker.angie.software/angie:1.11.8-minimal@sha256:02ff4e727661bf292b551b294a68b6f3036914f0a2a5349199f17fede125a025
+FROM docker.angie.software/angie:1.12.4-minimal@sha256:91305b12951efced43afae0d872bc972655d5f7053721c94eff9d28e54b8ab9c
 
 ARG H5AI_VERSION
 ENV H5AI_VERSION=${H5AI_VERSION}
