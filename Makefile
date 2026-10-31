@@ -72,7 +72,7 @@ coverage: node_modules $(PHPUNIT_PHAR)
 		find src test/php -name '*.php' -print0 | xargs -0 -n1 php -l && \
 		XDEBUG_MODE=coverage php $(PHPUNIT_PHAR) --coverage-cobertura coverage/php/cobertura.xml --coverage-text --only-summary-for-coverage-text; \
 	else \
-		docker run --rm -v "$(CURDIR):/workspace" -w /workspace -v "$(PHPUNIT_PHAR):/tmp/phpunit.phar:ro" $(PHP_COVERAGE_IMAGE) sh -ec 'pecl install xdebug-3.5.3; docker-php-ext-enable xdebug; find src test/php -name "*.php" -print0 | xargs -0 -n1 php -l; XDEBUG_MODE=coverage php /tmp/phpunit.phar --coverage-cobertura coverage/php/cobertura.xml --coverage-text --only-summary-for-coverage-text'; \
+		docker run --rm -v "$(CURDIR):/workspace" -w /workspace -v "$(PHPUNIT_PHAR):/tmp/phpunit.phar:ro" $(PHP_COVERAGE_IMAGE) sh -ec 'apt-get update -qq && apt-get install -y -qq --no-install-recommends libpng-dev libjpeg62-turbo-dev libwebp-dev; docker-php-ext-configure gd --with-jpeg --with-webp; docker-php-ext-install -j"$$(nproc)" gd; pecl install xdebug-3.5.3; docker-php-ext-enable xdebug; find src test/php -name "*.php" -print0 | xargs -0 -n1 php -l; XDEBUG_MODE=coverage php /tmp/phpunit.phar --coverage-cobertura coverage/php/cobertura.xml --coverage-text --only-summary-for-coverage-text'; \
 	fi
 	node scripts/coverage-summary.js
 

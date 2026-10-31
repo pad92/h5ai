@@ -199,6 +199,11 @@ test:php:
   needs: []
   cache: []
   before_script:
+    # GD with JPEG and WebP, as in the runtime image, so image decoding and
+    # thumbnail tests run instead of being skipped.
+    - apt-get update -qq && apt-get install -y -qq --no-install-recommends libpng-dev libjpeg62-turbo-dev libwebp-dev
+    - docker-php-ext-configure gd --with-jpeg --with-webp
+    - docker-php-ext-install -j"$(nproc)" gd
     - pecl install xdebug-3.5.3
     - docker-php-ext-enable xdebug
     - curl --fail --silent --show-error --location https://phar.phpunit.de/phpunit-12.5.42.phar --output /tmp/phpunit.phar

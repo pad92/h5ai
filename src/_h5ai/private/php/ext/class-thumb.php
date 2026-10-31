@@ -620,16 +620,16 @@ class Image {
         $this->release_dest();
 
         rewind($fp);
-        try {
-            $this->source = @imagecreatefromstring(stream_get_contents($fp));
-        } catch (\Exception) {
+        // GD returns false for a format it cannot decode and rejects empty
+        // data with a ValueError: either way this source has no thumbnail,
+        // and the other entries of the request must still be answered.
+        $data = (string) stream_get_contents($fp);
+        $source = $data === '' ? false : @imagecreatefromstring($data);
+        if ($source === false) {
             $this->source = null;
             return false;
         }
-        if (!$this->source) {
-            $this->source = null;
-            return false;
-        }
+        $this->source = $source;
         $this->width = imagesx($this->source);
         $this->height = imagesy($this->source);
 

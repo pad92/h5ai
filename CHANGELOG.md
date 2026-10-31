@@ -5,6 +5,8 @@
 * **Document thumbnails**: PDF and PostScript thumbnails rendered by ImageMagick or GraphicsMagick are accepted again. The capture check expected JPEG, but these commands write WebP.
 * **ImageMagick 7**: document thumbnails run `magick` instead of the deprecated `convert`, which ImageMagick 7 flags with a warning on every call. `convert` remains the fallback on ImageMagick 6 hosts, and the info page accepts either.
 * **Docker image**: Ghostscript is installed, so PDF and PostScript thumbnails work in the image; it also brings ImageMagick's TIFF and JPEG 2000 modules. The image grows by about 19 MiB compressed (66 MiB on disk). `make docker-test` checks PDF and TIFF thumbnails in the running container.
+* **Thumbnail requests**: an image GD cannot decode (a TIFF without ImageMagick support, a corrupt file, an empty capture) no longer fails the whole thumbnail request with an HTTP 500; it gets no thumbnail and the other files of the batch are still answered.
+* **CI**: the PHP test job builds GD with JPEG and WebP, so image decoding and thumbnail tests run there instead of being skipped.
 * **Cache warmer**: thumbnail warming no longer stops with a type error on the first file. It generates only the size that listings request, for the configured types minus the blocklist, archives included.
 * **PHP TAR archives**: each entry is written at the size announced in its header. A file that shrinks, grows or becomes unreadable during the download is padded or cut, so the archive and its `Content-Length` stay consistent.
 * **Configuration**: a comment following a JSON string that ends in an escaped backslash (such as `"C:\\"`) is now stripped, instead of making `options.json` fall back to defaults.
