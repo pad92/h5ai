@@ -226,6 +226,45 @@ $lines = $filesizeExec->invoke(
 check((microtime(true) - $startedAt) < 2.5, 'folder-size commands must be bounded by their timeout');
 check($lines === [], 'a timed-out folder-size command must not yield partial sizes');
 
+// Rewriting a file leaves its containing directory mtime alone. Expired size
+// entries must therefore be recomputed even when the directory map still
+// matches, for both growth and truncation.
+$sizeDir = $root . '/size-cache';
+$sizeFile = $sizeDir . '/existing.txt';
+mkdir($sizeDir);
+file_put_contents($sizeFile, 'small');
+$dirMtime = filemtime($sizeDir);
+$persistentCache = new ReflectionProperty(Filesize::class, 'persistent_cache');
+$requestCache = new ReflectionProperty(Filesize::class, 'cache');
+Filesize::set_async_mode(false);
+$persistentCache->setValue(null, [
+    $sizeDir => ['size' => 5, 'cached_at' => time() - Filesize::CACHE_TTL - 1, 'dirs' => [$sizeDir => $dirMtime]],
+]);
+$requestCache->setValue(null, []);
+file_put_contents($sizeFile, 'a much larger existing file');
+clearstatcache(true, $sizeDir);
+check(filemtime($sizeDir) === $dirMtime, 'rewriting a file must not change the fixture directory mtime');
+check(
+    Filesize::getCachedSize($sizeDir, true, false) === filesize($sizeDir) + filesize($sizeFile),
+    'an expired folder-size cache entry must detect growth of an existing file',
+);
+
+$persistentCache->setValue(null, [
+    $sizeDir => ['size' => filesize($sizeFile), 'cached_at' => time() - Filesize::CACHE_TTL - 1, 'dirs' => [$sizeDir => $dirMtime]],
+]);
+$requestCache->setValue(null, []);
+file_put_contents($sizeFile, 'x');
+clearstatcache(true, $sizeDir);
+check(filemtime($sizeDir) === $dirMtime, 'truncating a file must not change the fixture directory mtime');
+check(
+    Filesize::getCachedSize($sizeDir, true, false) === filesize($sizeDir) + filesize($sizeFile),
+    'an expired folder-size cache entry must detect truncation of an existing file',
+);
+$persistentCache->setValue(null, null);
+$requestCache->setValue(null, []);
+unlink($sizeFile);
+rmdir($sizeDir);
+
 unlink($root . '/outside-link.txt');
 unlink($root . '/_h5ai.header.html');
 unlink($root . '/_h5ai.headers.html');

@@ -67,7 +67,7 @@ Configure automatic background cache warming (for pre-generating thumbnails and 
 > The task is executed with low scheduling priority to prevent resource starvation.
 > 
 > **How invalidation works**
-> The computed folder sizes are saved in `_h5ai/private/cache/foldersizes.json`. Along with each directory's size, it stores the modification times (`mtime`) of the directory and all of its descendant subfolders. When a page is requested, h5ai checks if the directory's own `mtime` or any of its descendant folders' `mtime`s have changed on disk. If so, only the affected folders are invalidated and recomputed on the fly, so the cache stays accurate without a full rescan.
+> The computed folder sizes are saved in `_h5ai/private/cache/foldersizes.json`. Each entry records the modification times (`mtime`) of the directory and its descendant folders, and expires after five minutes. Directory changes invalidate affected entries immediately. Changes to the contents of an existing file may not change a directory's `mtime`, so those changes are picked up when the entry expires. On a listing request, an expired size is served from cache while h5ai starts a background refresh; a successful refresh replaces it. If the refresh fails or the storage is slow or unavailable, the old value can remain until a later refresh succeeds. Synchronous size requests recompute expired entries inline.
 
 ### Extensions configuration
 

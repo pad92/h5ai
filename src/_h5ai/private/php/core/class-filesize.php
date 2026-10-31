@@ -6,6 +6,9 @@ class Filesize {
     // the fail-closed path below to run before the worker is killed from under
     // it.
     public const DEFAULT_TIMEOUT = 50;
+    // Directory mtimes do not change when an existing file is rewritten. A
+    // bounded lifetime therefore limits how long such a change can go unseen.
+    public const CACHE_TTL = 300;
     // Warming or refreshing the cache from the CLI: no pool limit applies, and
     // cutting a large tree short would leave it permanently uncached.
     public const DEFAULT_BACKGROUND_TIMEOUT = 900;
@@ -81,6 +84,7 @@ class Filesize {
         self::$persistent_cache[$path] = [
             'size' => $size,
             'mtime' => @filemtime($path),
+            'cached_at' => time(),
             'dirs' => $dirs,
         ];
         self::$dirty_entries[$path] = self::$persistent_cache[$path];
@@ -88,7 +92,11 @@ class Filesize {
     }
 
     private static function is_cache_entry_valid(mixed $entry): bool {
-        if (!is_array($entry) || !isset($entry['dirs']) || !is_array($entry['dirs'])) {
+        if (!is_array($entry) || !isset($entry['size'], $entry['cached_at'], $entry['dirs'])
+            || !is_int($entry['size']) || !is_int($entry['cached_at']) || !is_array($entry['dirs'])) {
+            return false;
+        }
+        if ($entry['cached_at'] > time() || time() - $entry['cached_at'] > self::CACHE_TTL) {
             return false;
         }
         return array_all(
