@@ -77,6 +77,12 @@ $setup = new TestSetup([
 $store = [];
 $context = new Context(new Session($store), new Request([], ''), $setup);
 
+foreach ([1, 2] as $listingAttempt) {
+    $listing = array_column($context->get_items('/', 1), null, 'href');
+    check($listing['/inside.txt']['size'] === 6, 'API listings must retain regular file sizes');
+    check($listing['/match-0.txt']['size'] === 1, 'API listings must preserve distinct sizes for sorting');
+}
+
 $urlEncodedRequest = new Request(
     ['action' => 'download', 'type' => 'shell-zip', 'hrefs' => ['/first.txt', '/second.txt']],
     'action=download&type=shell-zip&hrefs%5B0%5D=%2Ffirst.txt&hrefs%5B1%5D=%2Fsecond.txt',
@@ -242,8 +248,8 @@ $persistentCache->setValue(null, [
 $requestCache->setValue(null, []);
 Filesize::set_async_mode(true);
 check(
-    Filesize::getCachedSize($sizeFile, true, false, Filesize::DEFAULT_TIMEOUT, false) === null,
-    'listing requests must leave a file size unknown instead of querying it inline',
+    Filesize::getCachedSize($sizeFile, true, false, Filesize::DEFAULT_TIMEOUT, false) === 5,
+    'listing requests must retain regular file sizes while folder sizes refresh',
 );
 check(
     Filesize::getCachedSize($sizeDir, true, false, Filesize::DEFAULT_TIMEOUT, true) === null,

@@ -1,7 +1,7 @@
 <?php
 
 class Filesize {
-    // Serving a request: search and fallback listings compute sizes inline, so
+    // Serving a request: synchronous searches can compute sizes inline, so
     // this has to stay below the php-fpm pool's request_terminate_timeout for
     // the fail-closed path below to run before the worker is killed from under
     // it.
@@ -120,6 +120,18 @@ class Filesize {
         self::$async_mode = $enabled;
     }
 
+    public static function begin_async_mode(): void {
+        self::$stale_paths = [];
+        self::$async_mode = true;
+    }
+
+    public static function end_async_mode(): array {
+        self::$async_mode = false;
+        $stale_paths = array_unique(self::$stale_paths);
+        self::$stale_paths = [];
+        return $stale_paths;
+    }
+
     public static function get_stale_paths(): array {
         return array_unique(self::$stale_paths);
     }
@@ -136,9 +148,13 @@ class Filesize {
         }
 
         if (self::$async_mode) {
-            if ($isFolder === false || $isFolder === null) {
-                // Do not make rendering a listing wait for per-file metadata on
-                // a slow mount. Callers without the item type also fail closed.
+            if ($isFolder === false) {
+                // Item has just read this path's type and mtime, so PHP can
+                // reuse the same cached stat result for the regular file size.
+                $size = @filesize($path);
+                return self::$cache[$path] = $size === false ? null : $size;
+            }
+            if ($isFolder === null) {
                 return self::$cache[$path] = null;
             }
             if ($isFolder && $withFoldersize) {

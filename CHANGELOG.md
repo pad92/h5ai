@@ -5,7 +5,7 @@
 * **Archive downloads**: browser form submissions now use PHP's parsed form fields. Multiple selected files work, while malformed JSON API requests remain rejected.
 * **PHP TAR archives**: PAX headers preserve long paths and non-ASCII names. The reported `Content-Length` includes extended headers and their padding.
 * **Docker administration**: startup preserves the configured admin hash when `H5AI_ADMIN_PASSWORD` is unset. Explicit overrides use PHP `password_hash()`, and generated passwords are no longer logged.
-* **Folder sizes**: cached totals expire after five minutes, so changes to existing files are eventually picked up even when their directory modification times stay unchanged. Listings omit unavailable sizes while background refreshes run, rather than waiting for metadata or size calculations.
+* **Folder sizes**: cached totals expire after five minutes, so changes to existing files are eventually picked up even when their directory modification times stay unchanged. Initial HTML and API listings refresh missing or expired folder sizes in the background. Regular file sizes remain available for display and sorting.
 * **Docker publication**: stable aliases advance only for the newest stable release. GitLab and Docker Hub promotions share a CI lock, preventing concurrent jobs from racing alias updates.
 
 ## v1.3.6 - *2026-10-30*
