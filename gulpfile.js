@@ -56,9 +56,12 @@ const WEBPACK_CFG = {
 };
 
 let version = process.env.H5AI_VERSION || pkg.version;
-if (!process.env.H5AI_VERSION && !isProduction) {
+if (!process.env.H5AI_VERSION && !isProduction && !process.argv.includes('clean')) {
     try {
-        const hashes = execSync(`git rev-list v${pkg.version}..HEAD`, {encoding: 'utf8'}).split(/\r?\n/).filter(x => x);
+        const hashes = execSync(`git rev-list v${pkg.version}..HEAD`, {
+            encoding: 'utf8',
+            stdio: ['ignore', 'pipe', 'ignore']
+        }).split(/\r?\n/).filter(x => x);
         if (hashes.length) {
             const counter = ('000' + hashes.length).substr(-3);
             const hash = hashes[0].substr(0, 7);
