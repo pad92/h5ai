@@ -14,6 +14,8 @@
 * **Internals**: file type matching lives in one class shared by thumbnails and the cache warmer, the version constants live in `private/php/version.php`, and both CLI workers start through `Bootstrap::cli_context()`.
 * **Folder size cache**: each folder's entry lists only its direct subfolders, so `foldersizes.json` grows with the number of folders instead of their depth (139 KB down to 12 KB for a 41-level chain). Expired entries are dropped when the file is written, and a `du` pass caches every folder it measured. The cache warmer measures the share with one `du` pass instead of one per folder. Entries in the previous format are recomputed.
 * **Large trees**: folders already seen during a download, search or cache warming are tracked in an indexed set instead of a list scanned for each folder.
+* **Tests**: the PHP suite runs with PHPUnit (`phpunit.xml.dist`): 93 isolated tests in place of one script counted as a single assertion, each in its own temporary folder, with tests needing GD or SQLite reported as skipped. `npm run test:php` and `make test` run it. The HTML sanitizer used for custom headers, footers and Markdown has its own tests.
+* **Documentation**: documented `H5AI_ROOT_PATH`, the Ghostscript requirement for PDF thumbnails and the probe tools for video thumbnails, and corrected `preview-img.size`, which only switches the server-side sample on or off. API listing depths have named constants.
 
 ## v1.3.7 - *2026-10-31*
 

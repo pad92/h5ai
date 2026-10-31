@@ -1,5 +1,9 @@
 <?php
 
+// API request parameters: PHP's parsed form fields, or the JSON object body.
+// The query_* accessors read a dot-separated key path ("items.href"). A
+// missing parameter without default, or one of the wrong type, ends the
+// request with an ERR_MISSING_PARAM / ERR_ILLIGAL_PARAM JSON answer.
 class Request {
     private readonly array $params;
 
@@ -8,6 +12,8 @@ class Request {
         return new self($params, file_get_contents('php://input'), $_SERVER['CONTENT_TYPE'] ?? '');
     }
 
+    // A non-form body must be a JSON object (application/json or +json);
+    // anything else is rejected with ERR_ILLIGAL_PARAM.
     public function __construct(array $params, string $body, string $content_type = '') {
         $content_type = strtolower(trim(explode(';', $content_type, 2)[0]));
 

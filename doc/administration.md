@@ -78,6 +78,16 @@ caches with filesystem paths. It must not be reachable over HTTP.
 After deployment, verify that `/_h5ai/private/conf/options.json` returns 403 or
 404 before using the application.
 
+### Served directory
+
+h5ai lists the parent folder of its `_h5ai` folder by default. Set the
+`H5AI_ROOT_PATH` environment variable to serve another folder, for example
+when `_h5ai` is installed outside the shared tree. PHP must see the variable:
+with PHP-FPM, pass it with `env[H5AI_ROOT_PATH] = /path/to/share` in the pool
+configuration (the Docker image does this and serves `/share`). The cache
+warmer and background refresh scripts read the same variable, so set it for
+cron jobs as well.
+
 ## 4. Diagnostic tests reference
 
 Once logged in, the page displays a series of checks covering core features and optional extensions. Here is what each test verifies and what to do when it fails.
@@ -111,7 +121,7 @@ h5ai caches the command-line tools it finds in `_h5ai/private/cache/cmds.json`. 
 * **Fileinfo module**: Checks if the PHP Fileinfo module is active (used for determining file MIME types safely).
 * **Use EXIF thumbs**: Checks for the PHP `exif` module. When active, h5ai extracts embedded JPEG preview thumbnails from photos directly instead of decoding the full image, which is much faster.
 * **Video thumbs**: Verifies command line program `ffmpeg` or `avconv` is installed on the host. Required to capture frame previews from videos.
-* **PDF thumbs**: Verifies hardened ImageMagick `convert` is installed. GraphicsMagick is available only as an explicit compatibility fallback with `thumbnails.allowGraphicsMagick`; it does not use the bundled security policy.
+* **PDF thumbs**: Verifies hardened ImageMagick `convert` is installed. Rendering PDF and PostScript files also needs Ghostscript (`gs`), which this check does not detect. GraphicsMagick is available only as an explicit compatibility fallback with `thumbnails.allowGraphicsMagick`; it does not use the bundled security policy.
 
 > [!NOTE]
 > **Media-processor hardening (SSRF/LFI).** Because thumbnails are generated from user-supplied files, h5ai applies defense-in-depth against crafted media that tries to make the processor reach the network or read arbitrary local files:

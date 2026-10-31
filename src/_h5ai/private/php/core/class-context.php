@@ -1,6 +1,13 @@
 <?php
 
 class Context {
+    // Depth of an API listing (`items.what`). Each level includes the ones
+    // before it: the folder's content, then the content of every ancestor
+    // up to the root (for the tree), then the content of each subfolder.
+    public const LIST_FOLDER = 1;
+    public const LIST_WITH_ANCESTORS = 2;
+    public const LIST_WITH_SUBFOLDERS = 3;
+
     private const AS_ADMIN_SESSION_KEY = 'AS_ADMIN';
     private const L10N_ISO_CODES = [
         'af', 'bg', 'cs', 'da', 'de', 'el', 'en', 'es', 'et', 'fi', 'fr', 'he',
@@ -152,6 +159,7 @@ class Context {
         return $this->query_option('view.fallbackMode', false) || $this->is_text_browser();
     }
 
+    // Path <-> URL mapping and access checks, delegated to PathPolicy.
     public function to_href(string $path, bool $trailing_slash = true): string {
         return $this->paths->to_href($path, $trailing_slash);
     }
@@ -195,6 +203,9 @@ class Context {
         return $current_path;
     }
 
+    // Items for an API listing of $href, sorted folders first, as JSON-ready
+    // arrays. $what is one of the LIST_* depths; an unmanaged $href yields [].
+    // Folder sizes come from the cache only (see with_cached_folder_sizes()).
     public function get_items(string $href, int $what): array {
         if (!$this->is_managed_href($href)) {
             return [];
@@ -204,19 +215,19 @@ class Context {
             $cache = [];
             $folder = Item::get($this, $this->to_path($href), $cache);
 
-            if ($what >= 3 && $folder !== null) {
+            if ($what >= self::LIST_WITH_SUBFOLDERS && $folder !== null) {
                 foreach ($folder->get_content($cache) as $item) {
                     $item->get_content($cache);
                 }
                 $folder = $folder->get_parent($cache);
             }
 
-            while ($what >= 2 && $folder !== null) {
+            while ($what >= self::LIST_WITH_ANCESTORS && $folder !== null) {
                 $folder->get_content($cache);
                 $folder = $folder->get_parent($cache);
             }
 
-            if ($what === 1 && $folder !== null) {
+            if ($what === self::LIST_FOLDER && $folder !== null) {
                 $folder->get_content($cache);
             }
             return $cache;
@@ -319,6 +330,10 @@ class Context {
         return $results;
     }
 
+    // Answers a thumbs API request: for each entry {type, href[, width,
+    // height]} the thumbnail href (or null) and, when generation found the
+    // browser's type wrong, the corrected type (or null). At most
+    // thumbnails.maxBatchSize entries are processed.
     public function get_thumbs(array $requests): array {
         $hrefs = [];
         $thumbs = [];

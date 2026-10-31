@@ -20,7 +20,7 @@
     "test": "node scripts/run-tests.js",
     "build": "gulp release",
     "icons": "node scripts/generate-icons.js",
-    "test:php": "php test/php/run.php",
+    "test:php": "make --no-print-directory test-php",
     "precommit": "npm run -s lint && npm run -s test",
     "test:coverage": "c8 --all --include=\"src/_h5ai/public/js/**/*.js\" --reporter=text-summary --reporter=json-summary --reporter=cobertura --reports-dir=coverage/js node scripts/run-tests.js"
   },

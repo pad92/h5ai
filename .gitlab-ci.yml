@@ -205,7 +205,7 @@ test:php:
     - echo 'bcd5cef3751188d7953f46efafd407c1acf37c5f49dbf7933e413eb20e933ac5  /tmp/phpunit.phar' | sha256sum --check -
   script:
     - find src test/php -name '*.php' -print0 | xargs -0 -n1 php -l
-    - XDEBUG_MODE=coverage php /tmp/phpunit.phar --do-not-cache-result --coverage-filter src/_h5ai/private/php --coverage-cobertura coverage/php/cobertura.xml --coverage-text --only-summary-for-coverage-text test/php/RegressionTest.php
+    - XDEBUG_MODE=coverage php /tmp/phpunit.phar --coverage-cobertura coverage/php/cobertura.xml --coverage-text --only-summary-for-coverage-text
   artifacts:
     paths:
       - coverage/php/

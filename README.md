@@ -25,8 +25,8 @@ This repository is a detached fork of the original [h5ai](https://github.com/lrs
   * Imagick is an optional backend for image resizing; its availability depends on the host's ImageMagick build and delegates.
   * `exif` enables embedded-thumbnail extraction and EXIF orientation handling where supported.
 * Command-line helpers are needed only for the corresponding configured feature or backend:
-  * `ffmpeg` or `avconv` for video and audio thumbnails.
-  * ImageMagick (`convert`) for document thumbnails such as PDF. GraphicsMagick is an opt-in compatibility fallback and does not use the bundled ImageMagick policy.
+  * `ffmpeg` or `avconv` for video and audio thumbnails, with `ffprobe` or `avprobe` to pick a frame at `thumbnails.seek`; without a probe the frame at 0.1 seconds is used.
+  * ImageMagick (`convert`) with Ghostscript (`gs`) for document thumbnails such as PDF: ImageMagick hands PDF and PostScript files to Ghostscript. GraphicsMagick is an opt-in compatibility fallback and does not use the bundled ImageMagick policy.
   * `tar` and `zip` for downloads configured to use those command-line archive formats; the PHP TAR writer does not need them.
   * `du` for folder sizes when `foldersize.type` is `shell-du`.
 
@@ -52,10 +52,14 @@ might work on other configurations):
 > npm run build
 ~~~
 
-Run `npm test` for the JavaScript tests and `npm run test:php` for PHP security
-and HTTP regression tests. The PHP suite requires PHP 8.4+, the `tar` command,
-and permission to start a temporary HTTP server on `127.0.0.1`. It verifies
-custom-file access and downloads using temporary fixtures, then removes them.
+Run `npm test` for the JavaScript tests and `npm run test:php` (or
+`make test-php`) for the PHP tests. The PHP suite runs with PHPUnit, which the
+Makefile downloads once to `/tmp/phpunit.phar` and verifies against a pinned
+checksum; `phpunit.xml.dist` defines the suite. It requires PHP 8.4+, the
+`tar`, `du` and `cp` commands, and permission to start temporary HTTP servers
+on `127.0.0.1`. Each test works in its own temporary folder and removes it.
+Tests that need an optional PHP extension (GD, SQLite) are reported as skipped
+when it is missing. `make test` runs both suites.
 
 CI also measures line coverage. `npm run test:coverage` writes JavaScript
 reports to `coverage/js/`, including source files the tests never load. The PHP

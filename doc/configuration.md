@@ -154,7 +154,7 @@ Enables in-browser preview and playback of audio files.
 #### `preview-img`
 Enables overlay preview of images.
 - `enabled` (default: `true`).
-- `size` (default: `1000`): Maximum preview size (e.g. `1000` pixels), or `false` for original image size. Enabling this setting (by passing a numeric value or `true`) instructs the server to pre-generate optimized image samples for previews. When active, h5ai dynamically requests a sample size corresponding to 80% of the viewport dimensions to optimize rendering quality and network bandwidth (especially important for large files such as RAW image formats like CR3, DNG, NEF, ARW, etc.).
+- `size` (default: `1000`): Only checked for being set. The preview first shows the original image. When the browser cannot decode it (camera RAW formats such as CR3, DNG, NEF or ARW), a set value lets h5ai ask the server for a WebP sample instead; `false` turns that fallback off. The sample width is 80% of the larger viewport dimension, rounded up to a multiple of 256 pixels and capped by `thumbnails.maxDimension`; the number itself is not used as a size.
 - `types`: File types configured for image preview.
 
 #### `preview-txt`

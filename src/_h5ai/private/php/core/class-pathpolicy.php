@@ -14,6 +14,8 @@ class PathPolicy {
         return Util::array_query($this->options, $keypath, $default);
     }
 
+    // URL of a filesystem path below ROOT_PATH, each segment percent-encoded.
+    // Does not check that $path is inside the root: callers pass managed paths.
     public function to_href(string $path, bool $trailing_slash = true): string {
         $rel_path = substr($path, strlen($this->setup->get('ROOT_PATH')));
         $parts = explode('/', $rel_path);
@@ -22,11 +24,14 @@ class PathPolicy {
         return Util::normalize_path($this->setup->get('ROOT_HREF') . implode('/', $encoded_parts), $trailing_slash);
     }
 
+    // Filesystem path of a URL below ROOT_HREF. The result is not checked:
+    // pass it to is_managed_path()/is_managed_file() before using it.
     public function to_path(string $href): string {
         $rel_href = substr($href, strlen($this->setup->get('ROOT_HREF')));
         return Util::normalize_path($this->setup->get('ROOT_PATH') . '/' . rawurldecode($rel_href));
     }
 
+    // Whether a name (or href) matches view.hidden; '.' and '..' always do.
     public function is_hidden(string $name): bool {
         if ($name === '.' || $name === '..') {
             return true;
@@ -38,6 +43,8 @@ class PathPolicy {
         );
     }
 
+    // Visible entry names of a folder. Unreadable entries are logged and
+    // kept unless view.hideIf403 is set.
     public function read_dir(string $path): array {
         $names = [];
         if (is_dir($path)) {
@@ -61,10 +68,14 @@ class PathPolicy {
         return $this->is_managed_path($this->to_path($href));
     }
 
+    // A visible regular file whose real path stays inside the root, outside
+    // h5ai's own folders, in a managed folder.
     public function is_managed_file(string $path): bool {
         return $this->is_contained_file($path) && !$this->is_hidden(basename($path));
     }
 
+    // Like is_managed_file(), but hidden names are allowed and the file must
+    // be readable.
     public function is_custom_file(string $path): bool {
         // Custom header/footer names are hidden from listings by design.
         return $this->is_contained_file($path) && is_readable($path);
@@ -89,6 +100,9 @@ class PathPolicy {
         return $this->is_managed_path(dirname($path));
     }
 
+    // A folder h5ai may list: its real path stays inside the root and outside
+    // h5ai's folders, it holds no view.unmanaged marker, and no folder between
+    // it and the root hosts another h5ai installation.
     public function is_managed_path(string $path): bool {
         // Result is stable within a request but the check is costly (realpath +
         // walking up to the root), and it runs once per listed sub-folder.
