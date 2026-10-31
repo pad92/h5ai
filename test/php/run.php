@@ -15,6 +15,7 @@ require_once __DIR__ . '/../../src/_h5ai/private/php/core/class-item.php';
 require_once __DIR__ . '/../../src/_h5ai/private/php/core/class-filesize.php';
 require_once __DIR__ . '/../../src/_h5ai/private/php/ext/class-search.php';
 require_once __DIR__ . '/../../src/_h5ai/private/php/ext/class-archive.php';
+require_once __DIR__ . '/../../src/_h5ai/private/php/ext/class-custom.php';
 require_once __DIR__ . '/../../src/_h5ai/private/php/ext/class-thumb.php';
 
 final class TestSetup extends Setup {
@@ -40,16 +41,26 @@ $outside = $tmp . '/outside.txt';
 $conf = $tmp . '/conf';
 mkdir($root, 0700, true);
 mkdir($conf, 0700, true);
+mkdir($root . '/_h5ai/public', 0700, true);
+mkdir($root . '/_h5ai/private', 0700, true);
 file_put_contents($outside, 'secret');
+file_put_contents($root . '/_h5ai/public/internal.txt', 'public internal');
+file_put_contents($root . '/_h5ai/private/internal.txt', 'private internal');
 file_put_contents($root . '/inside.txt', 'inside');
 for ($i = 0; $i < 5; $i++) {
     file_put_contents($root . "/match-{$i}.txt", 'x');
 }
 symlink($outside, $root . '/outside-link.txt');
+symlink($outside, $root . '/_h5ai.header.html');
+symlink($root . '/_h5ai/public/internal.txt', $root . '/_h5ai.headers.html');
+symlink($root . '/_h5ai/private/internal.txt', $root . '/_h5ai.footer.html');
+file_put_contents($root . '/_h5ai.header.md', '# Allowed header');
+file_put_contents($root . '/_h5ai.footer.md', 'Allowed footer');
 file_put_contents($conf . '/options.json', json_encode([
     'passhash' => '',
     'view' => ['hidden' => [], 'unmanaged' => []],
     'foldersize' => ['enabled' => false],
+    'custom' => ['enabled' => true],
     'search' => ['maxResults' => 2, 'maxDepth' => 4],
 ]));
 file_put_contents($conf . '/types.json', '{}');
@@ -57,8 +68,9 @@ file_put_contents($conf . '/types.json', '{}');
 $setup = new TestSetup([
     'ROOT_PATH' => $root,
     'ROOT_HREF' => '/',
-    'PUBLIC_PATH' => $tmp . '/public',
-    'PRIVATE_PATH' => $tmp . '/private',
+    'PUBLIC_PATH' => $root . '/_h5ai/public',
+    'PRIVATE_PATH' => $root . '/_h5ai/private',
+    'FILE_PREFIX' => '_h5ai',
     'CONF_PATH' => $conf,
     'HAS_CMD_DU' => false,
 ]);
@@ -68,6 +80,19 @@ $context = new Context(new Session($store), new Request([], ''), $setup);
 check(!$context->login_admin(''), 'administrator login must be disabled without a configured hash');
 check($context->is_managed_file($root . '/inside.txt'), 'regular files inside root must be managed');
 check(!$context->is_managed_file($root . '/outside-link.txt'), 'file symlinks escaping root must be rejected');
+$custom = (new Custom($context))->get_customizations('/');
+check($custom['header'] === ['content' => '# Allowed header', 'type' => 'md'], 'custom headers must skip outside symlinks and preserve hidden Markdown files');
+check($custom['footer'] === ['content' => 'Allowed footer', 'type' => 'md'], 'custom footers must skip h5ai internal symlinks and preserve Markdown files');
+
+unlink($root . '/_h5ai.header.md');
+unlink($root . '/_h5ai.footer.md');
+unlink($root . '/_h5ai.header.html');
+unlink($root . '/_h5ai.footer.html');
+file_put_contents($root . '/_h5ai.header.html', '<header>Allowed HTML</header>');
+file_put_contents($root . '/_h5ai.footer.html', '<footer>Allowed HTML</footer>');
+$custom = (new Custom($context))->get_customizations('/');
+check($custom['header'] === ['content' => '<header>Allowed HTML</header>', 'type' => 'html'], 'ordinary HTML custom headers must remain supported');
+check($custom['footer'] === ['content' => '<footer>Allowed HTML</footer>', 'type' => 'html'], 'ordinary HTML custom footers must remain supported');
 
 $visited = [];
 $results = (new Search($context))->get_paths($root, 'match', false, $visited);
@@ -170,6 +195,14 @@ check((microtime(true) - $startedAt) < 2.5, 'folder-size commands must be bounde
 check($lines === [], 'a timed-out folder-size command must not yield partial sizes');
 
 unlink($root . '/outside-link.txt');
+unlink($root . '/_h5ai.header.html');
+unlink($root . '/_h5ai.headers.html');
+unlink($root . '/_h5ai.footer.html');
+unlink($root . '/_h5ai/public/internal.txt');
+unlink($root . '/_h5ai/private/internal.txt');
+rmdir($root . '/_h5ai/public');
+rmdir($root . '/_h5ai/private');
+rmdir($root . '/_h5ai');
 foreach (glob($root . '/*') as $file) {
     unlink($file);
 }
