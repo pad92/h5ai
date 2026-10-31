@@ -24,6 +24,56 @@ class CacheWarmer {
         }
     }
 
+    // A start marker older than this is a worker that died before writing
+    // warmer.lastrun: it no longer blocks a new start.
+    public const START_TIMEOUT = 300;
+
+    // Starts warm-cache.php in the background when cache.warm_at_startup is
+    // on and both the last run and any start in progress are older than
+    // cache.warm_interval. warmer.laststart marks a start so concurrent
+    // requests launch one worker; warmer.lock only guards that decision and
+    // is released before launching, since the worker holds it while running.
+    // $launch (script path => accepted) replaces Util::launch_background().
+    public static function launch_if_due(Context $context, ?callable $launch = null): bool {
+        if (!$context->query_option('cache.warm_at_startup', false)) {
+            return false;
+        }
+        $setup = $context->get_setup();
+        $cache = $setup->get('CACHE_PRV_PATH');
+        $lock = @fopen($cache . '/warmer.lock', 'c+');
+        if ($lock === false) {
+            return false;
+        }
+        // A taken lock means a worker is running or another request is
+        // deciding: nothing to do.
+        $is_due = false;
+        if (flock($lock, LOCK_EX | LOCK_NB)) {
+            $now = time();
+            $laststart = (int) @file_get_contents($cache . '/warmer.laststart');
+            if ($laststart > 0 && $now - $laststart > self::START_TIMEOUT) {
+                $laststart = 0;
+            }
+            $last_activity = max((int) @file_get_contents($cache . '/warmer.lastrun'), $laststart);
+            $interval = (int) $context->query_option('cache.warm_interval', 86400);
+            $is_due = $last_activity === 0 || $now - $last_activity > $interval;
+            if ($is_due) {
+                @file_put_contents($cache . '/warmer.laststart', (string) $now, LOCK_EX);
+            }
+            flock($lock, LOCK_UN);
+        }
+        fclose($lock);
+        if (!$is_due) {
+            return false;
+        }
+
+        $launch ??= static fn(string $script): bool => Util::launch_background($script);
+        if (!$launch($setup->get('PRIVATE_PATH') . '/php/warm-cache.php')) {
+            @unlink($cache . '/warmer.laststart');
+            return false;
+        }
+        return true;
+    }
+
     // Mirrors thumbnails.js: the configured categories minus the blocklist.
     // The browser sends the item type itself, so the warmer does too.
     private static function requested_thumb_types(Context $context): array {

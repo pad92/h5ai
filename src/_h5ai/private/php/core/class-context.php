@@ -97,8 +97,22 @@ class Context {
         return $this->type_matcher ??= new TypeMatcher($this->get_types());
     }
 
+    // Refused without checking the password while the client is throttled
+    // (see LoginThrottle). Login is disabled when no passhash is configured.
     public function login_admin(string $pass): bool {
+        if ($this->passhash === '') {
+            $this->session->set(self::AS_ADMIN_SESSION_KEY, false);
+            return false;
+        }
+        $client = $this->request->client_address();
+        $throttle = new LoginThrottle($this->setup->get('CACHE_PRV_PATH') . '/login-failures.json');
+        if ($throttle->is_blocked($client)) {
+            Util::log('admin login refused: too many failed attempts from this client');
+            $this->session->set(self::AS_ADMIN_SESSION_KEY, false);
+            return false;
+        }
         $ok = $this->verify_pass($pass);
+        $throttle->record($client, $ok);
         if ($ok) {
             // Prevent session fixation when elevating privileges.
             $this->session->regenerate();
@@ -113,9 +127,14 @@ class Context {
             return false;
         }
 
-        // Legacy unsalted SHA-512 hex digests (includes the default empty-password hash).
+        // Legacy unsalted SHA-512 hex digests (includes the default empty-password
+        // hash). Still accepted so existing installations keep working.
         if (preg_match('/^[a-f0-9]{128}$/i', $stored)) {
-            return hash_equals(strtolower($stored), hash('sha512', $pass));
+            $ok = hash_equals(strtolower($stored), hash('sha512', $pass));
+            if ($ok) {
+                Util::log('deprecated: passhash is an unsalted SHA-512 digest; replace it with a password_hash() value');
+            }
+            return $ok;
         }
 
         // Modern password_hash() digests (bcrypt/argon2).

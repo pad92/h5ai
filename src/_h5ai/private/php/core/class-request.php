@@ -9,12 +9,17 @@ class Request {
 
     public static function from_globals(): self {
         $params = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' ? $_POST : $_GET;
-        return new self($params, file_get_contents('php://input'), $_SERVER['CONTENT_TYPE'] ?? '');
+        return new self($params, file_get_contents('php://input'), $_SERVER['CONTENT_TYPE'] ?? '', $_SERVER['REMOTE_ADDR'] ?? '');
     }
 
     // A non-form body must be a JSON object (application/json or +json);
     // anything else is rejected with ERR_ILLIGAL_PARAM.
-    public function __construct(array $params, string $body, string $content_type = '') {
+    public function __construct(
+        array $params,
+        string $body,
+        string $content_type = '',
+        private readonly string $client_address = '',
+    ) {
         $content_type = strtolower(trim(explode(';', $content_type, 2)[0]));
 
         if ($body === '' || in_array($content_type, ['application/x-www-form-urlencoded', 'multipart/form-data'], true)) {
@@ -37,6 +42,11 @@ class Request {
         }
 
         $this->params = $data;
+    }
+
+    // Address of the client as the web server sees it (REMOTE_ADDR).
+    public function client_address(): string {
+        return $this->client_address;
     }
 
     public function query(string $keypath = '', mixed $default = Util::NO_DEFAULT): mixed {

@@ -40,8 +40,17 @@ Access to the Info Page is secured using a password hash defined in the main con
 4. Save the file. The new password takes effect immediately.
 
 Never send an administrator password to an online hash generator. Legacy
-128-character SHA-512 hashes remain readable for compatibility, but should not
-be used for new installations.
+128-character SHA-512 hashes remain readable for compatibility, but are
+deprecated: each login with one writes a warning to the PHP error log. Replace
+them with a `password_hash()` value.
+
+After 5 failed logins within 15 minutes, h5ai refuses further attempts from
+the same client, even with the right password, until the oldest failure is 15
+minutes old. Failures are kept as hashed client addresses in
+`_h5ai/private/cache/login-failures.json`. The client address is the one the
+web server sees: behind a reverse proxy, configure it to pass the real address
+(`REAL_IP_FROM` in the Docker image), or every visitor shares the proxy's
+budget and failed attempts by anyone delay the administrator.
 
 > [!IMPORTANT]
 > Administrator login is disabled while `passhash` is empty. Configure a hash

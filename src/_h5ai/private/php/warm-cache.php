@@ -8,14 +8,16 @@ require_once __DIR__ . '/class-bootstrap.php';
 $context = Bootstrap::cli_context();
 $setup = $context->get_setup();
 $laststart_file = $setup->get('CACHE_PRV_PATH') . '/warmer.laststart';
-register_shutdown_function(static fn() => @unlink($laststart_file));
 
 $lock_file = $setup->get('CACHE_PRV_PATH') . '/warmer.lock';
 $fp = @fopen($lock_file, 'c+');
 if (!$fp || !flock($fp, LOCK_EX | LOCK_NB)) {
+    // The start marker belongs to the running warmer: leave it alone.
     echo "Cache warmer is already running.\n";
     exit(0);
 }
+// From here this process owns the start marker, even if it fails.
+register_shutdown_function(static fn() => @unlink($laststart_file));
 
 @ftruncate($fp, 0);
 @fwrite($fp, getmypid());

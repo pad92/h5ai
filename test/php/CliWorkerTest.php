@@ -77,4 +77,20 @@ final class CliWorkerTest extends H5aiTestCase {
         self::assertGreaterThanOrEqual(1000, $this->cachedSizes()[$this->root()]['size'] ?? 0);
         self::assertFileExists($this->app . '/private/cache/warmer.lastrun');
     }
+
+    // A worker launched while another one runs must not remove the start
+    // marker of the running one.
+    public function testASecondWarmerLeavesTheRunningOneAlone(): void {
+        $this->copyApplication();
+        $marker = $this->app . '/private/cache/warmer.laststart';
+        file_put_contents($marker, (string) time());
+        $held = fopen($this->app . '/private/cache/warmer.lock', 'c+');
+        flock($held, LOCK_EX);
+        try {
+            self::assertStringContainsString('already running', $this->runWorker('warm-cache.php'));
+        } finally {
+            fclose($held);
+        }
+        self::assertFileExists($marker);
+    }
 }

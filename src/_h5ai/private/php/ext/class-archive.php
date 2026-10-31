@@ -7,7 +7,10 @@ class Archive {
     private static string $TAR_PASSTHRU_CMD = 'cd [ROOTDIR] && tar --no-recursion -c -- [DIRS] [FILES]';
     private static string $ZIP_PASSTHRU_CMD = 'cd [ROOTDIR] && zip - -- [FILES]';
 
+    private const TYPES = ['php-tar', 'shell-tar', 'shell-zip'];
+
     private string $base_path;
+    private string $type = '';
     private array $dirs = [];
     private array $files = [];
     private int $total_bytes = 0;
@@ -15,9 +18,13 @@ class Archive {
 
     public function __construct(private readonly Context $context) {}
 
-    public function output(string $type, string $base_href, string|array $hrefs): bool {
+    // Collects the selection without writing anything, so the caller can
+    // still answer with an error. False for an unknown type, an unmanaged
+    // base folder, an empty selection or one over the download limits.
+    public function prepare(string $type, string $base_href, string|array $hrefs): bool {
+        $this->type = $type;
         $this->base_path = $this->context->to_path($base_href);
-        if (!$this->context->is_managed_path($this->base_path)) {
+        if (!in_array($type, self::TYPES, true) || !$this->context->is_managed_path($this->base_path)) {
             return false;
         }
 
@@ -40,11 +47,13 @@ class Archive {
         if ($this->limit_exceeded) {
             return false;
         }
-        if (count($this->dirs) === 0 && count($this->files) === 0) {
-            return false;
-        }
+        return count($this->dirs) > 0 || count($this->files) > 0;
+    }
 
-        return match ($type) {
+    // Writes the prepared archive. False when it could not be completed;
+    // output may already have started, see headers_sent().
+    public function stream(): bool {
+        return match ($this->type) {
             'php-tar' => $this->php_tar($this->dirs, $this->files),
             'shell-tar' => $this->shell_cmd(self::$TAR_PASSTHRU_CMD),
             'shell-zip' => $this->shell_cmd(self::$ZIP_PASSTHRU_CMD),

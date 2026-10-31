@@ -45,4 +45,10 @@ final class ArchiveStreamTest extends H5aiTestCase {
         self::assertSame(0, $status);
         self::assertSame(['root', 'root/entry.bin'], $listing);
     }
+
+    public function testNothingIsStreamedWithoutAPreparedSelection(): void {
+        [$ok, $output] = self::captureOutput(fn(): bool => $this->archive->stream());
+        self::assertFalse($ok);
+        self::assertSame('', $output);
+    }
 }

@@ -7,6 +7,7 @@ declare(strict_types=1);
 final class HttpApiTest extends H5aiTestCase {
     private $server = null;
     private string $url;
+    private array $lastHeaders = [];
 
     protected function setUp(): void {
         parent::setUp();
@@ -28,12 +29,14 @@ final class HttpApiTest extends H5aiTestCase {
         $address = stream_socket_get_name($socket, false);
         fclose($socket);
         $log = $this->tmp . '/server.log';
+        // Buffered like the Docker image (custom.ini), and with $tmp/bin first
+        // on PATH so tests can replace tar.
         $this->server = proc_open(
-            [PHP_BINARY, '-S', $address, __DIR__ . '/fixtures/api.php'],
+            [PHP_BINARY, '-d', 'output_buffering=4096', '-S', $address, __DIR__ . '/fixtures/api.php'],
             [0 => ['pipe', 'r'], 1 => ['file', $log, 'a'], 2 => ['file', $log, 'a']],
             $pipes,
             null,
-            ['H5AI_TEST_ROOT' => $this->root()],
+            ['H5AI_TEST_ROOT' => $this->root(), 'PATH' => $this->tmp . '/bin:' . getenv('PATH')],
         );
         self::assertIsResource($this->server, 'cannot start the HTTP test server');
         fclose($pipes[0]);
@@ -66,7 +69,7 @@ final class HttpApiTest extends H5aiTestCase {
             'ignore_errors' => true,
         ]]));
         self::assertIsString($result, 'HTTP request failed');
-        $headers = http_get_last_response_headers() ?? [];
+        $headers = $this->lastHeaders = http_get_last_response_headers() ?? [];
         self::assertStringStartsWith('HTTP/1.1 200', $headers[0] ?? '');
         foreach ($headers as $header) {
             if (preg_match('/^Content-Length: (\d+)$/i', $header, $match)) {
@@ -141,6 +144,37 @@ final class HttpApiTest extends H5aiTestCase {
         }
         $response = $this->post('{"action":', 'application/json', '?action=download');
         self::assertStringContainsString(Util::ERR_ILLIGAL_PARAM, $response, 'malformed JSON must not fall back to query parameters');
+    }
+
+    private function sentAttachment(): bool {
+        return array_any($this->lastHeaders, static fn(string $header): bool => stripos($header, 'Content-Disposition: attachment') === 0);
+    }
+
+    private function shellTarDownload(): string {
+        return $this->post(http_build_query(['type' => 'shell-tar', 'hrefs' => '/inside.txt'] + self::DOWNLOAD), 'application/x-www-form-urlencoded');
+    }
+
+    public function testAnEmptyOrInvalidSelectionIsAnErrorNotAnAttachment(): void {
+        $response = $this->post(http_build_query(['hrefs' => '/missing.txt'] + self::DOWNLOAD), 'application/x-www-form-urlencoded');
+        self::assertSame(Util::ERR_FAILED, json_decode($response, true)['err'] ?? null);
+        self::assertFalse($this->sentAttachment(), 'an error must not be offered as a download');
+    }
+
+    public function testAnArchiverFailingBeforeOutputIsAnError(): void {
+        $this->fakeTools(['tar' => 'exit 2']);
+        self::assertSame(Util::ERR_FAILED, json_decode($this->shellTarDownload(), true)['err'] ?? null);
+        self::assertFalse($this->sentAttachment());
+    }
+
+    // Once the archiver has written anything, its first flush() has sent the
+    // headers: the download has started for the client, whatever the size.
+    public function testAnArchiverFailingAfterWritingIsNotAppendedTo(): void {
+        foreach ([100, 10000] as $written) {
+            $this->fakeTools(['tar' => "head -c {$written} /dev/zero\nexit 2"]);
+            $response = $this->shellTarDownload();
+            self::assertTrue($this->sentAttachment(), "{$written} bytes: the download had started");
+            self::assertSame(str_repeat("\0", $written), $response, "{$written} bytes: no error may be appended");
+        }
     }
 
     public function testArchivesKeepLongAndNonAsciiNames(): void {

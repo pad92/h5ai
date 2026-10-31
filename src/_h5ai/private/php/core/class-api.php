@@ -38,15 +38,28 @@ class Api {
         $as = preg_replace('/[^\w.\-]/', '_', $as);
 
         $archive = new Archive($this->context);
+        Util::json_fail(Util::ERR_FAILED, 'nothing to package', !$archive->prepare($type, $base_href, $hrefs));
 
         set_time_limit(max(1, (int) $this->context->query_option('download.timeout', 300)));
         session_write_close();
         header('Content-Type: application/octet-stream');
         header('Content-Disposition: attachment; filename="' . $as . '"');
         header('Connection: close');
-        $ok = $archive->output($type, $base_href, $hrefs);
-
-        Util::json_fail(Util::ERR_FAILED, 'packaging failed', !$ok);
+        if (!$archive->stream()) {
+            // The first flush() sends the headers. Until then nothing reached
+            // the client (php-tar may have buffered some bytes), so the answer
+            // can still become an error instead of an attachment. Afterwards,
+            // appending JSON would only corrupt the archive: the client gets a
+            // truncated download.
+            if (!headers_sent()) {
+                while (ob_get_level() > 0) {
+                    ob_end_clean();
+                }
+                header_remove('Content-Disposition');
+                Util::json_fail(Util::ERR_FAILED, 'packaging failed');
+            }
+            Util::log('archive: download of ' . $as . ' failed after it started');
+        }
         exit;
     }
 

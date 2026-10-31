@@ -70,8 +70,9 @@ final class PathPolicyTest extends H5aiTestCase {
 
     public function testAnInvalidSelectionDoesNotArchiveTheWholeFolder(): void {
         $archive = new Archive($this->context);
-        $archive->output('unsupported', '/', ['/outside-link.txt']);
+        self::assertFalse($archive->prepare('php-tar', '/', ['/outside-link.txt']));
         self::assertSame([], (new ReflectionProperty($archive, 'dirs'))->getValue($archive));
+        self::assertFalse($archive->prepare('unsupported', '/', ['/inside.txt']), 'an unknown archive type must be refused before streaming');
     }
 
     public function testWholeFolderArchivesEnforceTheEntryLimit(): void {
