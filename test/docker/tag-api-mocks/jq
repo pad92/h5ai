@@ -1,0 +1,20 @@
+#!/bin/sh
+
+set -eu
+
+while [ "${1#-}" != "$1" ]; do shift; done
+expression=$1
+file=$2
+page=$(sed -n 's/^page=//p' "$file")
+case "$expression" in
+    'type == "array"') printf 'true\n' ;;
+    length)
+        eval "count=\${TAG_PAGE${page}_COUNT}"
+        printf '%s\n' "$count"
+        ;;
+    '.[].name')
+        eval "names=\${TAG_PAGE${page}_NAMES}"
+        printf '%s\n' "$names" | tr ' ' '\n' | sed '/^$/d'
+        ;;
+    *) echo "unexpected jq expression: $expression" >&2; exit 2 ;;
+esac

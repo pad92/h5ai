@@ -57,7 +57,7 @@ might work on other configurations):
 
 A ready-to-use Docker image is published to Docker Hub as [`pad92/docker-h5ai`][dockerhub].
 It runs on Angie 1.11+ (Alpine) and PHP 8.4, with s6-overlay as the process supervisor.
-Docker Hub protects tags matching `^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9]+)?$` from changes. Tags such as `latest`, `devel`, and major or minor aliases remain movable.
+Docker Hub protects tags matching `^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9]+)?$` from changes. Stable releases update `latest` and the major/minor aliases only when they are the newest stable Git tag. Prereleases keep their versioned tags and leave stable aliases unchanged. The `devel` tag follows `master`.
 
 [![Docker Pulls](https://img.shields.io/docker/pulls/pad92/docker-h5ai.svg)](https://hub.docker.com/r/pad92/docker-h5ai/)
 
