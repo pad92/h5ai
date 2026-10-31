@@ -204,7 +204,7 @@ Defines default sorting criteria.
 #### `thumbnails`
 Generates preview thumbnails for images, videos, and document files.
 > [!NOTE]
-> For document/video thumbnails, the server requires helper binaries (e.g., `ffmpeg`, `convert`) as listed in the requirements. The `_h5ai/private/cache` directory must also be writable by the web server.
+> For document/video thumbnails, the server requires helper binaries (e.g., `ffmpeg`, `magick`) as listed in the requirements. The `_h5ai/private/cache` directory must also be writable by the web server.
 - `enabled` (default: `true`).
 - `img`: Array of image types to generate thumbnails for.
 - `mov`: Array of video types to generate thumbnails for.

@@ -2,7 +2,7 @@
 
 class Setup {
     // Command-line tools whose availability is probed and cached in cmds.json.
-    private const SYS_CMDS = ['avconv', 'avprobe', 'convert', 'du', 'ffmpeg', 'ffprobe', 'gm', 'tar', 'zip'];
+    private const SYS_CMDS = ['avconv', 'avprobe', 'convert', 'du', 'ffmpeg', 'ffprobe', 'gm', 'magick', 'tar', 'zip'];
     private const LOOKUP_CMDS = ['command', 'which', 'where'];
 
     private array $store = [];
@@ -108,7 +108,7 @@ class Setup {
         $this->set('CONF_PATH', Util::normalize_path($this->get('PRIVATE_PATH') . '/conf', false));
 
         // Apply the hardened ImageMagick policy (conf/magick/policy.xml) to both the
-        // Imagick PHP extension and the convert/gm CLI tools used for thumbnails.
+        // Imagick PHP extension and the magick/convert CLI tools used for thumbnails.
         // Must be set before ImageMagick initializes; Setup is built early in every entry point.
         $magick_conf = $this->get('CONF_PATH') . '/magick';
         if (is_dir($magick_conf)) {
@@ -177,6 +177,7 @@ class Setup {
                 'HAS_CMD_FFMPEG',
                 'HAS_CMD_FFPROBE',
                 'HAS_CMD_GM',
+                'HAS_CMD_MAGICK',
                 'HAS_CMD_TAR',
                 'HAS_CMD_ZIP',
             ];

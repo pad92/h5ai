@@ -140,7 +140,8 @@ class CacheDB {
         $hash |= ($this->setup->get('HAS_CMD_FFMPEG')
                || $this->setup->get('HAS_CMD_AVCONV')) ? 0b1000 : 0;
         $hash |= ($this->setup->get('HAS_CMD_GM')
-               || $this->setup->get('HAS_CMD_CONVERT')) ? 0b10000 : 0;
+               || $this->setup->get('HAS_CMD_CONVERT')
+               || $this->setup->get('HAS_CMD_MAGICK')) ? 0b10000 : 0;
         $this->version = $hash;
         return $hash;
     }

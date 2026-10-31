@@ -50,7 +50,7 @@ abstract class H5aiTestCase extends TestCase {
             'CACHE_PUB_HREF' => '/_h5ai/public/cache/', 'FILE_PREFIX' => '_h5ai',
             'HAS_PHP_WEBP' => false, 'HAS_PHP_EXIF' => false, 'HAS_PHP_FILEINFO' => false,
             'HAS_PHP_ZIP' => false, 'HAS_PHP_RAR' => false,
-            'HAS_CMD_DU' => false, 'HAS_CMD_CONVERT' => false, 'HAS_CMD_GM' => false,
+            'HAS_CMD_DU' => false, 'HAS_CMD_MAGICK' => false, 'HAS_CMD_CONVERT' => false, 'HAS_CMD_GM' => false,
             'HAS_CMD_FFMPEG' => false, 'HAS_CMD_FFPROBE' => false,
             'HAS_CMD_AVCONV' => false, 'HAS_CMD_AVPROBE' => false,
         ];

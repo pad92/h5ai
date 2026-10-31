@@ -121,12 +121,12 @@ h5ai caches the command-line tools it finds in `_h5ai/private/cache/cmds.json`. 
 * **Fileinfo module**: Checks if the PHP Fileinfo module is active (used for determining file MIME types safely).
 * **Use EXIF thumbs**: Checks for the PHP `exif` module. When active, h5ai extracts embedded JPEG preview thumbnails from photos directly instead of decoding the full image, which is much faster.
 * **Video thumbs**: Verifies command line program `ffmpeg` or `avconv` is installed on the host. Required to capture frame previews from videos.
-* **PDF thumbs**: Verifies hardened ImageMagick `convert` is installed. Rendering PDF and PostScript files also needs Ghostscript (`gs`), which this check does not detect. GraphicsMagick is available only as an explicit compatibility fallback with `thumbnails.allowGraphicsMagick`; it does not use the bundled security policy.
+* **PDF thumbs**: Verifies hardened ImageMagick is installed: `magick` (ImageMagick 7), or `convert` on ImageMagick 6 hosts. h5ai uses `magick` whenever it is available. Rendering PDF and PostScript files also needs Ghostscript (`gs`), which this check does not detect. GraphicsMagick is available only as an explicit compatibility fallback with `thumbnails.allowGraphicsMagick`; it does not use the bundled security policy.
 
 > [!NOTE]
 > **Media-processor hardening (SSRF/LFI).** Because thumbnails are generated from user-supplied files, h5ai applies defense-in-depth against crafted media that tries to make the processor reach the network or read arbitrary local files:
 > - `ffmpeg`/`avconv` are invoked with `-protocol_whitelist file,crypto,data`, blocking remote (e.g. HLS/concat/playlist) fetches.
-> - A restrictive ImageMagick policy is shipped at `_h5ai/private/conf/magick/policy.xml` and activated via the `MAGICK_CONFIGURE_PATH` environment variable (set automatically; it applies to the Imagick PHP extension and `convert`). It disables risky coders (`URL`, `HTTPS`, `MSL`, `SVG`, `MVG`, `EPHEMERAL`, ...) and external delegates, with one exception: `PDF`/PostScript stay readable and the Ghostscript delegate stays enabled so the documented `doc` thumbnails keep working. GraphicsMagick `gm` does not read this policy and is therefore disabled by default. Do not enable it or relax the policy unless you fully trust every file served. You can verify the ImageMagick policy with `MAGICK_CONFIGURE_PATH=/path/to/_h5ai/private/conf/magick magick -list policy`.
+> - A restrictive ImageMagick policy is shipped at `_h5ai/private/conf/magick/policy.xml` and activated via the `MAGICK_CONFIGURE_PATH` environment variable (set automatically; it applies to the Imagick PHP extension and to `magick`/`convert`). It disables risky coders (`URL`, `HTTPS`, `MSL`, `SVG`, `MVG`, `EPHEMERAL`, ...) and external delegates, with one exception: `PDF`/PostScript stay readable and the Ghostscript delegate stays enabled so the documented `doc` thumbnails keep working. GraphicsMagick `gm` does not read this policy and is therefore disabled by default. Do not enable it or relax the policy unless you fully trust every file served. You can verify the ImageMagick policy with `MAGICK_CONFIGURE_PATH=/path/to/_h5ai/private/conf/magick magick -list policy`.
 
 ### Utility checks
 
@@ -137,7 +137,7 @@ h5ai caches the command-line tools it finds in `_h5ai/private/cache/cmds.json`. 
 
 ## 5. Troubleshooting command line utilities
 
-If a CLI-based tool (like `ffmpeg`, `convert`, `zip`, `tar`, or `du`) shows a failure status, verify that:
+If a CLI-based tool (like `ffmpeg`, `magick`, `zip`, `tar`, or `du`) shows a failure status, verify that:
 1. The binary is installed on the host system (e.g., via `apt install ffmpeg imagemagick zip tar`).
 2. The web server process user has permission to execute the binary.
 3. Your PHP configuration has **not** disabled command execution functions (such as `exec` or `passthru`) in your `php.ini`:

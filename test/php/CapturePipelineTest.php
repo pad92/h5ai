@@ -33,6 +33,23 @@ final class CapturePipelineTest extends H5aiTestCase {
         self::assertSame(0, $this->toolRuns('ffmpeg'), 'a document recognised by name and content must not be tried as a video');
     }
 
+    // ImageMagick 7 hosts run `magick`; `convert` is only the IM6 fallback.
+    public function testDocumentsAreRenderedWithMagickWhenAvailable(): void {
+        $this->fakeTools(['magick' => "printf 'not an image'"]);
+        $context = $this->context(
+            ['thumbnails' => ['enabled' => true]],
+            ['HAS_CMD_MAGICK' => true, 'HAS_CMD_CONVERT' => true],
+            ['x-pdf' => ['glob' => ['*.pdf']]],
+        );
+        (new Thumb($context, $this->root('doc.pdf'), 'x-pdf'))->thumb(320, 240);
+        self::assertSame(0, $this->toolRuns('convert'));
+        self::assertSame(
+            '-density 200 ' . $this->root('doc.pdf') . "[0] -quality 100 -strip WEBP:-\n",
+            $this->toolLog('magick'),
+            'operators must follow the input image for ImageMagick 7',
+        );
+    }
+
     public function testAFileSentWithAnUnknownTypeIsIdentifiedByName(): void {
         $this->thumb('doc.pdf', 'file')->thumb(320, 240);
         self::assertSame(1, $this->toolRuns('convert'));

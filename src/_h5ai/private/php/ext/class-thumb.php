@@ -12,7 +12,11 @@ class Thumb {
     const AVPROBE_CMDV = ['avprobe', '-v', 'warning', '-protocol_whitelist', 'file,crypto,data', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', '[H5AI_SRC]'];
     const FFMPEG_AUD_CMDV = ['ffmpeg', '-v', 'warning', '-nostdin', '-y', '-hide_banner', '-protocol_whitelist', 'file,crypto,data', '-i', '[H5AI_SRC]', '-an', '-vframes', '1', '-f', 'image2', '-'];
     const AVCONV_AUD_CMDV = ['avconv', '-v', 'warning', '-nostdin', '-y', '-hide_banner', '-protocol_whitelist', 'file,crypto,data', '-i', '[H5AI_SRC]', '-an', '-vframes', '1', '-f', 'image2', '-'];
-    const CONVERT_CMDV = ['convert', '-density', '200', '-quality', '100', '-strip', '[H5AI_SRC][0]', 'WEBP:-'];
+    // ImageMagick 7 runs as `magick`; `convert` is its deprecated name and the
+    // only one on ImageMagick 6 hosts. Settings, input, operators, output: an
+    // order both versions accept.
+    const MAGICK_CMDV = ['magick', '-density', '200', '[H5AI_SRC][0]', '-quality', '100', '-strip', 'WEBP:-'];
+    const CONVERT_CMDV = ['convert', '-density', '200', '[H5AI_SRC][0]', '-quality', '100', '-strip', 'WEBP:-'];
     const GM_CONVERT_CMDV = ['gm', 'convert', '-density', '200', '-quality', '100', '-strip', '[H5AI_SRC][0]', 'WEBP:-'];
     const THUMB_CACHE = 'thumbs';
     const IMG_EXT = ['jpg', 'jpe', 'jpeg', 'jp2', 'jpx', 'tiff', 'webp', 'ico', 'png', 'bmp', 'gif'];
@@ -333,6 +337,9 @@ class Thumb {
 
     private function capture_doc(): bool {
         try {
+            if ($this->setup->get('HAS_CMD_MAGICK')) {
+                return $this->do_capture(self::MAGICK_CMDV);
+            }
             if ($this->setup->get('HAS_CMD_CONVERT')) {
                 return $this->do_capture(self::CONVERT_CMDV);
             }
@@ -480,7 +487,7 @@ class Thumb {
     }
 
     // Output formats of the capture commands: ffmpeg/avconv write JPEG
-    // (image2 muxer), convert/gm write WebP (see CONVERT_CMDV).
+    // (image2 muxer), magick/convert/gm write WebP (see MAGICK_CMDV).
     public static function has_capture_signature(string $head): bool {
         return str_starts_with($head, "\xFF\xD8\xFF")
             || (str_starts_with($head, 'RIFF') && substr($head, 8, 4) === 'WEBP');

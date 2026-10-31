@@ -26,7 +26,7 @@ This repository is a detached fork of the original [h5ai](https://github.com/lrs
   * `exif` enables embedded-thumbnail extraction and EXIF orientation handling where supported.
 * Command-line helpers are needed only for the corresponding configured feature or backend:
   * `ffmpeg` or `avconv` for video and audio thumbnails, with `ffprobe` or `avprobe` to pick a frame at `thumbnails.seek`; without a probe the frame at 0.1 seconds is used.
-  * ImageMagick (`convert`) with Ghostscript (`gs`) for document thumbnails such as PDF: ImageMagick hands PDF and PostScript files to Ghostscript. GraphicsMagick is an opt-in compatibility fallback and does not use the bundled ImageMagick policy.
+  * ImageMagick (`magick`, or `convert` on ImageMagick 6) with Ghostscript (`gs`) for document thumbnails such as PDF: ImageMagick hands PDF and PostScript files to Ghostscript. GraphicsMagick is an opt-in compatibility fallback and does not use the bundled ImageMagick policy.
   * `tar` and `zip` for downloads configured to use those command-line archive formats; the PHP TAR writer does not need them.
   * `du` for folder sizes when `foldersize.type` is `shell-du`.
 

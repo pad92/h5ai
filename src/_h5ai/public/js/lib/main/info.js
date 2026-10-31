@@ -1,6 +1,7 @@
 const {dom} = require('../util');
 const config = require('../config');
 const server = require('../server');
+const {canRenderDocuments} = require('./info-checks');
 require('../ext/theme');
 
 
@@ -123,8 +124,8 @@ const addTests = () => {
     );
 
     addTest(
-        'PDF thumbs', 'Hardened ImageMagick <code>convert</code> available',
-        setup.HAS_CMD_CONVERT || thumbnails && thumbnails.allowGraphicsMagick && setup.HAS_CMD_GM
+        'PDF thumbs', 'Hardened ImageMagick <code>magick</code> (or <code>convert</code> on ImageMagick 6) available',
+        canRenderDocuments(setup, thumbnails)
     );
 
     addTest(

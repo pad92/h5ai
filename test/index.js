@@ -24,5 +24,6 @@ require('./tests/unit/util/media');
 require('./tests/unit/preview-md');
 require('./tests/unit/types-md');
 require('./tests/unit/server');
+require('./tests/unit/main/infoChecks');
 
 pin_html();

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 // Setup fails loudly and keeps its command cache (cmds.json) current.
 final class SetupTest extends H5aiTestCase {
-    private const ALL_CMDS = ['command', 'which', 'where', 'avconv', 'avprobe', 'convert', 'du', 'ffmpeg', 'ffprobe', 'gm', 'tar', 'zip'];
+    private const ALL_CMDS = ['command', 'which', 'where', 'avconv', 'avprobe', 'convert', 'du', 'ffmpeg', 'ffprobe', 'gm', 'magick', 'tar', 'zip'];
 
     private ReflectionClass $class;
 
@@ -50,6 +50,7 @@ final class SetupTest extends H5aiTestCase {
         $setup = $this->probedSetup();
         self::assertIsBool($setup->get('HAS_CMD_FFPROBE'));
         self::assertIsBool($setup->get('HAS_CMD_AVPROBE'));
+        self::assertIsBool($setup->get('HAS_CMD_MAGICK'));
     }
 
     public function testACompleteCommandCacheIsReusedAsIs(): void {
@@ -73,5 +74,6 @@ final class SetupTest extends H5aiTestCase {
         $info = $setup->to_jsono(true);
         self::assertArrayHasKey('HAS_CMD_FFPROBE', $info);
         self::assertArrayHasKey('HAS_CMD_AVPROBE', $info);
+        self::assertArrayHasKey('HAS_CMD_MAGICK', $info);
     }
 }
