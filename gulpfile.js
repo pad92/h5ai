@@ -55,8 +55,8 @@ const WEBPACK_CFG = {
     devtool: isProduction ? false : 'source-map'
 };
 
-let version = pkg.version;
-if (!isProduction) {
+let version = process.env.H5AI_VERSION || pkg.version;
+if (!process.env.H5AI_VERSION && !isProduction) {
     try {
         const hashes = execSync(`git rev-list v${pkg.version}..HEAD`, {encoding: 'utf8'}).split(/\r?\n/).filter(x => x);
         if (hashes.length) {
@@ -93,7 +93,7 @@ const buildStyles = () => src(path.join(SRC, '_h5ai/public/css/styles.less'))
     .pipe(dest(path.join(BUILD, '_h5ai/public/css')));
 
 const buildPhpFromPug = () => src(`${SRC}/**/*.php.pug`)
-    .pipe(pug({locals: {pkg}}))
+    .pipe(pug({locals: {pkg: {...pkg, version}}}))
     .pipe(rename(p => { p.extname = ''; }))
     .pipe(footer(comment_html))
     .pipe(dest(BUILD));

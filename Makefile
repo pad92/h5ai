@@ -105,7 +105,7 @@ endef
 
 docker-build:
 	docker buildx build --load --tag $(TEST_IMAGE) \
-		--build-arg H5AI_VERSION=$$(sed -n 's/.*"version":[[:space:]]*"\([^"]*\)".*/\1/p' package.json | head -n1) \
+		--build-arg H5AI_VERSION=$$(if [ "$$(git branch --show-current)" = "master" ]; then git rev-parse --short HEAD; else sed -n 's/.*"version":[[:space:]]*"\([^"]*\)".*/\1/p' package.json | head -n1; fi) \
 		--build-arg BUILD_DATE=$$(date -u +%Y-%m-%dT%H:%M:%SZ) \
 		--build-arg BUILD_VCSREF=$$(git rev-parse --short HEAD) \
 		.
