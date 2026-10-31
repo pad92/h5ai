@@ -2,6 +2,7 @@
 
 ## v1.3.7 - *2026-10-31*
 
+* **Docker startup**: moved the `user` s6 bundle to the supported `user-bundles.d` layout.
 * **Docker development builds**: display the branch name in the h5ai version label; tagged releases retain the package version.
 * **CI coverage**: JavaScript and PHP tests now generate Cobertura reports. The GitLab coverage badge uses combined line counts, including untested source files. PHP coverage excludes the separate HTTP server processes.
 

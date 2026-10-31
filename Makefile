@@ -118,6 +118,7 @@ docker-grype: docker-build
 		$(GRYPE_IMAGE) docker:$(TEST_IMAGE) --only-fixed --fail-on high
 
 docker-test: docker-build
+	sh test/docker/s6-config.sh
 	@echo "Testing container without authentication..."
 	$(TEST_RUN) --name h5ai-test-noauth $(TEST_IMAGE)
 	$(call wait_for_http,,HTTP/1.1 200 OK,✓ Public index page returned 200 OK,✗ Public index page test failed,h5ai-test-noauth)
@@ -243,6 +244,9 @@ docker-test: docker-build
 	docker rm -f h5ai-test-realip
 
 	@echo "All tests passed successfully!"
+
+test-docker-config:
+	sh test/docker/s6-config.sh
 
 docker-clean:
 	docker rm -f $(TEST_CONTAINERS) 2>/dev/null || true
