@@ -16,11 +16,12 @@ class Search {
         if ($depth > $max_depth || count($paths) >= $max_results) {
             return $paths;
         }
+        // $visited is keyed by real path: one lookup per folder, not a scan.
         $real_root = realpath($root) ?: $root;
-        if (in_array($real_root, $visited, true)) {
-            return [];
+        if (isset($visited[$real_root])) {
+            return $paths;
         }
-        $visited[] = $real_root;
+        $visited[$real_root] = true;
 
         $max_pattern_length = max(1, (int) $this->context->query_option('search.maxPatternLength', 256));
         if (!$pattern || strlen($pattern) > $max_pattern_length || !$this->context->is_managed_path($root)) {

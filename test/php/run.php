@@ -417,7 +417,7 @@ $dirMtime = filemtime($sizeDir);
 $persistentCache = new ReflectionProperty(Filesize::class, 'persistent_cache');
 $requestCache = new ReflectionProperty(Filesize::class, 'cache');
 $persistentCache->setValue(null, [
-    $sizeDir => ['size' => 5, 'cached_at' => time() - Filesize::CACHE_TTL - 1, 'dirs' => [$sizeDir => $dirMtime]],
+    $sizeDir => ['size' => 5, 'cached_at' => time() - Filesize::CACHE_TTL - 1, 'mtime' => $dirMtime, 'children' => []],
 ]);
 $requestCache->setValue(null, []);
 Filesize::set_async_mode(true);
@@ -441,7 +441,7 @@ check(
 );
 
 $persistentCache->setValue(null, [
-    $sizeDir => ['size' => filesize($sizeFile), 'cached_at' => time() - Filesize::CACHE_TTL - 1, 'dirs' => [$sizeDir => $dirMtime]],
+    $sizeDir => ['size' => filesize($sizeFile), 'cached_at' => time() - Filesize::CACHE_TTL - 1, 'mtime' => $dirMtime, 'children' => []],
 ]);
 $requestCache->setValue(null, []);
 file_put_contents($sizeFile, 'x');
@@ -487,4 +487,5 @@ echo "PHP security tests passed\n";
 require __DIR__ . '/formats.php';
 require __DIR__ . '/robustness.php';
 require __DIR__ . '/structure.php';
+require __DIR__ . '/foldersizes.php';
 require __DIR__ . '/http.php';

@@ -213,11 +213,12 @@ class Archive {
     }
 
     private function add_dir(string $real_dir, string $archived_dir, array &$visited = []): void {
+        // Keyed by real path: a lookup per folder must not scan every folder seen.
         $real_path = realpath($real_dir) ?: $real_dir;
-        if (in_array($real_path, $visited, true)) {
+        if (isset($visited[$real_path])) {
             return;
         }
-        $visited[] = $real_path;
+        $visited[$real_path] = true;
 
         if (!$this->context->is_managed_path($real_dir)) {
             return;

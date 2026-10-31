@@ -65,6 +65,9 @@ class Filesize {
         foreach (self::$dirty_entries as $entry_path => $entry) {
             $current[$entry_path] = $entry;
         }
+        // Expired entries are never served again, only recomputed: dropping
+        // them keeps the file, decoded by every listing, to recent activity.
+        $current = array_filter($current, self::is_cache_entry_fresh(...));
 
         $tmp = @tempnam($dir, 'foldersizes.');
         $json = json_encode($current);
@@ -80,21 +83,26 @@ class Filesize {
         fclose($lock);
     }
 
-    public static function set_persistent_cache_entry(string $path, int $size, array $dirs): void {
+    // An entry holds a folder's total size, its own mtime and its direct
+    // subfolders. Every subfolder has an entry of its own, written in the same
+    // pass, so validating a folder walks its subtree through those entries
+    // and the file stays linear in the number of folders.
+    public static function set_persistent_cache_entry(string $path, int $size, array $children): void {
         self::init_persistent_cache();
         self::$persistent_cache[$path] = [
             'size' => $size,
             'mtime' => @filemtime($path),
             'cached_at' => time(),
-            'dirs' => $dirs,
+            'children' => array_values($children),
         ];
         self::$dirty_entries[$path] = self::$persistent_cache[$path];
         self::$persistent_cache_dirty = true;
     }
 
     private static function is_cache_entry_fresh(mixed $entry): bool {
-        if (!is_array($entry) || !isset($entry['size'], $entry['cached_at'], $entry['dirs'])
-            || !is_int($entry['size']) || !is_int($entry['cached_at']) || !is_array($entry['dirs'])) {
+        if (!is_array($entry) || !isset($entry['size'], $entry['cached_at'], $entry['children'])
+            || !is_int($entry['size']) || !is_int($entry['cached_at']) || !is_array($entry['children'])
+            || !array_key_exists('mtime', $entry)) {
             return false;
         }
         if ($entry['cached_at'] > time() || time() - $entry['cached_at'] > self::CACHE_TTL) {
@@ -103,14 +111,15 @@ class Filesize {
         return true;
     }
 
-    private static function is_cache_entry_valid(mixed $entry): bool {
-        if (!self::is_cache_entry_fresh($entry)) {
+    // Fresh, and neither the folder nor any folder below it changed its
+    // entries since: an added, removed or renamed entry changes the mtime of
+    // the folder holding it.
+    private static function is_cache_entry_valid(string $path): bool {
+        $entry = self::$persistent_cache[$path] ?? null;
+        if (!self::is_cache_entry_fresh($entry) || !is_dir($path) || @filemtime($path) !== $entry['mtime']) {
             return false;
         }
-        return array_all(
-            $entry['dirs'],
-            fn(int|false $cached_mtime, string $dir_path): bool => is_dir($dir_path) && @filemtime($dir_path) === $cached_mtime,
-        );
+        return array_all($entry['children'], static fn(mixed $child): bool => is_string($child) && self::is_cache_entry_valid($child));
     }
 
     public static function getSize(string $path, bool $withFoldersize, bool $withDu, int $timeout = self::DEFAULT_TIMEOUT): ?int {
@@ -174,11 +183,8 @@ class Filesize {
 
         if (is_dir($path) && $withFoldersize) {
             self::init_persistent_cache();
-            if (array_key_exists($path, self::$persistent_cache)) {
-                $entry = self::$persistent_cache[$path];
-                if (self::is_cache_entry_valid($entry)) {
-                    return self::$cache[$path] = $entry['size'];
-                }
+            if (self::is_cache_entry_valid($path)) {
+                return self::$cache[$path] = self::$persistent_cache[$path]['size'];
             }
         }
 
@@ -201,59 +207,33 @@ class Filesize {
         return $paths;
     }
 
-    private function php_filesize(string $path, bool $recursive = false, array &$dirs = [], array &$visited = []): int|false {
+    // Size of a folder walked in PHP, reusing the valid entries of its
+    // subfolders and caching every folder it had to walk. Returns null for a
+    // folder already counted through another path (bind mount, ...).
+    private function php_folder_size(string $path, array &$visited): ?int {
         $real_path = realpath($path) ?: $path;
-        if (in_array($real_path, $visited, true)) {
-            return 0;
+        if (isset($visited[$real_path])) {
+            return null;
         }
-        $visited[] = $real_path;
+        $visited[$real_path] = true;
 
-        $size = @filesize($path);
-
-        if (!is_dir($path)) {
-            return $size;
-        }
-
-        // From here on $size is an accumulator: a failed filesize() on the
-        // directory itself must not leak `false` into the summed result.
-        if ($size === false) {
-            $size = 0;
-        }
-
-        $dirs[$path] = @filemtime($path);
-
-        if (!$recursive) {
-            return $size;
-        }
-
-        self::init_persistent_cache();
-
-        foreach ($this->read_dir($path) as $p) {
-            if (is_dir($p) && !is_link($p)) {
-                if (array_key_exists($p, self::$persistent_cache)) {
-                    $entry = self::$persistent_cache[$p];
-                    if (self::is_cache_entry_valid($entry)) {
-                        $size += $entry['size'];
-                        foreach ($entry['dirs'] as $d => $mt) {
-                            $dirs[$d] = $mt;
-                        }
-                        continue;
-                    }
-                }
-
-                $sub_dirs = [];
-                $sub_size = $this->php_filesize($p, true, $sub_dirs, $visited);
-                $size += $sub_size;
-
-                self::set_persistent_cache_entry($p, $sub_size, $sub_dirs);
-
-                foreach ($sub_dirs as $d => $mt) {
-                    $dirs[$d] = $mt;
-                }
-            } else {
-                $size += @filesize($p);
+        $size = (int) @filesize($path);
+        $children = [];
+        foreach ($this->read_dir($path) as $child) {
+            if (!is_dir($child) || is_link($child)) {
+                $size += (int) @filesize($child);
+                continue;
             }
+            $child_size = self::is_cache_entry_valid($child)
+                ? self::$persistent_cache[$child]['size']
+                : $this->php_folder_size($child, $visited);
+            if ($child_size === null) {
+                continue;
+            }
+            $size += $child_size;
+            $children[] = $child;
         }
+        self::set_persistent_cache_entry($path, $size, $children);
         return $size;
     }
 
@@ -299,73 +279,64 @@ class Filesize {
         return $sizes;
     }
 
-    // Derive the [dir => mtime] cache-validation map for $path straight from a
-    // du subtree map: du already enumerated every descendant directory, so we
-    // only need to stat directories instead of re-walking the whole tree.
-    private function dirs_from_tree(string $path, array $tree): array {
-        $prefix = $path . '/';
-        $dirs = [];
+    // Caches every folder of a du map: du already measured each of them.
+    private static function persist_tree(array $tree): void {
+        $children = [];
         foreach (array_keys($tree) as $dir) {
-            if ($dir === $path || str_starts_with($dir, $prefix)) {
-                $dirs[$dir] = @filemtime($dir);
+            $parent = dirname($dir);
+            if ($parent !== $dir && isset($tree[$parent])) {
+                $children[$parent][] = $dir;
             }
         }
-        if (!isset($dirs[$path])) {
-            $dirs[$path] = @filemtime($path);
+        foreach ($tree as $dir => $size) {
+            self::set_persistent_cache_entry($dir, $size, $children[$dir] ?? []);
+            self::$cache[$dir] = $size;
         }
-        return $dirs;
     }
 
     // Compute and cache folder sizes for several paths with a single du call.
+    // A path du could not measure (permissions, vanished folder, timeout)
+    // keeps whatever entry it had: no bogus 0 is persisted.
     public static function refresh_du(array $paths, int $timeout = self::DEFAULT_TIMEOUT): void {
-        new self($timeout)->batch_du($paths);
+        $paths = array_values(array_filter($paths, is_dir(...)));
+        if ($paths !== []) {
+            self::persist_tree(new self($timeout)->du_tree($paths));
+        }
     }
 
-    private function batch_du(array $paths): void {
-        $paths = array_values(array_filter($paths, is_dir(...)));
-        if (empty($paths)) {
-            return;
+    // Caches the size of every folder below $root in one pass that reads
+    // each folder once: a single du over the whole tree, or a PHP walk that
+    // reuses still-valid subfolder entries. A du pass cut short by the
+    // timeout caches nothing, as a partial tree would understate sizes.
+    public static function refresh_tree(string $root, bool $withDu, int $timeout = self::DEFAULT_BACKGROUND_TIMEOUT): ?int {
+        self::init_persistent_cache();
+        $sizer = new self($timeout);
+        if ($withDu) {
+            $tree = $sizer->du_tree([$root]);
+            self::persist_tree($tree);
+            return $tree[$root] ?? null;
         }
-        $tree = $this->du_tree($paths);
-        foreach ($paths as $path) {
-            if (!isset($tree[$path])) {
-                // du produced no size for this path (permissions, vanished
-                // folder, ...): do not persist a bogus 0, keep the previous
-                // cache entry so a stale-but-real size is served instead.
-                continue;
-            }
-            $size = $tree[$path];
-            $dirs = $this->dirs_from_tree($path, $tree);
-            self::set_persistent_cache_entry($path, $size, $dirs);
-            self::$cache[$path] = $size;
-        }
+        $visited = [];
+        return self::$cache[$root] = $sizer->php_folder_size($root, $visited);
     }
 
     private function size(string $path, bool $withFoldersize = false, bool $withDu = false): ?int {
         if (is_file($path)) {
-            $size = $this->php_filesize($path);
             // filesize() can fail (race with a deletion, permissions):
             // report "unknown" instead of fataling on the ?int return type.
+            $size = @filesize($path);
             return $size === false ? null : $size;
         }
 
         if (is_dir($path) && $withFoldersize) {
+            self::init_persistent_cache();
             if ($withDu) {
                 $tree = $this->du_tree([$path]);
-                if (!isset($tree[$path])) {
-                    // du failed for this path: do not persist a bogus 0.
-                    return null;
-                }
-                $size = $tree[$path];
-                $dirs = $this->dirs_from_tree($path, $tree);
-                self::set_persistent_cache_entry($path, $size, $dirs);
-                return $size;
+                self::persist_tree($tree);
+                return $tree[$path] ?? null;
             }
-
-            $dirs = [];
-            $size = $this->php_filesize($path, true, $dirs);
-            self::set_persistent_cache_entry($path, $size, $dirs);
-            return $size;
+            $visited = [];
+            return $this->php_folder_size($path, $visited);
         }
 
         return null;

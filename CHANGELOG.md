@@ -12,6 +12,8 @@
 * **Thumbnail type cache**: an unopenable, corrupt or table-less `thumbs_cache.db` disables the cache or rebuilds its schema instead of failing the request.
 * **Thumbnail generation**: each capture tool runs at most once per thumbnail. A failing PDF used to run `convert` four times. When the tool for the declared type fails, the file is identified again by name, then by content, so a video saved with a wrong extension now gets a video thumbnail.
 * **Internals**: file type matching lives in one class shared by thumbnails and the cache warmer, the version constants live in `private/php/version.php`, and both CLI workers start through `Bootstrap::cli_context()`.
+* **Folder size cache**: each folder's entry lists only its direct subfolders, so `foldersizes.json` grows with the number of folders instead of their depth (139 KB down to 12 KB for a 41-level chain). Expired entries are dropped when the file is written, and a `du` pass caches every folder it measured. The cache warmer measures the share with one `du` pass instead of one per folder. Entries in the previous format are recomputed.
+* **Large trees**: folders already seen during a download, search or cache warming are tracked in an indexed set instead of a list scanned for each folder.
 
 ## v1.3.7 - *2026-10-31*
 

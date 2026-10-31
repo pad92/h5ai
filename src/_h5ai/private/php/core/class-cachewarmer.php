@@ -35,15 +35,22 @@ class CacheWarmer {
     }
 
     public function warm(): void {
-        $this->warm_path($this->setup->get('ROOT_PATH'));
+        $root = $this->setup->get('ROOT_PATH');
+        $this->warm_path($root);
+
+        // Runs from warm-cache.php on the CLI: use the background timeout.
+        [$withFoldersize, $withDu, , $timeout] = $this->context->foldersize_mode();
+        if ($withFoldersize) {
+            Filesize::refresh_tree($root, $withDu, $timeout);
+        }
     }
 
     private function warm_path(string $path, array &$visited = []): void {
         $real_path = realpath($path) ?: $path;
-        if (in_array($real_path, $visited, true)) {
+        if (isset($visited[$real_path])) {
             return;
         }
-        $visited[] = $real_path;
+        $visited[$real_path] = true;
 
         if (!is_dir($path) || !$this->context->is_managed_path($path)) {
             return;
@@ -64,12 +71,6 @@ class CacheWarmer {
                     $this->thumb_instance->thumb_for($type, $href, $this->thumb_width, $this->thumb_height);
                 }
             }
-        }
-
-        // Runs from warm-cache.php on the CLI: use the background timeout.
-        [$withFoldersize, $withDu, , $timeout] = $this->context->foldersize_mode();
-        if ($withFoldersize) {
-            Filesize::getCachedSize($path, $withFoldersize, $withDu, $timeout);
         }
     }
 }
