@@ -78,6 +78,22 @@ $store = [];
 $context = new Context(new Session($store), new Request([], ''), $setup);
 
 check(!$context->login_admin(''), 'administrator login must be disabled without a configured hash');
+$passwordOptions = json_decode(file_get_contents($conf . '/options.json'), true);
+$passwordOptions['passhash'] = password_hash('modern-admin-password', PASSWORD_DEFAULT);
+file_put_contents($conf . '/options.json', json_encode($passwordOptions));
+$modernStore = [];
+$modernPasswordContext = new Context(new Session($modernStore), new Request([], ''), $setup);
+check($modernPasswordContext->login_admin('modern-admin-password'), 'administrator login must verify modern password_hash digests');
+check(!$modernPasswordContext->login_admin('wrong-password'), 'administrator login must reject an incorrect modern password');
+
+$passwordOptions['passhash'] = hash('sha512', 'legacy-admin-password');
+file_put_contents($conf . '/options.json', json_encode($passwordOptions));
+$legacyStore = [];
+$legacyPasswordContext = new Context(new Session($legacyStore), new Request([], ''), $setup);
+check($legacyPasswordContext->login_admin('legacy-admin-password'), 'administrator login must keep verifying legacy SHA-512 digests');
+
+$passwordOptions['passhash'] = '';
+file_put_contents($conf . '/options.json', json_encode($passwordOptions));
 check($context->is_managed_file($root . '/inside.txt'), 'regular files inside root must be managed');
 check(!$context->is_managed_file($root . '/outside-link.txt'), 'file symlinks escaping root must be rejected');
 $custom = (new Custom($context))->get_customizations('/');

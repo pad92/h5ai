@@ -12,10 +12,12 @@ Basic authentication does not protect this endpoint.
 
 ## 1. Accessing the info page
 
-To open the h5ai diagnostic interface, navigate to:
+The administration and diagnostic page is available at:
 ```
-http://<your-server>/_h5ai/public/index.php
+https://<your-domain>/_h5ai/public/index.php
 ```
+Use `http://` if the server does not provide HTTPS. In Docker, replace
+`<your-domain>` with the hostname and port mapped to the container.
 
 By default, when you visit this page, you will see a login prompt.
 
@@ -45,6 +47,21 @@ be used for new installations.
 > Administrator login is disabled while `passhash` is empty. Configure a hash
 > before using the diagnostic page. Existing legacy SHA-512 hashes continue to
 > work during upgrades.
+
+### Docker password behavior
+
+The Docker image uses the same administration page:
+`https://<your-domain>/_h5ai/public/index.php` (or `http://` without TLS).
+Set `H5AI_ADMIN_PASSWORD` to explicitly replace the configured password. The
+container stores a salted hash created with PHP `password_hash()` and does not
+print the password to its logs. The variable is applied on every start, so
+changing it changes the admin password on the next restart.
+
+When `H5AI_ADMIN_PASSWORD` is unset, startup keeps the existing `passhash`,
+including an empty value. An empty hash leaves admin login disabled until you
+configure a password. This also applies to read-only `options.json` mounts. If
+the environment variable is set while `options.json` is read-only, startup
+fails instead of ignoring the requested password change.
 
 ## 3. Web server access control
 

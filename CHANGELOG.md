@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.3.7 - *Unreleased*
+
+* **Docker administration**: startup preserves the configured admin hash when `H5AI_ADMIN_PASSWORD` is unset. Explicit overrides use PHP `password_hash()`, and generated passwords are no longer logged.
+
 ## v1.3.6 - *2026-10-30*
 
 * **Configuration**: names beginning with `_` are no longer hidden by default, except `_h5ai`; dot-prefixed names, `robots.txt` and `ads.txt` remain hidden.
