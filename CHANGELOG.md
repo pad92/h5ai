@@ -2,7 +2,7 @@
 
 ## v1.3.7 - *2026-10-31*
 
-* **Docker development builds**: display the short commit ID instead of the package release version.
+* **Docker development builds**: display the branch name in the h5ai version label; tagged releases retain the package version.
 * **CI coverage**: JavaScript and PHP tests now generate Cobertura reports. The GitLab coverage badge uses combined line counts, including untested source files. PHP coverage excludes the separate HTTP server processes.
 
 * **Docker base images**: updated Angie to 1.12.4 on Alpine 3.24 and refreshed the pinned PHP 8.4.27 build image to Alpine 3.24. The minimum runtime version check remains in place. Open merge requests run one pipeline instead of duplicate branch and MR pipelines.

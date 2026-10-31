@@ -95,7 +95,7 @@ build:app:
   needs:
     - job: lint:app
   script:
-    - if [ "$CI_COMMIT_BRANCH" = "master" ]; then H5AI_VERSION=$CI_COMMIT_SHORT_SHA npm run build; else npm run build; fi
+    - H5AI_VERSION=${CI_COMMIT_BRANCH:-$(sed -n 's/.*"version":[[:space:]]*"\([^\"]*\)".*/\1/p' package.json | head -n1)} npm run build
   artifacts:
     paths:
       - build/h5ai-*.zip
@@ -120,7 +120,7 @@ build:app:
     - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
     # Version/build metadata consumed by the Dockerfile ARGs (image labels).
     - H5AI_VERSION=$(sed -n 's/.*"version":[[:space:]]*"\([^"]*\)".*/\1/p' package.json | head -n1)
-    - if [ "$CI_COMMIT_BRANCH" = "master" ]; then H5AI_VERSION=$CI_COMMIT_SHORT_SHA; fi
+    - if [ -n "$CI_COMMIT_BRANCH" ]; then H5AI_VERSION=$CI_COMMIT_BRANCH; fi
     - BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
     - BUILD_ARGS="--build-arg H5AI_VERSION=$H5AI_VERSION --build-arg BUILD_DATE=$BUILD_DATE --build-arg BUILD_VCSREF=$CI_COMMIT_SHORT_SHA"
   after_script:
