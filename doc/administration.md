@@ -52,15 +52,15 @@ be used for new installations.
 
 The Docker image uses the same administration page:
 `https://<your-domain>/_h5ai/public/index.php` (or `http://` without TLS).
-Set `H5AI_ADMIN_PASSWORD` to explicitly replace the configured password. The
-container stores a salted hash created with PHP `password_hash()` and does not
+Set `H5AI_ADMIN_PASSWORD` to a non-empty value to replace the configured
+password. The container stores a salted hash created with PHP `password_hash()` and does not
 print the password to its logs. The variable is applied on every start, so
 changing it changes the admin password on the next restart.
 
-When `H5AI_ADMIN_PASSWORD` is unset, startup keeps the existing `passhash`,
+When `H5AI_ADMIN_PASSWORD` is unset or empty, startup keeps the existing `passhash`,
 including an empty value. An empty hash leaves admin login disabled until you
 configure a password. This also applies to read-only `options.json` mounts. If
-the environment variable is set while `options.json` is read-only, startup
+the environment variable is non-empty while `options.json` is read-only, startup
 fails instead of ignoring the requested password change.
 
 ## 3. Web server access control
