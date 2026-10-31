@@ -2,6 +2,8 @@
 
 ## v1.3.7 - *2026-10-31*
 
+* **CI coverage**: JavaScript and PHP tests now generate Cobertura reports. The GitLab coverage badge uses combined line counts, including untested source files. PHP coverage excludes the separate HTTP server processes.
+
 * **Docker base images**: updated Angie to 1.12.4 on Alpine 3.24 and refreshed the pinned PHP 8.4.27 build image to Alpine 3.24. The minimum runtime version check remains in place. Open merge requests run one pipeline instead of duplicate branch and MR pipelines.
 * **Archive downloads**: browser form submissions now use PHP's parsed form fields. Multiple selected files work, while malformed JSON API requests remain rejected.
 * **PHP TAR archives**: PAX headers preserve long paths, non-ASCII names and values outside ustar numeric limits. Whole-folder archives use relative paths. The reported `Content-Length` includes extended headers and their padding.

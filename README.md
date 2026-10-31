@@ -57,6 +57,16 @@ and HTTP regression tests. The PHP suite requires PHP 8.4+, the `tar` command,
 and permission to start a temporary HTTP server on `127.0.0.1`. It verifies
 custom-file access and downloads using temporary fixtures, then removes them.
 
+CI also measures line coverage. `npm run test:coverage` writes JavaScript
+reports to `coverage/js/`, including source files the tests never load. The PHP
+job uses PHPUnit and Xdebug to cover `src/_h5ai/private/php/`, including untested
+files, and writes its report to `coverage/php/`. PHP coverage measures the main
+test process; the separate HTTP server processes still run their checks but do
+not contribute coverage. Both jobs upload Cobertura reports for GitLab diff
+annotations. The `test:coverage` job combines covered and total line counts
+from both languages into the percentage shown by the project badge. A successful
+pipeline on the default branch updates that badge.
+
 
 ## Docker Image
 
