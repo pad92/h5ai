@@ -175,6 +175,7 @@ docker-test: docker-build
 	@if docker logs h5ai-test-noauth 2>&1 | grep -q "Generated random h5ai administration password"; then echo "FAIL: startup must not generate or log an admin password"; docker rm -f h5ai-test-noauth; exit 1; fi
 	docker rm -f h5ai-test-noauth
 	sh test/docker/test-php-tar.sh $(TEST_IMAGE) $(TEST_HOST)
+	sh test/docker/test-document-thumbs.sh $(TEST_IMAGE) $(TEST_HOST)
 	@echo "Testing container with basic authentication..."
 	$(TEST_RUN) --name h5ai-test-auth -e ENV_U=admin -e ENV_P=secret $(TEST_IMAGE)
 	$(call wait_for_http,,HTTP/1.1 401 Unauthorized,✓ Unauthenticated request correctly blocked (401 Unauthorized),✗ Unauthenticated request test failed (did not return 401),h5ai-test-auth)

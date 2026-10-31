@@ -62,13 +62,15 @@ ENV S6_CMD_WAIT_FOR_SERVICES_MAXTIME=30000
 ENV H5AI_ROOT_PATH=/share
 
 # Only extensions actually used by the h5ai PHP code are installed:
-# exif/gd/imagick (thumbnails), fileinfo (download mimetypes), mbstring,
+# exif/gd/imagick (thumbnails), ghostscript (PDF/PostScript thumbnails through
+# ImageMagick, about 19 MiB compressed), fileinfo (download mimetypes), mbstring,
 # session, sqlite3 (CacheDB uses the SQLite3 class, not PDO), zip
 # (ZipArchive) plus the tar/zip CLIs for packaged downloads.
 # angie-console-light ships with the base image but nothing serves it.
 RUN apk upgrade --no-cache && apk add --no-cache \
     apache2-utils \
     ffmpeg \
+    ghostscript \
     imagemagick \
     imagemagick-raw \
     libraw \

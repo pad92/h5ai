@@ -121,7 +121,7 @@ h5ai caches the command-line tools it finds in `_h5ai/private/cache/cmds.json`. 
 * **Fileinfo module**: Checks if the PHP Fileinfo module is active (used for determining file MIME types safely).
 * **Use EXIF thumbs**: Checks for the PHP `exif` module. When active, h5ai extracts embedded JPEG preview thumbnails from photos directly instead of decoding the full image, which is much faster.
 * **Video thumbs**: Verifies command line program `ffmpeg` or `avconv` is installed on the host. Required to capture frame previews from videos.
-* **PDF thumbs**: Verifies hardened ImageMagick is installed: `magick` (ImageMagick 7), or `convert` on ImageMagick 6 hosts. h5ai uses `magick` whenever it is available. Rendering PDF and PostScript files also needs Ghostscript (`gs`), which this check does not detect. GraphicsMagick is available only as an explicit compatibility fallback with `thumbnails.allowGraphicsMagick`; it does not use the bundled security policy.
+* **PDF thumbs**: Verifies hardened ImageMagick is installed: `magick` (ImageMagick 7), or `convert` on ImageMagick 6 hosts. h5ai uses `magick` whenever it is available. Rendering PDF and PostScript files also needs Ghostscript (`gs`), which this check does not detect; the Docker image includes it. GraphicsMagick is available only as an explicit compatibility fallback with `thumbnails.allowGraphicsMagick`; it does not use the bundled security policy.
 
 > [!NOTE]
 > **Media-processor hardening (SSRF/LFI).** Because thumbnails are generated from user-supplied files, h5ai applies defense-in-depth against crafted media that tries to make the processor reach the network or read arbitrary local files:
