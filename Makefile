@@ -121,6 +121,30 @@ docker-test: docker-build
 	@echo "Testing container without authentication..."
 	$(TEST_RUN) --name h5ai-test-noauth $(TEST_IMAGE)
 	$(call wait_for_http,,HTTP/1.1 200 OK,✓ Public index page returned 200 OK,✗ Public index page test failed,h5ai-test-noauth)
+	@curl -fsS -D /tmp/h5ai-form-download.headers -o /tmp/h5ai-form-download.zip \
+		--data-urlencode 'action=download' --data-urlencode 'as=selected.zip' \
+		--data-urlencode 'type=shell-zip' --data-urlencode 'baseHref=/' \
+		--data-urlencode 'hrefs[0]=/doc/configuration.md' --data-urlencode 'hrefs[1]=/doc/administration.md' \
+		$(TEST_URL)_h5ai/public/index.php
+	@grep -qi 'Content-Disposition: attachment; filename="selected.zip"' /tmp/h5ai-form-download.headers
+	@unzip -Z1 /tmp/h5ai-form-download.zip | grep -qx 'doc/configuration.md'
+	@unzip -Z1 /tmp/h5ai-form-download.zip | grep -qx 'doc/administration.md'
+	@echo "PASS: browser-style form download contains both selected files"
+	@curl -fsS -o /tmp/h5ai-single-download.zip \
+		--data-urlencode 'action=download' --data-urlencode 'as=single.zip' \
+		--data-urlencode 'type=shell-zip' --data-urlencode 'baseHref=/' \
+		--data-urlencode 'hrefs=/doc/configuration.md' $(TEST_URL)_h5ai/public/index.php
+	@unzip -Z1 /tmp/h5ai-single-download.zip | grep -qx 'doc/configuration.md'
+	@curl -fsS -o /tmp/h5ai-invalid-hrefs-response \
+		--data-urlencode 'action=download' --data-urlencode 'as=invalid.zip' \
+		--data-urlencode 'type=shell-zip' --data-urlencode 'baseHref=/' \
+		--data-urlencode 'hrefs[0][invalid]=nested' $(TEST_URL)_h5ai/public/index.php
+	@grep -q 'hrefs must be a string or an array of strings' /tmp/h5ai-invalid-hrefs-response
+	@curl -fsS -o /tmp/h5ai-malformed-json-response -H 'Content-Type: application/json' \
+		--data '{malformed' $(TEST_URL)_h5ai/public/index.php
+	@grep -q 'request body must be a JSON object' /tmp/h5ai-malformed-json-response
+	@rm -f /tmp/h5ai-form-download.headers /tmp/h5ai-form-download.zip /tmp/h5ai-single-download.zip \
+		/tmp/h5ai-invalid-hrefs-response /tmp/h5ai-malformed-json-response
 	@docker exec h5ai-test-noauth cat $(OPTIONS_JSON) | grep -qE '"passhash":[[:space:]]*""' || { echo "FAIL: empty passhash should remain empty when no password is configured"; docker rm -f h5ai-test-noauth; exit 1; }
 	@if docker logs h5ai-test-noauth 2>&1 | grep -q "Generated random h5ai administration password"; then echo "FAIL: startup must not generate or log an admin password"; docker rm -f h5ai-test-noauth; exit 1; fi
 	docker rm -f h5ai-test-noauth

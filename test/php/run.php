@@ -77,6 +77,22 @@ $setup = new TestSetup([
 $store = [];
 $context = new Context(new Session($store), new Request([], ''), $setup);
 
+$urlEncodedRequest = new Request(
+    ['action' => 'download', 'type' => 'shell-zip', 'hrefs' => ['/first.txt', '/second.txt']],
+    'action=download&type=shell-zip&hrefs%5B0%5D=%2Ffirst.txt&hrefs%5B1%5D=%2Fsecond.txt',
+    'application/x-www-form-urlencoded; charset=UTF-8',
+);
+check($urlEncodedRequest->query_string('action') === 'download', 'URL-encoded forms must use PHP-parsed request parameters');
+check($urlEncodedRequest->query_array('hrefs') === ['/first.txt', '/second.txt'], 'URL-encoded forms must preserve multiple selected hrefs');
+$multipartRequest = new Request(
+    ['action' => 'download', 'hrefs' => ['/first.txt', '/second.txt']],
+    'multipart body',
+    'multipart/form-data; boundary=test',
+);
+check($multipartRequest->query_array('hrefs') === ['/first.txt', '/second.txt'], 'multipart forms must use PHP-parsed request parameters');
+$jsonRequest = new Request(['action' => 'wrong'], '{"action":"download"}', 'application/json; charset=utf-8');
+check($jsonRequest->query_string('action') === 'download', 'JSON requests must continue to use their decoded body');
+
 check(!$context->login_admin(''), 'administrator login must be disabled without a configured hash');
 $passwordOptions = json_decode(file_get_contents($conf . '/options.json'), true);
 $passwordOptions['passhash'] = password_hash('modern-admin-password', PASSWORD_DEFAULT);

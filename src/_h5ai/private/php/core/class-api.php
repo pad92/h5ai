@@ -29,7 +29,10 @@ class Api {
         Util::json_fail(
             Util::ERR_ILLIGAL_PARAM,
             'hrefs must be a string or an array of strings',
-            !is_string($hrefs) && (!is_array($hrefs) || !array_all($hrefs, is_string(...))),
+            !is_string($hrefs) && (!is_array($hrefs) || !array_all(
+                $hrefs,
+                static fn(mixed $href): bool => is_string($href),
+            )),
         );
 
         $as = preg_replace('/[^\w.\-]/', '_', $as);
