@@ -405,6 +405,7 @@ publish:app:
 .docker-publish-template:
   stage: publish
   image: $DOCKER_IMAGE
+  # Keep tag-plan evaluation and alias promotion serialized across both registries.
   resource_group: docker-publish
   cache: []
   before_script:

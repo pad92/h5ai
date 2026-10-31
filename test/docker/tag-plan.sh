@@ -14,11 +14,20 @@ export CI_PROJECT_ID=42
 export CI_JOB_TOKEN=mock-token
 export TAG_API_LOG="$TMP_DIR/api.log"
 PLAN=$PROJECT_DIR/scripts/docker-tag-plan.sh
+CI_CONFIG=$PROJECT_DIR/.gitlab-ci.yml
 
 fail() {
     echo "FAIL: $1" >&2
     exit 1
 }
+
+# Both registries extend one template, whose resource group covers the tag-list
+# check and the promotion. This prevents concurrent jobs from racing moving
+# aliases after they have each calculated a plan.
+[ "$(grep -c '^  resource_group: docker-publish$' "$CI_CONFIG")" -eq 1 ] \
+    || fail 'Docker publication template must serialize tag planning and promotion'
+[ "$(grep -c '^  extends: .docker-publish-template$' "$CI_CONFIG")" -eq 2 ] \
+    || fail 'GitLab and Docker Hub publication jobs must share the serialized template'
 
 expect_plan() {
     expected_immutable=$1
