@@ -8,12 +8,16 @@ TEST_IMAGE = $(IMAGE_NAME):$(TAG)
 TEST_URL = http://$(TEST_HOST):8890/
 TEST_RUN = docker run -d -p 8890:80 -v $(CURDIR):/share:ro
 OPTIONS_JSON = /usr/share/h5ai/_h5ai/private/conf/options.json
+PHPUNIT_PHAR ?= /tmp/phpunit.phar
+PHPUNIT_VERSION = 12.5.42
+PHPUNIT_SHA256 = bcd5cef3751188d7953f46efafd407c1acf37c5f49dbf7933e413eb20e933ac5
+PHP_COVERAGE_IMAGE = php:8.4.27-cli@sha256:a4ae1f57e22b89a0a69c5e085b3010ee727d094e1542d249e48a01bec3c44810
 
 # Scanners pinned by digest, kept in sync with .gitlab-ci.yml.
 GRYPE_IMAGE = anchore/grype:v0.116.0@sha256:fd4ab4d1042b522c896e73bdf09ab8bf384fa417df99d6dd0d6e1008c7e7c821
 SYFT_IMAGE = anchore/syft:v1.49.0@sha256:13b53ebabe3d215268c90cf8fb9b875f0183908245f376fd4b3a2cb69d21d484
 
-.PHONY: help all install build lint test clean clean-all scan docker-build docker-test docker-grype docker-clean
+.PHONY: help all install build lint test coverage clean clean-all scan docker-build docker-test docker-grype docker-clean test-docker-config
 
 .DEFAULT_GOAL := help
 
@@ -24,6 +28,7 @@ help:
 	@echo "  build         Build h5ai application (creates build/h5ai-*.zip)"
 	@echo "  lint          Run linters"
 	@echo "  test          Run application tests"
+	@echo "  coverage      Run JavaScript and PHP tests and combine line coverage"
 	@echo "  clean         Clean build output"
 	@echo "  clean-all     Clean build output, node_modules and Docker artifacts"
 	@echo "  scan          Scan npm dependencies with Syft + Grype"
@@ -50,6 +55,21 @@ lint: node_modules
 
 test: node_modules
 	npm run test
+
+$(PHPUNIT_PHAR):
+	curl --fail --silent --show-error --location https://phar.phpunit.de/phpunit-$(PHPUNIT_VERSION).phar --output $@
+	echo '$(PHPUNIT_SHA256)  $@' | sha256sum --check -
+
+coverage: node_modules $(PHPUNIT_PHAR)
+	npm run test:coverage
+	@mkdir -p coverage/php
+	@if php -m | grep -qi '^xdebug$$'; then \
+		find src test/php -name '*.php' -print0 | xargs -0 -n1 php -l && \
+		XDEBUG_MODE=coverage php $(PHPUNIT_PHAR) --do-not-cache-result --coverage-filter src/_h5ai/private/php --coverage-cobertura coverage/php/cobertura.xml --coverage-text --only-summary-for-coverage-text test/php/RegressionTest.php; \
+	else \
+		docker run --rm -v "$(CURDIR):/workspace" -w /workspace -v "$(PHPUNIT_PHAR):/tmp/phpunit.phar:ro" $(PHP_COVERAGE_IMAGE) sh -ec 'pecl install xdebug-3.5.3; docker-php-ext-enable xdebug; find src test/php -name "*.php" -print0 | xargs -0 -n1 php -l; XDEBUG_MODE=coverage php /tmp/phpunit.phar --do-not-cache-result --coverage-filter src/_h5ai/private/php --coverage-cobertura coverage/php/cobertura.xml --coverage-text --only-summary-for-coverage-text test/php/RegressionTest.php'; \
+	fi
+	node scripts/coverage-summary.js
 
 clean:
 	npx gulp clean
@@ -150,7 +170,6 @@ docker-test: docker-build
 	@if docker logs h5ai-test-noauth 2>&1 | grep -q "Generated random h5ai administration password"; then echo "FAIL: startup must not generate or log an admin password"; docker rm -f h5ai-test-noauth; exit 1; fi
 	docker rm -f h5ai-test-noauth
 	sh test/docker/test-php-tar.sh $(TEST_IMAGE) $(TEST_HOST)
-
 	@echo "Testing container with basic authentication..."
 	$(TEST_RUN) --name h5ai-test-auth -e ENV_U=admin -e ENV_P=secret $(TEST_IMAGE)
 	$(call wait_for_http,,HTTP/1.1 401 Unauthorized,✓ Unauthenticated request correctly blocked (401 Unauthorized),✗ Unauthenticated request test failed (did not return 401),h5ai-test-auth)

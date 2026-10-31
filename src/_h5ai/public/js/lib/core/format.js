@@ -37,7 +37,7 @@ const setDefaultMetric = useBinaryMetric => {
 const formatSize = (size, metric) => {
     metric = metric || defaultMetric;
 
-    if (!isNum(size) || size < 0) {
+    if (!isNum(size) || !Number.isFinite(size) || size < 0) {
         return '';
     }
 
