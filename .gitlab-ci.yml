@@ -14,6 +14,8 @@ variables:
   npm_config_cache: "$CI_PROJECT_DIR/.npm"
   # Docker image published to Docker Hub under this name.
   IMAGE_NAME: pad92/docker-h5ai
+  # Mirrors Docker Hub's "Specific tags are immutable" policy.
+  DOCKERHUB_IMMUTABLE_TAG_REGEX: '^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9]+)?$'
   # Multi-platform candidate pushed by `build:candidate` on every pipeline,
   # scanned by Grype, then promoted digest-for-digest by the publish jobs.
   # Configure a registry cleanup policy for `ci-*` tags.
@@ -43,6 +45,10 @@ cache:
 .publish-rules: &publish_rules
   - if: $CI_COMMIT_BRANCH == "master"
   - if: $CI_COMMIT_TAG
+
+.build-image-rules: &build_image_rules
+  - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  - if: $CI_COMMIT_BRANCH && $CI_COMMIT_BRANCH != "master"
 
 .dockerhub-publish-rules: &dockerhub_publish_rules
   - if: $CI_COMMIT_BRANCH == "master" && $DOCKERHUB_USERNAME && $DOCKERHUB_PASSWORD
@@ -115,6 +121,7 @@ build:app:
 build:image:
   extends: .docker-build-base
   stage: build
+  rules: *build_image_rules
   script:
     - |
       docker buildx build \
@@ -182,14 +189,41 @@ test:php:
 test:docker:
   stage: test
   image: $DOCKER_IMAGE
+  # Publishable pipelines test the exact candidate digest; branches and MRs
+  # keep the local single-platform image because they do not build a candidate.
   needs:
     - job: build:image
       artifacts: true
+      optional: true
+    - job: build:candidate
+      artifacts: true
+      optional: true
   cache: []
   before_script:
     - apk add --no-cache curl
   script:
-    - docker load -i image.tar
+    - |
+      if [ -n "${CI_COMMIT_TAG:-}" ] || [ "${CI_COMMIT_BRANCH:-}" = "master" ]; then
+        if [ -z "${CANDIDATE_DIGEST:-}" ] || [ "$CANDIDATE_DIGEST" = "none" ]; then
+          echo "ERROR: candidate digest missing on a publishable pipeline" >&2
+          exit 1
+        fi
+        echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+        TEST_IMAGE_REF="$CANDIDATE_IMAGE@$CANDIDATE_DIGEST"
+        docker pull "$TEST_IMAGE_REF"
+        echo "Runtime checks use candidate $TEST_IMAGE_REF"
+        RUNTIME_ARCH=$(docker info --format '{{.Architecture}}')
+        case "$RUNTIME_ARCH" in
+          x86_64|amd64) RUNTIME_PLATFORM=linux/amd64 ;;
+          aarch64|arm64) RUNTIME_PLATFORM=linux/arm64 ;;
+          *) RUNTIME_PLATFORM="linux/$RUNTIME_ARCH" ;;
+        esac
+        echo "HTTP and authentication checks exercise $RUNTIME_PLATFORM only; the Grype scan covers linux/amd64 and linux/arm64."
+      else
+        docker load -i image.tar
+        TEST_IMAGE_REF=h5ai-local:latest
+        echo "Runtime checks use branch image $TEST_IMAGE_REF"
+      fi
     - |
       # wait_http <curl extra args> <expected status> <ok msg> <fail msg> <container>
       # Polls http://$TEST_IP/ until the status line matches (15 s max);
@@ -207,18 +241,27 @@ test:docker:
         exit 1
       }
     - echo "Testing container without authentication..."
-    - docker run -d --name h5ai-test-noauth -v "$CI_PROJECT_DIR:/share:ro" h5ai-local:latest
+    - docker run -d --name h5ai-test-noauth -v "$CI_PROJECT_DIR:/share:ro" "$TEST_IMAGE_REF"
     - TEST_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' h5ai-test-noauth)
     - wait_http "" "200 OK" "Public index page returned 200 OK" "Public index page test failed" h5ai-test-noauth
     - docker rm -f h5ai-test-noauth
 
     - echo "Testing container with basic authentication..."
-    - docker run -d --name h5ai-test-auth -e ENV_U=admin -e ENV_P=secret -v "$CI_PROJECT_DIR:/share:ro" h5ai-local:latest
+    - docker run -d --name h5ai-test-auth -e ENV_U=admin -e ENV_P=secret -v "$CI_PROJECT_DIR:/share:ro" "$TEST_IMAGE_REF"
     - TEST_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' h5ai-test-auth)
     - wait_http "" "401 Unauthorized" "Unauthenticated request correctly blocked (401 Unauthorized)" "Unauthenticated request test failed (did not return 401)" h5ai-test-auth
     - wait_http "-u admin:secret" "200 OK" "Authenticated request successfully bypassed basic auth" "Authenticated request test failed (rejected credentials or PHP-FPM not ready)" h5ai-test-auth
     - docker rm -f h5ai-test-auth
     - echo "All tests passed successfully!"
+  rules: *pipeline_rules
+
+test:docker-publish:
+  stage: test
+  image: $DOCKER_IMAGE
+  needs: []
+  cache: []
+  script:
+    - sh test/docker/publish-dockerhub.sh
   rules: *pipeline_rules
 
 # ── Scan ─────────────────────────────────────────────────────────────────────
@@ -377,6 +420,7 @@ publish:app:
     - job: test:app
     - job: test:php
     - job: test:docker
+    - job: test:docker-publish
   script:
     - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
     - |
@@ -385,25 +429,46 @@ publish:app:
       fi
     - |
       TAGS_ARGS=""
+      IMMUTABLE_TAGS=""
+      MOVING_TAGS=""
       add_tag() {
         TAGS_ARGS="$TAGS_ARGS -t $PUBLISH_IMAGE:$1"
       }
+      add_immutable_tag() {
+        add_tag "$1"
+        case " $IMMUTABLE_TAGS " in
+          *" $1 "*) ;;
+          *) IMMUTABLE_TAGS="$IMMUTABLE_TAGS $1" ;;
+        esac
+      }
+      add_moving_tag() {
+        add_tag "$1"
+        MOVING_TAGS="$MOVING_TAGS $1"
+      }
 
       if [ -n "$CI_COMMIT_TAG" ]; then
-        add_tag "$CI_COMMIT_TAG"
-        add_tag "latest"
+        if echo "$CI_COMMIT_TAG" | grep -E "$DOCKERHUB_IMMUTABLE_TAG_REGEX" > /dev/null; then
+          add_immutable_tag "$CI_COMMIT_TAG"
+        else
+          add_moving_tag "$CI_COMMIT_TAG"
+        fi
+        add_moving_tag "latest"
         if echo "$CI_COMMIT_TAG" | grep -E '^v?[0-9]+\.[0-9]+\.[0-9]+(-.*)?$' > /dev/null; then
           SEMVER=$(echo "$CI_COMMIT_TAG" | sed 's/^v//')
-          add_tag "$SEMVER"
+          if echo "$SEMVER" | grep -E "$DOCKERHUB_IMMUTABLE_TAG_REGEX" > /dev/null; then
+            add_immutable_tag "$SEMVER"
+          else
+            add_moving_tag "$SEMVER"
+          fi
           if echo "$SEMVER" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' > /dev/null; then
             MAJOR=$(echo "$SEMVER" | cut -d. -f1)
             MINOR=$(echo "$SEMVER" | cut -d. -f2)
-            add_tag "$MAJOR.$MINOR"
-            add_tag "$MAJOR"
+            add_moving_tag "$MAJOR.$MINOR"
+            add_moving_tag "$MAJOR"
           fi
         fi
       elif [ "$CI_COMMIT_BRANCH" = "master" ]; then
-        add_tag "devel"
+        add_moving_tag "devel"
       fi
 
       if [ -z "$TAGS_ARGS" ]; then
@@ -417,8 +482,13 @@ publish:app:
       fi
       CANDIDATE_REF="$CANDIDATE_IMAGE@$CANDIDATE_DIGEST"
 
-      echo "Promoting scanned candidate $CANDIDATE_REF to: $TAGS_ARGS"
-      docker buildx imagetools create $TAGS_ARGS "$CANDIDATE_REF"
+      if [ "$PUBLISH_IMAGE" = "docker.io/$IMAGE_NAME" ]; then
+        sh scripts/publish-dockerhub.sh \
+          "$PUBLISH_IMAGE" "$CANDIDATE_REF" "$CANDIDATE_DIGEST" "$IMMUTABLE_TAGS" "$MOVING_TAGS"
+      else
+        echo "Promoting scanned candidate $CANDIDATE_REF to: $TAGS_ARGS"
+        docker buildx imagetools create $TAGS_ARGS "$CANDIDATE_REF"
+      fi
 
 publish:gitlab:
   extends: .docker-publish-template
@@ -431,6 +501,8 @@ publish:dockerhub:
   variables:
     PUBLISH_IMAGE: "docker.io/$IMAGE_NAME"
     PUBLISH_REGISTRY_LOGIN_CMD: 'echo "$DOCKERHUB_PASSWORD" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin docker.io'
+  before_script:
+    - apk add --no-cache curl jq
   rules: *dockerhub_publish_rules
 
 # ── Release ──────────────────────────────────────────────────────────────────

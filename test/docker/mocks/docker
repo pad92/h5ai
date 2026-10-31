@@ -1,0 +1,37 @@
+#!/bin/sh
+
+set -eu
+
+printf '%s\n' "$*" >> "$DOCKER_LOG"
+source_ref=
+for arg in "$@"; do
+    case "$arg" in *@sha256:*) source_ref=$arg ;; esac
+done
+
+set -- "$@"
+shift 3
+created=0
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        -t)
+            tag_ref=$2
+            tag=${tag_ref##*:}
+            state_tmp="$REGISTRY_STATE.tmp"
+            awk -v tag="$tag" '$1 != tag' "$REGISTRY_STATE" > "$state_tmp"
+            printf '%s %s\n' "$tag" "$EXPECTED_DIGEST" >> "$state_tmp"
+            mv "$state_tmp" "$REGISTRY_STATE"
+            created=$((created + 1))
+            if [ "$created" -eq 1 ] && [ -n "${DOCKER_PARTIAL_MARKER:-}" ] && [ ! -e "$DOCKER_PARTIAL_MARKER" ]; then
+                touch "$DOCKER_PARTIAL_MARKER"
+                exit 1
+            fi
+            shift 2
+            ;;
+        *) shift ;;
+    esac
+done
+
+case "$source_ref" in
+    *@"$EXPECTED_DIGEST") ;;
+    *) echo "unexpected source reference: $source_ref" >&2; exit 1 ;;
+esac
