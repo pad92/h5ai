@@ -5,7 +5,7 @@ class CacheWarmer {
     private const THUMB_CATEGORIES = ['img', 'mov', 'doc', 'ar', 'aud'];
 
     private readonly Setup $setup;
-    private readonly TypeHelper $type_helper;
+    private readonly TypeMatcher $types;
     private ?Thumb $thumb_instance = null;
     private array $thumb_types = [];
     private int $thumb_width = 0;
@@ -15,8 +15,7 @@ class CacheWarmer {
     public function __construct(private readonly Context $context, ?Thumb $thumb = null) {
         $this->setup = $context->get_setup();
 
-        $types_data = Json::load($this->setup->get('CONF_PATH') . '/types.json');
-        $this->type_helper = new TypeHelper($types_data);
+        $this->types = $context->get_type_matcher();
 
         if ($this->context->query_option('thumbnails.enabled', false) && $this->setup->get('HAS_PHP_WEBP')) {
             $this->thumb_instance = $thumb ?? new Thumb($this->context);
@@ -59,7 +58,7 @@ class CacheWarmer {
             } elseif (!is_dir($child_path)
                 && $this->thumb_instance !== null
                 && $this->context->is_managed_file($child_path)) {
-                $type = $this->type_helper->getType($file);
+                $type = $this->types->type_of_name($file);
                 if (in_array($type, $this->thumb_types, true)) {
                     $href = $this->context->to_href($child_path, false);
                     $this->thumb_instance->thumb_for($type, $href, $this->thumb_width, $this->thumb_height);
@@ -72,30 +71,5 @@ class CacheWarmer {
         if ($withFoldersize) {
             Filesize::getCachedSize($path, $withFoldersize, $withDu, $timeout);
         }
-    }
-}
-
-class TypeHelper {
-    private array $regexps = [];
-
-    public function __construct(array $types) {
-        foreach ($types as $type => $patterns) {
-            if (!isset($patterns['glob'])) {
-                continue;
-            }
-            $parts = [];
-            foreach ($patterns['glob'] as $pattern) {
-                $escaped = preg_quote($pattern, '/');
-                $escaped = str_replace('\\*', '.*', $escaped);
-                $parts[] = '(' . $escaped . ')';
-            }
-            if (!empty($parts)) {
-                $this->regexps[$type] = '/^(' . implode('|', $parts) . ')$/i';
-            }
-        }
-    }
-
-    public function getType(string $name): string {
-        return array_find_key($this->regexps, fn(string $regex): bool => (bool) preg_match($regex, $name)) ?? 'file';
     }
 }

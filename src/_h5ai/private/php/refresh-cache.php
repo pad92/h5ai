@@ -4,23 +4,9 @@ if (php_sapi_name() !== 'cli') {
     exit("This script can only be run from the command line.\n");
 }
 
-define('H5AI_VERSION', '{{VERSION}}');
-define('MIN_PHP_VERSION', '8.4.0');
-
-$_SERVER['REQUEST_METHOD'] = 'GET';
-$_SERVER['REQUEST_URI'] = '/';
-$_SERVER['SCRIPT_NAME'] = '/_h5ai/public/index.php';
-$_SERVER['SERVER_SOFTWARE'] = 'CLI';
-$_SERVER['HTTP_USER_AGENT'] = 'CLI';
-
 require_once __DIR__ . '/class-bootstrap.php';
-spl_autoload_register(Bootstrap::autoload(...));
-
-$session_store = [];
-$session = new Session($session_store);
-$request = new Request($_REQUEST, '');
-$setup = new Setup();
-$context = new Context($session, $request, $setup);
+$context = Bootstrap::cli_context();
+$setup = $context->get_setup();
 $request_marker = $setup->get('CACHE_PRV_PATH') . '/refresh.requested';
 register_shutdown_function(static fn() => @unlink($request_marker));
 

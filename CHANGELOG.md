@@ -10,6 +10,8 @@
 * **Thumbnail cache size**: explicitly sized thumbnails, such as image preview samples, have their width rounded up to a multiple of 256 pixels and keep their aspect ratio. A client can no longer fill the cache with one file per requested pixel size.
 * **Command detection**: only a logged-in administrator can make the info page probe command-line tools again. `ffprobe` and `avprobe` are now detected: without them, video thumbnails use an early frame instead of failing. An outdated `cmds.json` is rebuilt, and a missing setup key raises an error instead of producing a blank page.
 * **Thumbnail type cache**: an unopenable, corrupt or table-less `thumbs_cache.db` disables the cache or rebuilds its schema instead of failing the request.
+* **Thumbnail generation**: each capture tool runs at most once per thumbnail. A failing PDF used to run `convert` four times. When the tool for the declared type fails, the file is identified again by name, then by content, so a video saved with a wrong extension now gets a video thumbnail.
+* **Internals**: file type matching lives in one class shared by thumbnails and the cache warmer, the version constants live in `private/php/version.php`, and both CLI workers start through `Bootstrap::cli_context()`.
 
 ## v1.3.7 - *2026-10-31*
 

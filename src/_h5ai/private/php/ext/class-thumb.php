@@ -40,7 +40,6 @@ class Thumb {
     private readonly string $thumbs_path;
     private readonly string $thumbs_href;
     private ?Image $image = null;
-    private int $attempt = 0;
     private CacheDB $db;
     private ?string $source_path;
     private int|false $mtime;
@@ -66,7 +65,7 @@ class Thumb {
             $this->source_hash = sha1($source_path);
             $this->mtime = @filemtime($this->source_path);
         }
-        $this->type = is_string($type) ? new FileType($context, $type) : $type;
+        $this->type = is_string($type) ? new FileType($type) : $type;
 
         if (!is_dir($this->thumbs_path)) {
             @mkdir($this->thumbs_path, 0755, true);
@@ -131,8 +130,7 @@ class Thumb {
         $this->source_path = $this->context->to_path($source_href);
         $this->source_hash = sha1($this->source_path);
         $this->mtime = @filemtime($this->source_path);
-        $this->type = new FileType($this->context, $type);
-        $this->attempt = 0;
+        $this->type = new FileType($type);
         $this->image = null;
 
         return $this->thumb($width, $height);
@@ -161,7 +159,7 @@ class Thumb {
             $this->source_path = $custom_thumb_source_path;
             $this->mtime = @filemtime($this->source_path);
             $this->source_hash = sha1($this->source_path);
-            $this->type = new FileType($this->context, 'img');
+            $this->type = new FileType('img');
         } elseif ($is_directory) {
             return null;
         }
@@ -186,25 +184,12 @@ class Thumb {
             return $this->thumb_href($width, $height);
         }
 
-        $handlers = self::get_handlers_array(self::type_to_handler($this->type->name));
-        $thumb_href = null;
-
-        foreach ($handlers as $handler) {
-            if (!$this->capture($handler)) {
-                if ($this->type->name === 'file') {
-                    break;
-                }
-                continue;
-            }
-            $thumb_href = $this->thumb_href($width, $height);
-            if ($thumb_href !== null) {
-                if ($this->type->was_wrong()) {
-                    $this->db->insert($this->source_hash, $this->type->name);
-                }
-                return $thumb_href;
-            } elseif (!$this->type->was_wrong()) {
-                break;
-            }
+        if (!$this->capture_source()) {
+            return null;
+        }
+        $thumb_href = $this->thumb_href($width, $height);
+        if ($thumb_href !== null && $this->type->was_wrong()) {
+            $this->db->insert($this->source_hash, $this->type->name);
         }
         return $thumb_href;
     }
@@ -227,69 +212,67 @@ class Thumb {
         return null;
     }
 
-    private function ext_to_type(string $path): string {
-        $name = basename($path);
-        return array_find_key(
-            $this->context->get_types(),
-            fn(array $values): bool => isset($values['glob']) && array_any(
-                $values['glob'],
-                fn(string $pattern): bool => (bool) preg_match('/^' . str_replace('\*', '.*', preg_quote($pattern, '/')) . '$/i', $name),
-            ),
-        ) ?? 'file';
+    // Runs the handler of the declared type first. When a handler fails, the
+    // file is identified again, by name and then by content, and the handler
+    // of the type found runs next. Each handler runs at most once per source,
+    // so a failing command is never retried.
+    private function capture_source(): bool {
+        $tried = [];
+        $handler = self::type_to_handler($this->type->name);
+        while ($handler !== null && !isset($tried[$handler])) {
+            $tried[$handler] = true;
+            $result = $this->run_handler($handler);
+            if ($result === true) {
+                return true;
+            }
+            $handler = is_string($result) ? $result : $this->redetect_handler($tried);
+        }
+        return false;
     }
 
-    private function capture(string $handler): bool {
-        if ($this->attempt >= count(self::HANDLED_TYPES)) {
-            return false;
-        }
-        ++$this->attempt;
-
+    // true: captured (or archive outcome cached), false: failed, string:
+    // the handler that matches what this handler found out about the file.
+    private function run_handler(string $handler): bool|string {
         return match ($handler) {
-            'file' => $this->capture_file(),
             'img' => $this->capture_img(),
-            'mov' => $this->capture_mov(),
-            'swf' => $this->capture_swf(),
+            'mov' => $this->capture_video(false),
+            // SWF/FLV needs the seek (-ss) placed after the input (-i); see FFMPEG_SWF_CMDV.
+            'swf' => $this->capture_video(true),
             'aud' => $this->capture_aud(),
             'doc' => $this->capture_doc(),
-            default => str_contains($handler, 'ar') ? $this->capture_archive($handler) : false,
+            'ar-zip', 'ar-rar' => $this->capture_archive($handler),
+            default => false,
         };
     }
 
-    private function capture_file(): bool {
-        $type = $this->ext_to_type($this->source_path);
-        if ($type === 'file' && $this->setup->get('HAS_PHP_FILEINFO')) {
-            $type = $this->type->mime_to_type(Util::get_mimetype($this->source_path));
+    private function redetect_handler(array $tried): ?string {
+        $types = $this->context->get_type_matcher();
+        $candidates = [$types->type_of_name(basename($this->source_path))];
+        if ($this->setup->get('HAS_PHP_FILEINFO')) {
+            $candidates[] = $types->type_of_mime(Util::get_mimetype($this->source_path));
         }
-        $handler = self::type_to_handler($type);
-        $this->type->name = $type;
-
-        if ($handler === 'file') {
-            return false;
+        foreach ($candidates as $type) {
+            $handler = self::type_to_handler($type);
+            if ($handler !== 'file' && !isset($tried[$handler])) {
+                $this->type->name = $type;
+                return $handler;
+            }
         }
-        return $this->capture($handler);
+        return null;
     }
 
-    private function capture_img(): bool {
+    private function capture_img(): bool|string {
         if ($this->setup->get('HAS_PHP_EXIF') && !in_array($this->type->name, ['img-raw', 'img-svg', 'img-webp'], true)) {
             $exiftype = exif_imagetype($this->source_path);
             if (!$exiftype) {
-                return $this->capture('file');
+                return false;
             }
-            if ($exiftype === 4 || $exiftype === 13) {
+            if ($exiftype === IMAGETYPE_SWF || $exiftype === IMAGETYPE_SWC) {
                 $this->type->name = 'vid-swf';
-                return $this->capture('swf');
+                return 'swf';
             }
         }
-        return $this->do_capture_img($this->source_path) ?: $this->capture('file');
-    }
-
-    private function capture_mov(): bool {
-        return $this->capture_video(false);
-    }
-
-    // SWF/FLV needs the seek (-ss) placed after the input (-i); see FFMPEG_SWF_CMDV.
-    private function capture_swf(): bool {
-        return $this->capture_video(true);
+        return $this->do_capture_img($this->source_path);
     }
 
     private function capture_video(bool $seek_after_input): bool {
@@ -310,7 +293,7 @@ class Thumb {
                 : self::FALLBACK_SEEK;
             return $this->do_capture($conv_cmd, $timestamp);
         } catch (\Exception) {
-            return $this->capture('file');
+            return false;
         }
     }
 
@@ -359,7 +342,7 @@ class Thumb {
             }
             return false;
         } catch (\Exception) {
-            return $this->capture('file');
+            return false;
         }
     }
 
@@ -371,7 +354,7 @@ class Thumb {
             $this->db->insert($this->source_hash, $this->type->name, $e->getCode());
             return true;
         } catch (WrongType) {
-            return $this->capture('file');
+            return false;
         } catch (\Exception $e) {
             Util::log("Unhandled exception while reading archive {$this->source_path} of type {$handler}: " . $e->getMessage());
         }
@@ -526,10 +509,6 @@ class Thumb {
             1,
             PHP_ROUND_HALF_UP,
         );
-    }
-
-    public static function get_handlers_array(string $handler): array {
-        return [$handler, ...array_diff(array_keys(self::HANDLED_TYPES), [$handler])];
     }
 
     public static function type_to_handler(string $type): string {
@@ -753,25 +732,12 @@ class FileType {
         }
     }
 
-    public function __construct(
-        private readonly Context $context,
-        ?string $name = null,
-    ) {
+    public function __construct(?string $name = null) {
         $this->name = $name ?? '';
     }
 
     public function was_wrong(): bool {
         return $this->name_changed;
-    }
-
-    public function mime_to_type(string $mime): string {
-        return array_find_key(
-            $this->context->get_types(),
-            fn(array $values): bool => isset($values['mime']) && array_any(
-                $values['mime'],
-                fn(string $test): bool => str_contains($mime, $test),
-            ),
-        ) ?? 'file';
     }
 }
 

@@ -206,25 +206,25 @@ try {
         'ffprobe' => 'echo 10',
     ]);
     try {
-        $captureMov = new ReflectionMethod(Thumb::class, 'capture_mov');
+        $runHandler = new ReflectionMethod(Thumb::class, 'run_handler');
         $videoThumb = static function (bool $hasProbe) use ($robustValues, $robustStore, $robustRoot): Thumb {
             $setup = new TestSetup(['HAS_CMD_FFPROBE' => $hasProbe] + $robustValues);
             $context = new Context(new Session($robustStore), new Request([], ''), $setup);
             return new Thumb($context, $robustRoot . '/movie.mp4', 'vid-mp4');
         };
-        $captureMov->invoke($videoThumb(false));
+        $runHandler->invoke($videoThumb(false), 'mov');
         check(read_tool_log($robustTmp, 'ffprobe') === '', 'a missing ffprobe must not be run');
         check(
             str_contains(read_tool_log($robustTmp, 'ffmpeg'), '-ss 0.1 -i ' . $robustRoot . '/movie.mp4'),
             'without a probe the video thumbnail must seek to an early frame',
         );
         unlink($robustTmp . '/ffmpeg.log');
-        $captureMov->invoke($videoThumb(true));
+        $runHandler->invoke($videoThumb(true), 'mov');
         check(read_tool_log($robustTmp, 'ffprobe') !== '', 'an available ffprobe must measure the duration');
         check(str_contains(read_tool_log($robustTmp, 'ffmpeg'), '-ss 5 -i '), 'the probed duration must set the seek position');
 
         unlink($robustTmp . '/ffmpeg.log');
-        (new ReflectionMethod(Thumb::class, 'capture_swf'))->invoke($videoThumb(false));
+        $runHandler->invoke($videoThumb(false), 'swf');
         check(
             str_contains(read_tool_log($robustTmp, 'ffmpeg'), '-i ' . $robustRoot . '/movie.mp4 -ss 0.1 '),
             'SWF/FLV thumbnails must seek after opening the input',
@@ -232,13 +232,13 @@ try {
 
         install_fake_tools($robustTmp, ['ffprobe' => 'echo N/A']);
         unlink($robustTmp . '/ffmpeg.log');
-        $captureMov->invoke($videoThumb(true));
+        $runHandler->invoke($videoThumb(true), 'mov');
         check(str_contains(read_tool_log($robustTmp, 'ffmpeg'), '-ss 0.1 -i '), 'an unknown duration must seek to an early frame');
 
         install_fake_tools($robustTmp, ['avconv' => "printf 'not an image'"]);
         $avconvSetup = new TestSetup(['HAS_CMD_FFMPEG' => false, 'HAS_CMD_AVCONV' => true] + $robustValues);
         $avconvContext = new Context(new Session($robustStore), new Request([], ''), $avconvSetup);
-        $captureMov->invoke(new Thumb($avconvContext, $robustRoot . '/movie.mp4', 'vid-mp4'));
+        $runHandler->invoke(new Thumb($avconvContext, $robustRoot . '/movie.mp4', 'vid-mp4'), 'mov');
         check(
             str_contains(read_tool_log($robustTmp, 'avconv'), '-ss 0.1 -i '),
             'avconv must be used, without a probe, when ffmpeg is missing',

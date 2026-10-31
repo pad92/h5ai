@@ -12,6 +12,7 @@ class Context {
     private array $options;
     private string $passhash;
     private ?array $types = null;
+    private ?TypeMatcher $type_matcher = null;
     private readonly PathPolicy $paths;
     private ?array $foldersize_mode = null;
 
@@ -83,6 +84,10 @@ class Context {
 
     public function get_types(): array {
         return $this->types ??= Json::load($this->setup->get('CONF_PATH') . '/types.json');
+    }
+
+    public function get_type_matcher(): TypeMatcher {
+        return $this->type_matcher ??= new TypeMatcher($this->get_types());
     }
 
     public function login_admin(string $pass): bool {

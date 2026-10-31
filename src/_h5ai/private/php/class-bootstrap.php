@@ -77,6 +77,21 @@ class Bootstrap {
         }
     }
 
+    // Shared by the CLI workers (warm-cache.php, refresh-cache.php): they see
+    // the served tree as a GET request for its root would.
+    public static function cli_context(): Context {
+        require_once __DIR__ . '/version.php';
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+        $_SERVER['REQUEST_URI'] = '/';
+        $_SERVER['SCRIPT_NAME'] = '/_h5ai/public/index.php';
+        $_SERVER['SERVER_SOFTWARE'] = 'CLI';
+        $_SERVER['HTTP_USER_AGENT'] = 'CLI';
+        spl_autoload_register(self::autoload(...));
+
+        $session_store = [];
+        return new Context(new Session($session_store), new Request([], ''), new Setup());
+    }
+
     public static function autoload(string $class_name): bool {
         $filename = 'class-' . strtolower($class_name) . '.php';
 
