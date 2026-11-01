@@ -1,12 +1,6 @@
 <?php
 
 class Filesize {
-    // du limit for a size computed while serving a request. Requests read
-    // folder sizes from the cache (Context::with_cached_folder_sizes), so
-    // this only matters for a caller outside that path; it must stay below
-    // the php-fpm pool's request_terminate_timeout so the fail-closed path
-    // below runs before the worker is killed from under it.
-    public const DEFAULT_TIMEOUT = 50;
     // Directory mtimes do not change when an existing file is rewritten. A
     // bounded lifetime therefore limits how long such a change can go unseen.
     public const CACHE_TTL = 300;
@@ -20,7 +14,6 @@ class Filesize {
     private static bool $persistent_cache_dirty = false;
     private static array $dirty_entries = [];
     private static ?string $persistent_cache_path = null;
-    private static bool $async_mode = false;
     private static array $stale_paths = [];
 
     private static function init_persistent_cache(): void {
@@ -122,65 +115,48 @@ class Filesize {
         return array_all($entry['children'], static fn(mixed $child): bool => is_string($child) && self::is_cache_entry_valid($child));
     }
 
-    public static function get_size(string $path, bool $with_foldersize, bool $with_du, int $timeout = self::DEFAULT_TIMEOUT): ?int {
+    // Computes a size now. Only the CLI workers call it: requests read
+    // folder sizes from the cache through get_cached_size().
+    public static function get_size(string $path, bool $with_foldersize, bool $with_du, int $timeout = self::DEFAULT_BACKGROUND_TIMEOUT): ?int {
         return new self($timeout)->size($path, $with_foldersize, $with_du);
     }
 
+    // Starts collecting the folders get_cached_size() could not answer.
     public static function begin_async_mode(): void {
         self::$stale_paths = [];
-        self::$async_mode = true;
     }
 
+    // The folders to hand to the background refresh, each once.
     public static function end_async_mode(): array {
-        self::$async_mode = false;
         $stale_paths = array_unique(self::$stale_paths);
         self::$stale_paths = [];
         return $stale_paths;
     }
 
-    public static function get_cached_size(
-        string $path,
-        bool $with_foldersize,
-        bool $with_du,
-        int $timeout = self::DEFAULT_TIMEOUT,
-        ?bool $is_folder = null,
-    ): ?int {
+    // Size of a listed item without computing any folder size: a regular
+    // file is read directly, a folder comes from a fresh cache entry or is
+    // unknown (null) and queued for the refresh worker. Call it between
+    // begin_async_mode() and end_async_mode(), as
+    // Context::with_cached_folder_sizes() does.
+    public static function get_cached_size(string $path, bool $with_foldersize, bool $is_folder): ?int {
         if (array_key_exists($path, self::$cache)) {
             return self::$cache[$path];
         }
-
-        if (self::$async_mode) {
-            if ($is_folder === false) {
-                // Item has just read this path's type and mtime, so PHP can
-                // reuse the same cached stat result for the regular file size.
-                $size = @filesize($path);
-                return self::$cache[$path] = $size === false ? null : $size;
-            }
-            if ($is_folder === null) {
-                return self::$cache[$path] = null;
-            }
-            if ($is_folder && $with_foldersize) {
-                self::init_persistent_cache();
-                if (array_key_exists($path, self::$persistent_cache)) {
-                    $entry = self::$persistent_cache[$path];
-                    if (self::is_cache_entry_fresh($entry)) {
-                        return self::$cache[$path] = $entry['size'];
-                    }
-                }
-                self::$stale_paths[] = $path;
-                return self::$cache[$path] = null;
-            }
-            return self::$cache[$path] = null;
+        if (!$is_folder) {
+            // Item has just read this path's type and mtime, so PHP can
+            // reuse the same cached stat result for the regular file size.
+            $size = @filesize($path);
+            return self::$cache[$path] = $size === false ? null : $size;
         }
-
-        if (is_dir($path) && $with_foldersize) {
+        if ($with_foldersize) {
             self::init_persistent_cache();
-            if (self::is_cache_entry_valid($path)) {
-                return self::$cache[$path] = self::$persistent_cache[$path]['size'];
+            $entry = self::$persistent_cache[$path] ?? null;
+            if (self::is_cache_entry_fresh($entry)) {
+                return self::$cache[$path] = $entry['size'];
             }
+            self::$stale_paths[] = $path;
         }
-
-        return self::$cache[$path] = self::get_size($path, $with_foldersize, $with_du, $timeout);
+        return self::$cache[$path] = null;
     }
 
     private function __construct(private readonly int $timeout) {}
@@ -287,7 +263,7 @@ class Filesize {
     // Compute and cache folder sizes for several paths with a single du call.
     // A path du could not measure (permissions, vanished folder, timeout)
     // keeps whatever entry it had: no bogus 0 is persisted.
-    public static function refresh_du(array $paths, int $timeout = self::DEFAULT_TIMEOUT): void {
+    public static function refresh_du(array $paths, int $timeout = self::DEFAULT_BACKGROUND_TIMEOUT): void {
         $paths = array_values(array_filter($paths, is_dir(...)));
         if ($paths !== []) {
             self::persist_tree(new self($timeout)->du_tree($paths));

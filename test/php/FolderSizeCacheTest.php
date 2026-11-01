@@ -66,21 +66,24 @@ final class FolderSizeCacheTest extends H5aiTestCase {
         self::assertSame([$this->root('a/x'), $this->root('a/y')], $children);
     }
 
-    public function testAChangeDeepBelowInvalidatesTheRootEntry(): void {
+    // A PHP walk reuses a subfolder entry only while nothing changed below it.
+    public function testAChangeDeepBelowInvalidatesTheSubfolderEntry(): void {
         Filesize::get_size($this->root(), true, false);
         $entries = new ReflectionProperty(Filesize::class, 'persistent_cache');
-        $requestCache = new ReflectionProperty(Filesize::class, 'cache');
         $cached = $entries->getValue();
-        $entries->setValue(null, [$this->root() => ['size' => 12345] + $cached[$this->root()]] + $cached);
-        $requestCache->setValue(null, []);
-        self::assertSame(12345, Filesize::get_cached_size($this->root(), true, false), 'an unchanged tree must be served from cache');
+        $entries->setValue(null, [$this->root('l1') => ['size' => 12345] + $cached[$this->root('l1')]] + $cached);
+        self::assertSame(
+            self::treeSize($this->root()) - self::treeSize($this->root('l1')) + 12345,
+            Filesize::refresh_tree($this->root(), false),
+            'an unchanged subtree must be served from cache',
+        );
 
+        $entries->setValue(null, [$this->root('l1') => ['size' => 12345] + $cached[$this->root('l1')]] + $cached);
         // Let the one-second resolution of filemtime() see the change.
         sleep(1);
         $this->write($this->deepest . '/new.bin', str_repeat('n', 50));
         clearstatcache();
-        $requestCache->setValue(null, []);
-        self::assertSame(self::treeSize($this->root()), Filesize::get_cached_size($this->root(), true, false));
+        self::assertSame(self::treeSize($this->root()), Filesize::refresh_tree($this->root(), false));
     }
 
     public function testADuPassCachesEveryFolderItMeasured(): void {

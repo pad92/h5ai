@@ -17,8 +17,7 @@ if (!$fp || !flock($fp, LOCK_EX | LOCK_NB)) {
     exit(0);
 }
 
-// This script is always launched on the CLI: use the background timeout.
-[$with_foldersize, $with_du, , $timeout] = $context->foldersize_mode();
+[$with_foldersize, $with_du, $timeout] = $context->foldersize_mode();
 
 $paths = array_slice($argv, 1);
 if ($with_foldersize) {

@@ -227,9 +227,9 @@ class Util {
         return self::can_run('exec') && @exec($cmd, $unused, $rc) !== false && $rc === 0;
     }
 
-    public static function filesize(Context $context, string $path, ?bool $is_folder = null): ?int {
-        [$with_foldersize, $with_du, $timeout] = $context->foldersize_mode();
-        return Filesize::get_cached_size($path, $with_foldersize, $with_du, $timeout, $is_folder);
+    public static function filesize(Context $context, string $path, bool $is_folder): ?int {
+        [$with_foldersize] = $context->foldersize_mode();
+        return Filesize::get_cached_size($path, $with_foldersize, $is_folder);
     }
 
     // A file size as the browser shows it (core/format.js formatSize): SI
