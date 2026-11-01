@@ -17,3 +17,4 @@ require_once __DIR__ . '/support/TestSetup.php';
 require_once __DIR__ . '/support/ListingTestContext.php';
 require_once __DIR__ . '/support/H5aiTestCase.php';
 require_once __DIR__ . '/support/SubprocessCoverage.php';
+require_once __DIR__ . '/support/PhpServer.php';

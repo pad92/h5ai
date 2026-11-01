@@ -81,6 +81,30 @@ abstract class H5aiTestCase extends TestCase {
         return $name;
     }
 
+    // A copy of the application under $tmp/app/_h5ai, so that it can run
+    // with its caches out of the checkout: private/ as in the sources (with
+    // the version filled in, as the build does) and an empty public/cache.
+    // Returns the _h5ai folder.
+    protected function copyApplication(array $options): string {
+        $app = $this->tmp . '/app/_h5ai';
+        mkdir($app . '/public/cache', 0700, true);
+        exec('cp -R ' . escapeshellarg(self::sourcePrivate()) . ' ' . escapeshellarg($app . '/private'), $unused, $status);
+        self::assertSame(0, $status);
+        $version = $app . '/private/php/version.php';
+        file_put_contents($version, str_replace('{{VERSION}}', 'test', (string) file_get_contents($version)));
+        file_put_contents($app . '/private/conf/options.json', json_encode($options));
+        return $app;
+    }
+
+    protected static function sourcePrivate(): string {
+        return (string) realpath(__DIR__ . '/../../../src/_h5ai/private');
+    }
+
+    // Coverage of subprocesses running the copy made by copyApplication().
+    protected function applicationCoverage(string $app): SubprocessCoverage {
+        return new SubprocessCoverage($this->tmp . '/coverage', [$app . '/private/' => self::sourcePrivate() . '/']);
+    }
+
     // Puts scripts named after $tools first on PATH until the test ends.
     // Each appends its arguments to a log read by toolLog(), then runs $body.
     protected function fakeTools(array $tools): void {

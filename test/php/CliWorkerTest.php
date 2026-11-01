@@ -6,6 +6,7 @@ declare(strict_types=1);
 // or by a web request.
 final class CliWorkerTest extends H5aiTestCase {
     private string $app;
+    private SubprocessCoverage $coverage;
 
     protected function setUp(): void {
         parent::setUp();
@@ -37,24 +38,22 @@ final class CliWorkerTest extends H5aiTestCase {
     }
 
     // Run on a copy of the application so their caches stay out of the checkout.
-    private function copyApplication(): void {
-        $this->app = $this->tmp . '/app/_h5ai';
-        mkdir($this->app . '/public/cache', 0700, true);
-        exec('cp -R ' . escapeshellarg(__DIR__ . '/../../src/_h5ai/private') . ' ' . escapeshellarg($this->app . '/private'), $unused, $status);
-        self::assertSame(0, $status);
-        file_put_contents($this->app . '/private/conf/options.json', json_encode([
+    private function copyApp(): void {
+        $this->app = $this->copyApplication([
             'foldersize' => ['enabled' => true, 'type' => 'php'],
             'thumbnails' => ['enabled' => false],
-        ]));
+        ]);
+        $this->coverage = $this->applicationCoverage($this->app);
     }
 
     private function runWorker(string $script, array $args = []): string {
-        $command = 'H5AI_ROOT_PATH=' . escapeshellarg($this->root()) . ' ' . escapeshellarg(PHP_BINARY)
+        $command = 'H5AI_ROOT_PATH=' . escapeshellarg($this->root()) . ' ' . $this->coverage->shell_php()
             . ' ' . escapeshellarg($this->app . '/private/php/' . $script);
         foreach ($args as $arg) {
             $command .= ' ' . escapeshellarg($arg);
         }
         exec($command . ' 2>&1', $output, $status);
+        $this->coverage->collect();
         self::assertSame(0, $status, implode("\n", $output));
         return implode("\n", $output);
     }
@@ -64,7 +63,7 @@ final class CliWorkerTest extends H5aiTestCase {
     }
 
     public function testTheRefreshWorkerCachesTheRequestedFolders(): void {
-        $this->copyApplication();
+        $this->copyApp();
         touch($this->app . '/private/cache/refresh.requested');
         $this->runWorker('refresh-cache.php', [$this->root('sub')]);
         self::assertGreaterThanOrEqual(1000, $this->cachedSizes()[$this->root('sub')]['size'] ?? 0);
@@ -72,7 +71,7 @@ final class CliWorkerTest extends H5aiTestCase {
     }
 
     public function testTheCacheWarmerCachesTheRootFolder(): void {
-        $this->copyApplication();
+        $this->copyApp();
         self::assertStringContainsString('Cache warming completed', $this->runWorker('warm-cache.php'));
         self::assertGreaterThanOrEqual(1000, $this->cachedSizes()[$this->root()]['size'] ?? 0);
         self::assertFileExists($this->app . '/private/cache/warmer.lastrun');
@@ -81,7 +80,7 @@ final class CliWorkerTest extends H5aiTestCase {
     // A worker launched while another one runs must not remove the start
     // marker of the running one.
     public function testASecondWarmerLeavesTheRunningOneAlone(): void {
-        $this->copyApplication();
+        $this->copyApp();
         $marker = $this->app . '/private/cache/warmer.laststart';
         file_put_contents($marker, (string) time());
         $held = fopen($this->app . '/private/cache/warmer.lock', 'c+');
