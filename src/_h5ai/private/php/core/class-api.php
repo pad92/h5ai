@@ -10,13 +10,14 @@ class Api {
     }
 
     public function apply(): never {
-        $action = $this->request->query_string('action');
-        $supported = ['download', 'get', 'login', 'logout'];
-        Util::json_fail(Util::ERR_UNSUPPORTED, 'unsupported action', !in_array($action, $supported, true));
-
-        $methodname = 'on_' . $action;
-        $this->$methodname();
-        exit;
+        // Explicit calls, so that no handler looks unused to a reader or a tool.
+        match ($this->request->query_string('action')) {
+            'download' => $this->on_download(),
+            'get' => $this->on_get(),
+            'login' => $this->on_login(),
+            'logout' => $this->on_logout(),
+            default => Util::json_error(Util::ERR_UNSUPPORTED, 'unsupported action'),
+        };
     }
 
     private function on_download(): never {

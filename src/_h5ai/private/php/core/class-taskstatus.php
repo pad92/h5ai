@@ -178,12 +178,11 @@ class TaskStatus {
         return is_array($data) ? $data : [];
     }
 
-    // Written to a temporary file and renamed, so readers never see half a file.
+    // Written to a temporary file next to $path and renamed, so readers never
+    // see half a file. (tempnam() would fall back to the system temporary
+    // folder when the cache folder is missing.)
     private static function write_json(string $path, array $data): void {
-        $tmp = @tempnam(dirname($path), 'task.');
-        if ($tmp === false) {
-            return;
-        }
+        $tmp = $path . '.' . bin2hex(random_bytes(6)) . '.tmp';
         if (@file_put_contents($tmp, json_encode($data)) === false || !@rename($tmp, $path)) {
             @unlink($tmp);
         }

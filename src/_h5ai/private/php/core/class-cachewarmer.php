@@ -108,13 +108,8 @@ class CacheWarmer {
         return $pruned;
     }
 
-    private function warm_path(string $path, array &$visited = []): void {
-        $real_path = realpath($path) ?: $path;
-        if (isset($visited[$real_path])) {
-            return;
-        }
-        $visited[$real_path] = true;
-
+    // Symlinked folders are not followed, so the walk cannot loop.
+    private function warm_path(string $path): void {
         if (!is_dir($path) || !$this->context->paths()->is_managed_path($path)) {
             return;
         }
@@ -124,7 +119,7 @@ class CacheWarmer {
         foreach ($files as $file) {
             $child_path = $path . '/' . $file;
             if (is_dir($child_path) && !is_link($child_path)) {
-                $this->warm_path($child_path, $visited);
+                $this->warm_path($child_path);
                 continue;
             }
             $this->status?->advance();

@@ -83,6 +83,16 @@ class Setup {
         $this->set('HAS_SERVER', in_array($server_name, ['apache', 'lighttpd', 'nginx', 'cherokee', 'angie']));
     }
 
+    // The shell command that finds a tool, from the probed LOOKUP_CMDS.
+    // `where` is only kept in cmds.json for compatibility: it is never probed.
+    private static function lookup_command(array $cmds): string|false {
+        return match (true) {
+            (bool) $cmds['command'] => 'command -v',
+            (bool) $cmds['which'] => 'which',
+            default => false,
+        };
+    }
+
     private function add_paths(): void {
         $script_name = $this->get('SCRIPT_NAME');
         if ($this->get('SERVER_NAME') === 'lighttpd') {
@@ -131,12 +141,7 @@ class Setup {
             $cmds['which'] = Util::exec_0('which which 2>/dev/null');
             $cmds['where'] = false;
 
-            $cmd = match (true) {
-                $cmds['command'] => 'command -v',
-                $cmds['which'] => 'which',
-                $cmds['where'] => 'where',
-                default => false,
-            };
+            $cmd = self::lookup_command($cmds);
 
             foreach (self::SYS_CMDS as $c) {
                 $cmds[$c] = ($cmd !== false) && Util::exec_0($cmd . ' ' . $c . ' 2>/dev/null');
