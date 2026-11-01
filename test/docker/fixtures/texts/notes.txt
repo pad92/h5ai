@@ -1,0 +1,2 @@
+Plain text fixture for the h5ai text preview.
+Second line, with accents: é à ç ü.

@@ -6,8 +6,12 @@ services:
     image: h5ai-devel
     ports:
       - 8888:80
+    # Thumbnail fixtures and the Markdown docs, to browse and preview.
     volumes:
-      - ./src:/share:ro
+      - ./test/docker/fixtures:/share/test:ro
+      - ./doc:/share/doc:ro
+      - ./README.md:/share/README.md:ro
+      - ./CHANGELOG.md:/share/CHANGELOG.md:ro
     deploy:
       resources:
         limits:
