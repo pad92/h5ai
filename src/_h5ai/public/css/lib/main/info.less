@@ -1,35 +1,35 @@
-// Admin info page: login card, then the setup checks grouped in cards.
+// Admin info page. Colors are translucent greys over inherited text and
+// background, so the same rules serve the light and the dark theme.
+// #content already scrolls (view/content.less).
+
+@info-tint: rgba(128, 128, 128, 0.1);
+@info-line: rgba(128, 128, 128, 0.3);
 
 #root.info {
     #content {
-        flex: 1 1 auto;
-        order: 50;
-        // #root clips its overflow, so the long check list scrolls here.
-        overflow-y: auto;
         padding: 0 16px 48px;
-        color: @col-text;
+
+        > * {
+            max-width: 640px;
+            margin: 16px auto 0;
+        }
     }
 
-    // Only the theme toggle: kept in the top right corner, over the page.
+    // Only holds the theme toggle.
     #toolbar {
         position: absolute;
         top: 0;
         right: 0;
         z-index: 1;
-        overflow: visible;
     }
 
     #header {
-        margin: 0.8em 0 0.4em;
         text-align: center;
-        font-size: 1em;
 
         a {
-            .eased-transition;
-
             font-size: 4em;
             font-weight: 300;
-            color: @col-text;
+            color: inherit;
             text-decoration: none;
 
             &:hover {
@@ -38,158 +38,132 @@
         }
 
         .version {
-            font-size: 0.45em;
-            font-weight: 300;
-            opacity: 0.5;
             margin-left: 0.2em;
+            font-size: 0.45em;
+            opacity: 0.5;
             vertical-align: super;
         }
     }
 
+    // The global code rule sets a light theme text color.
     code {
-        margin: 0 0.1em;
         padding: 1px 4px;
+        color: inherit;
         border-radius: 4px;
-        background: @col-back-panel;
-        border: 1px solid @col-border;
+        background: @info-tint;
         font-size: 0.9em;
         overflow-wrap: anywhere;
     }
 
-    .card, #checks, #metrics {
-        max-width: 640px;
-        margin: 16px auto 0;
-    }
-
     .card {
-        padding: 16px;
-        border: 1px solid @col-border-strong;
-        border-radius: 8px;
-        background: @col-back-paper;
-    }
-
-    .notice {
-        line-height: 1.6;
-    }
-
-    #login label {
         display: block;
-        margin-bottom: 8px;
-        font-weight: 700;
+        margin: 16px 0 0;
+        padding: 16px;
+        border: 1px solid @info-line;
+        border-radius: 8px;
     }
 
-    .row, #logout-wrapper {
+    .row {
         display: flex;
         flex-wrap: wrap;
         align-items: center;
         gap: 8px;
     }
 
-    #logout-wrapper span {
-        flex: 1 1 auto;
+    .grow {
+        flex: 1 1 200px;
+        min-width: 0;
+        margin: 0;
+    }
+
+    label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 700;
+    }
+
+    #pass, button {
+        padding: 0 12px;
+        border-radius: 4px;
+        font-family: inherit;
+        font-size: inherit;
+        line-height: 36px;
     }
 
     #pass {
-        .el-input;
-
-        flex: 1 1 200px;
-        min-width: 0;
-        padding: 0 12px;
-        line-height: 36px;
-        border-color: @col-border-strong;
-        border-radius: 4px;
+        border: 1px solid @info-line;
+        background: transparent;
+        color: inherit;
     }
 
     button {
         .el-button;
 
-        padding: 0 16px;
         border: 0;
-        border-radius: 4px;
-        font-family: inherit;
-        font-size: inherit;
-        line-height: 36px;
 
         &:disabled {
             opacity: 0.6;
             cursor: progress;
-            box-shadow: none;
         }
     }
 
-    #pass:focus-visible, button:focus-visible {
-        outline: 2px solid @col-blue-400;
+    :focus-visible {
+        outline: 2px solid @col-link;
         outline-offset: 2px;
     }
 
+    // Outcome color, shared by the row marker, its value and the counters.
+    .passed {
+        --state: @col-okay;
+    }
+
+    .failed, .error {
+        --state: @col-error;
+    }
+
+    .result, .count, .error, #checks-summary, #metrics-status {
+        color: var(--state, inherit);
+    }
+
     .error {
-        margin: 12px 0 0;
-        color: @col-error;
-
-        &[hidden] {
-            display: none;
-        }
-    }
-
-    #metrics {
-        margin-top: 32px;
-    }
-
-    .metrics-head {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 8px;
-
-        h2 {
-            margin: 0;
-            font-size: 1.2em;
-        }
-    }
-
-    #metrics-status {
+        flex-basis: 100%;
         margin: 8px 0 0;
+    }
 
-        &:empty {
-            display: none;
-        }
-
-        &.error {
-            color: @col-error;
-        }
+    #metrics-status:empty {
+        display: none;
     }
 
     #checks-summary {
-        margin: 24px 0 0;
+        margin-top: 24px;
         text-align: center;
         font-size: 1.2em;
         font-weight: 700;
-
-        &.passed {
-            color: @col-okay;
-        }
-
-        &.failed {
-            color: @col-error;
-        }
     }
 
     .group {
-        margin: 16px 0 0;
-        border: 1px solid @col-border-strong;
-        border-radius: 8px;
-        background: @col-back-paper;
+        padding: 0;
         overflow: hidden;
 
-        h2 {
-            margin: 0;
+        summary {
+            display: flex;
+            gap: 8px;
             padding: 8px 16px;
-            font-size: 0.85em;
+            background: @info-tint;
             font-weight: 700;
+            cursor: pointer;
+        }
+
+        &[open] summary {
+            border-bottom: 1px solid @info-line;
+        }
+
+        h2 {
+            flex: 1;
+            margin: 0;
+            font-size: 0.85em;
             letter-spacing: 0.05em;
             text-transform: uppercase;
-            background: @col-back-panel;
-            border-bottom: 1px solid @col-border-strong;
         }
     }
 
@@ -204,41 +178,16 @@
         grid-template-columns: minmax(0, 1fr) auto;
         gap: 2px 16px;
         padding: 10px 16px;
-        border-left: 4px solid transparent;
+        border-left: 4px solid var(--state, @info-line);
 
         & + .test {
-            border-top: 1px solid @col-border;
+            border-top: 1px solid @info-line;
         }
-
-        &.passed {
-            border-left-color: @col-okay;
-        }
-
-        &.failed {
-            border-left-color: @col-error;
-        }
-
-        &.neutral {
-            border-left-color: @col-border-stronger;
-        }
-    }
-
-    .label {
-        font-weight: 700;
     }
 
     .result {
         text-align: right;
-        font-weight: 700;
         overflow-wrap: anywhere;
-
-        &.passed {
-            color: @col-okay;
-        }
-
-        &.failed {
-            color: @col-error;
-        }
     }
 
     .desc {
@@ -246,6 +195,6 @@
         grid-column: ~"1 / -1";
         margin: 0;
         font-size: 0.9em;
-        color: @col-text-secondary-black;
+        opacity: 0.7;
     }
 }

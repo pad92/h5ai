@@ -103,7 +103,8 @@ cron jobs as well.
 
 Once logged in, the page shows how many checks pass, then the checks in three
 groups: h5ai, Server and PHP, and Commands. Each row has a green (passed), red
-(failed) or grey (information only) marker. Here is what each check verifies
+(failed) or grey (information only) marker. A group whose checks all pass is
+folded; click its title to open it. Here is what each check verifies
 and what to do when it fails.
 
 h5ai caches the command-line tools it finds in `_h5ai/private/cache/cmds.json`. Opening this page while logged in probes them again, so install or remove a tool and reload the page to update the results. Anonymous visits never trigger the probes. The cache is also rebuilt automatically when it lacks a tool that a newer h5ai release checks for. The Docker image deletes `cmds.json` each time the container starts, so a restart or an upgrade probes the tools again even when the private cache is kept on a volume.

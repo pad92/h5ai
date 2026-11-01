@@ -18,41 +18,42 @@ const MSG_REQUEST_FAILED = 'The server did not answer the request. Try again.';
 const NEUTRAL = null;
 
 const loginTpl =
-    `<form id="login" class="card" autocomplete="on">
+    `<form id="login" class="card">
         <label for="pass">Admin password</label>
         <div class="row">
-            <input id="pass" name="pass" type="password" autocomplete="current-password" required/>
+            <input id="pass" class="grow" name="pass" type="password" autocomplete="current-password" required/>
             <button type="submit">Log in</button>
         </div>
         <p id="login-error" class="error" role="alert" hidden></p>
     </form>`;
 const logoutTpl =
-    `<div id="logout-wrapper" class="card">
-        <span>Logged in as admin.</span>
+    `<div id="logout-wrapper" class="card row">
+        <span class="grow">Logged in as admin.</span>
         <button id="logout" type="button">Log out</button>
         <p id="logout-error" class="error" role="alert" hidden></p>
     </div>`;
 const disabledTpl =
-    '<p id="login-disabled" class="card notice"></p>';
+    '<p id="login-disabled" class="card"></p>';
 const checksTpl =
     `<div id="checks">
         <p id="checks-summary" role="status"></p>
     </div>`;
+// A <details> section: folded with the native toggle, no script needed.
 const groupTpl =
-    `<section class="group">
-        <h2></h2>
+    `<details class="card group" open>
+        <summary><h2></h2><span class="count"></span></summary>
         <ul class="tests"></ul>
-    </section>`;
+    </details>`;
 const testTpl =
     `<li class="test">
-        <span class="label"></span>
-        <span class="result"></span>
+        <strong class="label"></strong>
+        <strong class="result"></strong>
         <p class="desc"></p>
     </li>`;
 const metricsTpl =
     `<div id="metrics">
-        <div class="metrics-head">
-            <h2>Background tasks and cache</h2>
+        <div class="row">
+            <h2 class="grow">Background tasks and cache</h2>
             <button id="metrics-refresh" type="button">Refresh</button>
         </div>
         <p id="metrics-status" role="status"></p>
@@ -124,9 +125,7 @@ const addTest = ($list, [label, info, passed, result]) => {
     const outcome = passed === NEUTRAL ? 'neutral' : passed ? 'passed' : 'failed';
     $test.addCls(outcome);
     $test.find('.label').text(label);
-    $test.find('.result')
-        .addCls(outcome)
-        .text(result !== undefined && result !== '' ? result : yesNo(passed));
+    $test.find('.result').text(result !== undefined && result !== '' ? result : yesNo(passed));
     $test.find('.desc').html(info);
 };
 
@@ -143,13 +142,18 @@ const addChecks = () => {
         const $group = dom(groupTpl).appTo($checks);
         $group.find('h2').text(title);
         const $list = $group.find('.tests');
-        checks.forEach(check => {
-            addTest($list, check);
-            if (check[2] !== NEUTRAL) {
-                total += 1;
-                passed += check[2] ? 1 : 0;
-            }
-        });
+        const graded = checks.filter(check => check[2] !== NEUTRAL);
+        const groupPassed = graded.filter(check => check[2]).length;
+        checks.forEach(check => addTest($list, check));
+
+        // A section without a failure has nothing to act on: fold it.
+        const isClean = groupPassed === graded.length;
+        $group.prop('open', !isClean);
+        $group.find('.count')
+            .addCls(isClean ? 'passed' : 'failed')
+            .text(`${groupPassed}/${graded.length}`);
+        passed += groupPassed;
+        total += graded.length;
     });
 
     dom('#checks-summary')

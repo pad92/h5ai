@@ -39,7 +39,7 @@ This release includes v1.3.7, which was prepared but never published.
     * The login is a real form with a labelled field and buttons, so it works with the keyboard and password managers.
     * A "Background tasks and cache" section shows the cache warmer state and schedule, its last run, the thumbnail cache size, how many images, videos, documents, archives and audio files have a thumbnail, and the folder size cache. Only an admin session can read these figures (`get` with `metrics`).
     * The theme toggle is available on this page too.
-    * Checks are grouped with a pass count, show which video and document tool is used, and stay readable on narrow screens. The list scrolls instead of being cut off at the bottom of the window.
+    * Checks are grouped with a pass count, show which video and document tool is used, and stay readable on narrow screens. A group whose checks all pass is folded.
 
 * **Other fixes**:
     * In dark mode, scrollbars and other native controls are dark too.

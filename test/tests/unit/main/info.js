@@ -186,6 +186,34 @@ test('info page: refused metrics show an error and keep the checks', async () =>
     }
 });
 
+const sections = selector => [...document.querySelectorAll(`${selector} details`)].map(el => ({
+    title: el.querySelector('h2').textContent,
+    count: el.querySelector('.count') ? el.querySelector('.count').textContent : null,
+    open: el.open
+}));
+
+test('info page: sections with a failed check stay open, clean ones are folded', async () => {
+    const allGood = Object.assign({}, ADMIN_SETUP, {
+        HAS_WRITABLE_CACHE_PRV: true, HAS_PHP_EXIF: true, HAS_PHP_FILEINFO: true, HAS_PHP_ZIP: true,
+        HAS_PHP_RAR: true, HAS_PHP_SQLITE3: true
+    });
+    const page = loadInfo({setup: allGood, response: adminResponse});
+    try {
+        await page.settle();
+        assert.deepEqual(sections('#checks'), [
+            {title: 'h5ai', count: '5/5', open: false},
+            {title: 'Server and PHP', count: '9/9', open: false},
+            {title: 'Commands', count: '2/5', open: true}
+        ], 'the index file hint is not counted');
+        const counts = [...document.querySelectorAll('#checks .count')];
+        assert.deepEqual(counts.map(el => el.className), ['count passed', 'count passed', 'count failed']);
+        assert.ok(sections('#metrics').every(section => section.open && section.count === ''),
+            'metrics have no outcome and stay open');
+    } finally {
+        page.done();
+    }
+});
+
 test('info page: a development version is flagged and a 32-bit PHP fails', () => {
     const page = loadInfo({setup: Object.assign({}, ADMIN_SETUP, {VERSION: '1.4.0-dev', PHP_ARCH: '32-bit'})});
     try {
