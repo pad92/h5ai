@@ -18,6 +18,13 @@ fi
 # Set permissions for h5ai cache directories
 echo "Setting permissions for h5ai cache directories..."
 mkdir -p /usr/share/h5ai/_h5ai/public/cache /usr/share/h5ai/_h5ai/private/cache
+
+# cmds.json records which tools (ffmpeg, magick...) the image provides, and
+# h5ai only probes again when a key is missing. A persisted private cache
+# would otherwise keep the answers of a previous image after an upgrade: a
+# tool added later stays "absent", a removed one stays "present". Dropping it
+# makes the first request of each container probe the tools again.
+rm -f /usr/share/h5ai/_h5ai/private/cache/cmds.json
 find /usr/share/h5ai/_h5ai/public/cache /usr/share/h5ai/_h5ai/private/cache \
     \( ! -user angie -o ! -group angie \) -exec chown angie:angie {} +
 find /usr/share/h5ai/_h5ai/public/cache /usr/share/h5ai/_h5ai/private/cache \

@@ -2,12 +2,13 @@ IMAGE_NAME ?= h5ai-local
 TAG ?= latest
 TEST_HOST ?= localhost
 TEST_RETRIES ?= 15
-TEST_CONTAINERS = h5ai-test-noauth h5ai-test-auth h5ai-test-admin-pass h5ai-test-admin-preserve h5ai-test-admin-readonly h5ai-test-options h5ai-test-health h5ai-test-realip
+TEST_CONTAINERS = h5ai-test-noauth h5ai-test-auth h5ai-test-admin-pass h5ai-test-admin-preserve h5ai-test-admin-readonly h5ai-test-options h5ai-test-health h5ai-test-realip h5ai-test-cmds
 
 TEST_IMAGE = $(IMAGE_NAME):$(TAG)
 TEST_URL = http://$(TEST_HOST):8890/
 TEST_RUN = docker run -d -p 8890:80 -v $(CURDIR):/share:ro
 OPTIONS_JSON = /usr/share/h5ai/_h5ai/private/conf/options.json
+CMDS_JSON = /usr/share/h5ai/_h5ai/private/cache/cmds.json
 PHPUNIT_PHAR ?= /tmp/phpunit.phar
 PHPUNIT_VERSION = 12.5.42
 PHPUNIT_SHA256 = bcd5cef3751188d7953f46efafd407c1acf37c5f49dbf7933e413eb20e933ac5
@@ -270,6 +271,21 @@ docker-test: docker-build
 		exit 1; \
 	fi
 	docker rm -f h5ai-test-realip
+
+	@echo "Testing that a restart probes the command-line tools again..."
+	$(TEST_RUN) --name h5ai-test-cmds $(TEST_IMAGE)
+	$(call wait_for_http,,HTTP/1.1 200 OK,✓ Container ready,✗ Container failed to start,h5ai-test-cmds)
+	docker exec h5ai-test-cmds sh -c 'printf "%s" "{\"command\":true,\"which\":true,\"where\":false,\"avconv\":false,\"avprobe\":false,\"convert\":false,\"du\":false,\"ffmpeg\":false,\"ffprobe\":false,\"gm\":false,\"magick\":false,\"tar\":false,\"zip\":false}" > $(CMDS_JSON)'
+	docker restart h5ai-test-cmds
+	$(call wait_for_http,,HTTP/1.1 200 OK,✓ Container restarted,✗ Container failed to restart,h5ai-test-cmds)
+	@if docker exec h5ai-test-cmds cat $(CMDS_JSON) | grep -qE '"ffmpeg": *true'; then \
+		echo "✓ cmds.json probed again after a restart"; \
+	else \
+		echo "✗ cmds.json kept the answers written before the restart:"; docker exec h5ai-test-cmds cat $(CMDS_JSON); \
+		docker rm -f h5ai-test-cmds; \
+		exit 1; \
+	fi
+	docker rm -f h5ai-test-cmds
 
 	@echo "All tests passed successfully!"
 

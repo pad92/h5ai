@@ -59,6 +59,7 @@
 * **Docker image**: Ghostscript renders PDF and PostScript thumbnails, and brings ImageMagick's TIFF and JPEG 2000 modules. `make docker-test` checks PDF and TIFF thumbnails in the running container.
 * **Branch image builds**: fixed a regression from v1.3.7's branch-name version labels. A branch such as `fix/...` put the release archive in a subfolder and broke `build:image`; the archive file name now replaces such characters, while h5ai still shows the branch name.
 * **CI**: the PHP test job builds GD with JPEG and WebP, so image tests run instead of being skipped.
+* **Command-line tools after an upgrade**: the container deletes `_h5ai/private/cache/cmds.json` at startup. With the private cache on a volume, h5ai used to keep the tools found by the previous image, so a tool added by a new image stayed unused and a removed one was still called. `make docker-test` checks that a restart probes the tools again.
 
 ### Tests, documentation and internals
 
