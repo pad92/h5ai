@@ -54,6 +54,7 @@
 
 ### Docker and CI
 
+* **Faster pipelines on the single runner**: node jobs reuse a cached `node_modules` and only install on a lockfile change; the PHP test environment is a small image (`ci/php-test.Dockerfile`) kept by the runner's Docker cache instead of compiling GD and Xdebug in every job; the branch image is built by a persistent BuildKit builder, without QEMU, and stays in the runner's Docker for `test:docker` instead of a `docker save` artifact; Grype keeps its database in a Docker volume.
 * **Docker image**: Ghostscript renders PDF and PostScript thumbnails, and brings ImageMagick's TIFF and JPEG 2000 modules. `make docker-test` checks PDF and TIFF thumbnails in the running container.
 * **Branch image builds**: fixed a regression from v1.3.7's branch-name version labels. A branch such as `fix/...` put the release archive in a subfolder and broke `build:image`; the archive file name now replaces such characters, while h5ai still shows the branch name.
 * **CI**: the PHP test job builds GD with JPEG and WebP, so image tests run instead of being skipped.
