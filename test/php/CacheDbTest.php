@@ -13,7 +13,7 @@ final class CacheDbTest extends H5aiTestCase {
 
     public function testAnUnopenableCacheIsDisabled(): void {
         $db = $this->db($this->tmp . '/does-not-exist');
-        $db->insert('hash', 'img');
+        $db->insert('hash', 'img', 0);
         self::assertNull($db->select('hash'));
     }
 
@@ -21,7 +21,7 @@ final class CacheDbTest extends H5aiTestCase {
     public function testADatabaseWithoutTablesGetsItsSchema(): void {
         $this->write($this->tmp . '/cache/thumbs_cache.db', '');
         $db = $this->db($this->tmp . '/cache');
-        $db->insert('hash', 'img-jpg');
+        $db->insert('hash', 'img-jpg', 0);
         self::assertSame('img-jpg', $db->select('hash')['type'] ?? null);
     }
 
@@ -31,7 +31,7 @@ final class CacheDbTest extends H5aiTestCase {
         set_error_handler(static fn(int $errno, string $message): bool => str_contains($message, 'not a database'), E_WARNING);
         try {
             $db = $this->db($this->tmp . '/cache');
-            $db->insert('hash', 'img-jpg');
+            $db->insert('hash', 'img-jpg', 0);
             self::assertNull($db->select('hash'));
         } finally {
             restore_error_handler();

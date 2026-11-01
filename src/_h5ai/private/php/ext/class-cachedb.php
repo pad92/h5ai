@@ -62,7 +62,9 @@ class CacheDB {
         $this->conn = $db;
     }
 
-    public function insert(string $hash, string $type, ?int $error = null): void {
+    // $source_mtime is kept in the tstamp column: the entry holds while the
+    // source keeps exactly that mtime.
+    public function insert(string $hash, string $type, int $source_mtime, ?int $error = null): void {
         if (!$this->conn) {
             return;
         }
@@ -89,7 +91,7 @@ class CacheDB {
         $stmt->bindValue(':typeid', $typeid, SQLITE3_INTEGER);
         $stmt->bindValue(':err', $error, SQLITE3_INTEGER);
         $stmt->bindValue(':ver', $this->version, SQLITE3_INTEGER);
-        $stmt->bindValue(':time', time(), SQLITE3_INTEGER);
+        $stmt->bindValue(':time', $source_mtime, SQLITE3_INTEGER);
         $stmt->execute();
     }
 
@@ -178,7 +180,7 @@ class CacheDB {
     }
 
     public function obsolete_entry(array $row, int|false $mtime): bool {
-        return ($mtime > $row['tstamp']) || ($this->version !== $row['ver']);
+        return $mtime !== $row['tstamp'] || $this->version !== $row['ver'];
     }
 
     public function setup_version(): int {

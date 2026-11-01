@@ -25,8 +25,7 @@ final class CacheWarmerTest extends H5aiTestCase {
         // runs without GD or any capture tool.
         $seeded = [];
         foreach (['a.jpg', 'c.zip'] as $name) {
-            $thumb = 'thumb-' . sha1($this->root($name)) . '-266x200.webp';
-            $this->write($this->tmp . '/cache-pub/thumbs/' . $thumb, 'webp');
+            $thumb = $this->seedThumbnail($this->root($name), '266x200');
             $seeded['/' . $name] = '/_h5ai/public/cache/thumbs/' . $thumb;
         }
         $recorder = new class($context) extends Thumb {
@@ -53,7 +52,7 @@ final class CacheWarmerTest extends H5aiTestCase {
         $thumbs = [];
         foreach (['a.jpg', 'sub/b.jpg'] as $name) {
             $this->write($this->root($name), 'x');
-            $thumbs[$name] = $this->write($this->tmp . '/cache-pub/thumbs/thumb-' . sha1($this->root($name)) . '-266x200.webp', 'webp');
+            $thumbs[$name] = $this->tmp . '/cache-pub/thumbs/' . $this->seedThumbnail($this->root($name), '266x200');
         }
         self::assertSame(0, $this->imageWarmer()->warm());
         return $thumbs;
