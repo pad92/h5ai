@@ -6,19 +6,13 @@ class Fallback {
     public function get_html(?string $path = null): string {
         // This table is also generated before sending the JavaScript UI.
         // Cold folder sizes must not delay the initial HTML response.
-        Filesize::begin_async_mode();
-        try {
-            $html = $this->render_html($path);
-        } finally {
-            $stale_paths = Filesize::end_async_mode();
-        }
-        $this->context->trigger_folder_refresh($stale_paths);
-        return $html;
+        return $this->context->with_cached_folder_sizes(fn(): string => $this->render_html($path));
     }
 
     private function render_html(?string $path): string {
         $path ??= $this->context->get_current_path();
         $fallback_images_href = $this->context->get_setup()->get('PUBLIC_HREF') . 'images/fallback/';
+        $binary_prefix = (bool) $this->context->query_option('view.binaryPrefix', false);
 
         $cache = [];
         $folder = Item::get($this->context, $path, $cache);
@@ -50,7 +44,7 @@ class Fallback {
             $html .= '<td class="fb-i"><img src="' . htmlspecialchars($fallback_images_href . $type . '.png', ENT_QUOTES, 'UTF-8') . '" alt="' . $type . '"/></td>';
             $html .= '<td class="fb-n"><a href="' . htmlspecialchars($item->href, ENT_QUOTES, 'UTF-8') . '">' . htmlspecialchars(basename($item->path), ENT_QUOTES, 'UTF-8') . '</a></td>';
             $html .= '<td class="fb-d">' . date('Y-m-d H:i', $item->date) . '</td>';
-            $html .= '<td class="fb-s">' . ($item->size !== null ? intval($item->size / 1000) . ' KB' : '') . '</td>';
+            $html .= '<td class="fb-s">' . Util::format_size($item->size, $binary_prefix) . '</td>';
             $html .= '</tr>';
         }
 

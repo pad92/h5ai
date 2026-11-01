@@ -12,13 +12,22 @@ class Thumb {
     const AVPROBE_CMDV = ['avprobe', '-v', 'warning', '-protocol_whitelist', 'file,crypto,data', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', '[H5AI_SRC]'];
     const FFMPEG_AUD_CMDV = ['ffmpeg', '-v', 'warning', '-nostdin', '-y', '-hide_banner', '-protocol_whitelist', 'file,crypto,data', '-i', '[H5AI_SRC]', '-an', '-vframes', '1', '-f', 'image2', '-'];
     const AVCONV_AUD_CMDV = ['avconv', '-v', 'warning', '-nostdin', '-y', '-hide_banner', '-protocol_whitelist', 'file,crypto,data', '-i', '[H5AI_SRC]', '-an', '-vframes', '1', '-f', 'image2', '-'];
-    const CONVERT_CMDV = ['convert', '-density', '200', '-quality', '100', '-strip', '[H5AI_SRC][0]', 'WEBP:-'];
+    // ImageMagick 7 runs as `magick`; `convert` is its deprecated name and the
+    // only one on ImageMagick 6 hosts. Settings, input, operators, output: an
+    // order both versions accept.
+    const MAGICK_CMDV = ['magick', '-density', '200', '[H5AI_SRC][0]', '-quality', '100', '-strip', 'WEBP:-'];
+    const CONVERT_CMDV = ['convert', '-density', '200', '[H5AI_SRC][0]', '-quality', '100', '-strip', 'WEBP:-'];
     const GM_CONVERT_CMDV = ['gm', 'convert', '-density', '200', '-quality', '100', '-strip', '[H5AI_SRC][0]', 'WEBP:-'];
     const THUMB_CACHE = 'thumbs';
     const IMG_EXT = ['jpg', 'jpe', 'jpeg', 'jp2', 'jpx', 'tiff', 'webp', 'ico', 'png', 'bmp', 'gif'];
     // Formats accepted for user-provided custom thumbnails in a `_thumb` folder.
     const CUSTOM_THUMB_EXT = ['png', 'jpg', 'jpeg', 'webp'];
     private const MAX_ARCHIVE_THUMB_BYTES = 16 * 1024 * 1024;
+    public const DEFAULT_SIZE = 240;
+    // Width granularity of explicitly sized thumbnails (image preview samples).
+    public const SAMPLE_WIDTH_STEP = 256;
+    // Seek position, in seconds, when a video's duration cannot be probed.
+    private const FALLBACK_SEEK = '0.1';
 
     public const HANDLED_TYPES = [
         'img' => ['img', 'img-bmp', 'img-jpg', 'img-gif', 'img-png', 'img-raw', 'img-tiff', 'img-svg', 'img-webp'],
@@ -35,7 +44,6 @@ class Thumb {
     private readonly string $thumbs_path;
     private readonly string $thumbs_href;
     private ?Image $image = null;
-    private int $attempt = 0;
     private CacheDB $db;
     private ?string $source_path;
     private int|false $mtime;
@@ -61,7 +69,7 @@ class Thumb {
             $this->source_hash = sha1($source_path);
             $this->mtime = @filemtime($this->source_path);
         }
-        $this->type = is_string($type) ? new FileType($context, $type) : $type;
+        $this->type = is_string($type) ? new FileType($type) : $type;
 
         if (!is_dir($this->thumbs_path)) {
             @mkdir($this->thumbs_path, 0755, true);
@@ -70,6 +78,30 @@ class Thumb {
 
     public function __destruct() {
         unset($this->image);
+    }
+
+    // [width, height] of a listing thumbnail. thumbnails.js sends no
+    // dimensions, so these are the only sizes the browser ever asks for: the
+    // cache warmer must produce exactly these to be of any use.
+    public static function default_dimensions(Context $context): array {
+        $height = max(1, (int) $context->query_option('thumbnails.size', self::DEFAULT_SIZE));
+        return [(int) floor($height * 4 / 3), $height];
+    }
+
+    // [width, height] for one entry of a thumbs API request. Listing requests
+    // carry no size and get default_dimensions(). An explicit size (image
+    // preview samples) keeps the source aspect ratio (height 0) and has its
+    // width rounded up to a SAMPLE_WIDTH_STEP multiple, capped by
+    // thumbnails.maxDimension: every variant is cached on disk, so the client
+    // must not be able to ask for one per pixel.
+    public static function request_dimensions(Context $context, array $req): array {
+        if (!isset($req['width']) && !isset($req['height'])) {
+            return self::default_dimensions($context);
+        }
+        $max_dimension = max(1, (int) $context->query_option('thumbnails.maxDimension', 4096));
+        $width = max(1, is_numeric($req['width'] ?? null) ? (int) $req['width'] : 1);
+        $width = (int) ceil($width / self::SAMPLE_WIDTH_STEP) * self::SAMPLE_WIDTH_STEP;
+        return [min($max_dimension, $width), 0];
     }
 
     public function get_type(): ?FileType {
@@ -96,24 +128,19 @@ class Thumb {
         return null;
     }
 
-    public function thumb(int|string $arg1, ?int $arg2 = null, ?int $arg3 = null, ?int $arg4 = null): ?string {
-        if ($arg3 !== null && $arg4 !== null) {
-            $type = $arg1;
-            $source_href = $arg2;
-            $width = $arg3;
-            $height = $arg4;
+    // Retargets this instance at another source before generating its
+    // thumbnail, so a tree walk can reuse one instance and its CacheDB.
+    public function thumb_for(string $type, string $source_href, int $width, int $height): ?string {
+        $this->source_path = $this->context->paths()->to_path($source_href);
+        $this->source_hash = sha1($this->source_path);
+        $this->mtime = @filemtime($this->source_path);
+        $this->type = new FileType($type);
+        $this->image = null;
 
-            $this->source_path = $this->context->to_path($source_href);
-            $this->source_hash = sha1($this->source_path);
-            $this->mtime = @filemtime($this->source_path);
-            $this->type = new FileType($this->context, $type);
-            $this->attempt = 0;
-            $this->image = null;
-        } else {
-            $width = (int) $arg1;
-            $height = (int) $arg2;
-        }
+        return $this->thumb($width, $height);
+    }
 
+    public function thumb(int $width, int $height): ?string {
         $this->thumb_width = $width;
         $this->thumb_height = $height;
 
@@ -123,20 +150,20 @@ class Thumb {
         }
 
         $is_directory = is_dir($this->source_path);
-        if (($is_directory && !$this->context->is_managed_path($this->source_path))
-            || (!$is_directory && !$this->context->is_managed_file($this->source_path))) {
+        if (($is_directory && !$this->context->paths()->is_managed_path($this->source_path))
+            || (!$is_directory && !$this->context->paths()->is_managed_file($this->source_path))) {
             return null;
         }
         $custom_thumb_source_path = self::check_custom_thumb($this->source_path);
 
         if ($custom_thumb_source_path) {
-            if (!$this->context->is_managed_file($custom_thumb_source_path)) {
+            if (!$this->context->paths()->is_managed_file($custom_thumb_source_path)) {
                 return null;
             }
             $this->source_path = $custom_thumb_source_path;
             $this->mtime = @filemtime($this->source_path);
             $this->source_hash = sha1($this->source_path);
-            $this->type = new FileType($this->context, 'img');
+            $this->type = new FileType('img');
         } elseif ($is_directory) {
             return null;
         }
@@ -161,25 +188,12 @@ class Thumb {
             return $this->thumb_href($width, $height);
         }
 
-        $handlers = self::get_handlers_array(self::type_to_handler($this->type->name));
-        $thumb_href = null;
-
-        foreach ($handlers as $handler) {
-            if (!$this->capture($handler)) {
-                if ($this->type->name === 'file') {
-                    break;
-                }
-                continue;
-            }
-            $thumb_href = $this->thumb_href($width, $height);
-            if ($thumb_href !== null) {
-                if ($this->type->was_wrong()) {
-                    $this->db->insert($this->source_hash, $this->type->name);
-                }
-                return $thumb_href;
-            } elseif (!$this->type->was_wrong()) {
-                break;
-            }
+        if (!$this->capture_source()) {
+            return null;
+        }
+        $thumb_href = $this->thumb_href($width, $height);
+        if ($thumb_href !== null && $this->type->was_wrong()) {
+            $this->db->insert($this->source_hash, $this->type->name);
         }
         return $thumb_href;
     }
@@ -202,96 +216,88 @@ class Thumb {
         return null;
     }
 
-    private function ext_to_type(string $path): string {
-        $name = basename($path);
-        return array_find_key(
-            $this->context->get_types(),
-            fn(array $values): bool => isset($values['glob']) && array_any(
-                $values['glob'],
-                fn(string $pattern): bool => (bool) preg_match('/^' . str_replace('\*', '.*', preg_quote($pattern, '/')) . '$/i', $name),
-            ),
-        ) ?? 'file';
+    // Runs the handler of the declared type first. When a handler fails, the
+    // file is identified again, by name and then by content, and the handler
+    // of the type found runs next. Each handler runs at most once per source,
+    // so a failing command is never retried.
+    private function capture_source(): bool {
+        $tried = [];
+        $handler = self::type_to_handler($this->type->name);
+        while ($handler !== null && !isset($tried[$handler])) {
+            $tried[$handler] = true;
+            $result = $this->run_handler($handler);
+            if ($result === true) {
+                return true;
+            }
+            $handler = is_string($result) ? $result : $this->redetect_handler($tried);
+        }
+        return false;
     }
 
-    private function capture(string $handler): bool {
-        if ($this->attempt >= count(self::HANDLED_TYPES)) {
-            return false;
-        }
-        ++$this->attempt;
-
+    // true: captured (or archive outcome cached), false: failed, string:
+    // the handler that matches what this handler found out about the file.
+    private function run_handler(string $handler): bool|string {
         return match ($handler) {
-            'file' => $this->capture_file(),
             'img' => $this->capture_img(),
-            'mov' => $this->capture_mov(),
-            'swf' => $this->capture_swf(),
+            'mov' => $this->capture_video(false),
+            // SWF/FLV needs the seek (-ss) placed after the input (-i); see FFMPEG_SWF_CMDV.
+            'swf' => $this->capture_video(true),
             'aud' => $this->capture_aud(),
             'doc' => $this->capture_doc(),
-            default => str_contains($handler, 'ar') ? $this->capture_archive($handler) : false,
+            'ar-zip', 'ar-rar' => $this->capture_archive($handler),
+            default => false,
         };
     }
 
-    private function capture_file(): bool {
-        $type = $this->ext_to_type($this->source_path);
-        if ($type === 'file' && $this->setup->get('HAS_PHP_FILEINFO')) {
-            $type = $this->type->mime_to_type(Util::get_mimetype($this->source_path));
+    private function redetect_handler(array $tried): ?string {
+        $types = $this->context->get_type_matcher();
+        $candidates = [$types->type_of_name(basename($this->source_path))];
+        if ($this->setup->get('HAS_PHP_FILEINFO')) {
+            $candidates[] = $types->type_of_mime(Util::get_mimetype($this->source_path));
         }
-        $handler = self::type_to_handler($type);
-        $this->type->name = $type;
-
-        if ($handler === 'file') {
-            return false;
+        foreach ($candidates as $type) {
+            $handler = self::type_to_handler($type);
+            if ($handler !== 'file' && !isset($tried[$handler])) {
+                $this->type->name = $type;
+                return $handler;
+            }
         }
-        return $this->capture($handler);
+        return null;
     }
 
-    private function capture_img(): bool {
+    private function capture_img(): bool|string {
         if ($this->setup->get('HAS_PHP_EXIF') && !in_array($this->type->name, ['img-raw', 'img-svg', 'img-webp'], true)) {
             $exiftype = exif_imagetype($this->source_path);
             if (!$exiftype) {
-                return $this->capture('file');
+                return false;
             }
-            if ($exiftype === 4 || $exiftype === 13) {
+            if ($exiftype === IMAGETYPE_SWF || $exiftype === IMAGETYPE_SWC) {
                 $this->type->name = 'vid-swf';
-                return $this->capture('swf');
+                return 'swf';
             }
         }
-        return $this->do_capture_img($this->source_path) ?: $this->capture('file');
+        return $this->do_capture_img($this->source_path);
     }
 
-    private function capture_mov(): bool {
+    private function capture_video(bool $seek_after_input): bool {
         if ($this->setup->get('HAS_CMD_FFMPEG')) {
-            $probe_cmd = self::FFPROBE_CMDV;
-            $conv_cmd = self::FFMPEG_CMDV;
+            $probe_cmd = $this->setup->get('HAS_CMD_FFPROBE') ? self::FFPROBE_CMDV : null;
+            $conv_cmd = $seek_after_input ? self::FFMPEG_SWF_CMDV : self::FFMPEG_CMDV;
         } elseif ($this->setup->get('HAS_CMD_AVCONV')) {
-            $probe_cmd = self::AVPROBE_CMDV;
-            $conv_cmd = self::AVCONV_CMDV;
+            $probe_cmd = $this->setup->get('HAS_CMD_AVPROBE') ? self::AVPROBE_CMDV : null;
+            $conv_cmd = $seek_after_input ? self::AVCONV_SWF_CMDV : self::AVCONV_CMDV;
         } else {
             return false;
         }
         try {
-            $timestamp = $this->compute_duration($probe_cmd, $this->source_path);
+            // Without a probe the duration is unknown: grab an early frame
+            // instead of failing every video thumbnail.
+            $timestamp = $probe_cmd !== null
+                ? $this->compute_duration($probe_cmd, $this->source_path)
+                : self::FALLBACK_SEEK;
             return $this->do_capture($conv_cmd, $timestamp);
         } catch (\Exception) {
-            return $this->capture('file');
-        }
-    }
-
-    private function capture_swf(): bool {
-        if ($this->setup->get('HAS_CMD_FFMPEG')) {
-            $probe_cmd = self::FFPROBE_CMDV;
-            $conv_cmd = self::FFMPEG_SWF_CMDV;
-        } elseif ($this->setup->get('HAS_CMD_AVCONV')) {
-            $probe_cmd = self::AVPROBE_CMDV;
-            $conv_cmd = self::AVCONV_SWF_CMDV;
-        } else {
             return false;
-        }
-        try {
-            $timestamp = $this->compute_duration($probe_cmd, $this->source_path);
-            // SWF/FLV needs the seek (-ss) placed after the input (-i); see FFMPEG_SWF_CMDV.
-            return $this->do_capture($conv_cmd, $timestamp);
-        } catch (\Exception) {
-            return $this->capture('file');
         }
     }
 
@@ -331,6 +337,9 @@ class Thumb {
 
     private function capture_doc(): bool {
         try {
+            if ($this->setup->get('HAS_CMD_MAGICK')) {
+                return $this->do_capture(self::MAGICK_CMDV);
+            }
             if ($this->setup->get('HAS_CMD_CONVERT')) {
                 return $this->do_capture(self::CONVERT_CMDV);
             }
@@ -340,7 +349,7 @@ class Thumb {
             }
             return false;
         } catch (\Exception) {
-            return $this->capture('file');
+            return false;
         }
     }
 
@@ -352,7 +361,7 @@ class Thumb {
             $this->db->insert($this->source_hash, $this->type->name, $e->getCode());
             return true;
         } catch (WrongType) {
-            return $this->capture('file');
+            return false;
         } catch (\Exception $e) {
             Util::log("Unhandled exception while reading archive {$this->source_path} of type {$handler}: " . $e->getMessage());
         }
@@ -400,8 +409,7 @@ class Thumb {
                 $req_width = $this->thumb_width;
                 $req_height = $this->thumb_height;
                 if (!isset($req_width) || $req_width <= 0) {
-                    $height_opt = $this->context->query_option('thumbnails.size', 240);
-                    $req_width = (int) floor($height_opt * (4 / 3));
+                    [$req_width] = self::default_dimensions($this->context);
                 }
                 $req_height ??= 0;
                 if ($req_height < 0) {
@@ -465,12 +473,9 @@ class Thumb {
         }
 
         rewind($capture_data);
-        $magic = fread($capture_data, 3);
-        $is_image = !empty($magic) && bin2hex($magic) === 'ffd8ff';
-
-        if (!$is_image) {
+        if (!self::has_capture_signature((string) fread($capture_data, 12))) {
             fclose($capture_data);
-            throw new \Exception($error);
+            throw new \Exception($error ?: 'thumbnail command produced no image');
         }
         $success = $image->set_source_data($capture_data);
         fclose($capture_data);
@@ -479,6 +484,13 @@ class Thumb {
         }
         $this->image ??= $image;
         return true;
+    }
+
+    // Output formats of the capture commands: ffmpeg/avconv write JPEG
+    // (image2 muxer), magick/convert/gm write WebP (see MAGICK_CMDV).
+    public static function has_capture_signature(string $head): bool {
+        return str_starts_with($head, "\xFF\xD8\xFF")
+            || (str_starts_with($head, 'RIFF') && substr($head, 8, 4) === 'WEBP');
     }
 
     private function compute_duration(array $cmdv, string $source_path): string {
@@ -496,7 +508,7 @@ class Thumb {
             if (!empty($error) && str_contains($error, 'misdetection possible')) {
                 throw new \Exception($error);
             }
-            return '0.1';
+            return self::FALLBACK_SEEK;
         }
         $duration = (float) $output;
         return (string) round(
@@ -504,10 +516,6 @@ class Thumb {
             1,
             PHP_ROUND_HALF_UP,
         );
-    }
-
-    public static function get_handlers_array(string $handler): array {
-        return [$handler, ...array_diff(array_keys(self::HANDLED_TYPES), [$handler])];
     }
 
     public static function type_to_handler(string $type): string {
@@ -612,16 +620,16 @@ class Image {
         $this->release_dest();
 
         rewind($fp);
-        try {
-            $this->source = @imagecreatefromstring(stream_get_contents($fp));
-        } catch (\Exception) {
+        // GD returns false for a format it cannot decode and rejects empty
+        // data with a ValueError: either way this source has no thumbnail,
+        // and the other entries of the request must still be answered.
+        $data = (string) stream_get_contents($fp);
+        $source = $data === '' ? false : @imagecreatefromstring($data);
+        if ($source === false) {
             $this->source = null;
             return false;
         }
-        if (!$this->source) {
-            $this->source = null;
-            return false;
-        }
+        $this->source = $source;
         $this->width = imagesx($this->source);
         $this->height = imagesy($this->source);
 
@@ -731,25 +739,12 @@ class FileType {
         }
     }
 
-    public function __construct(
-        private readonly Context $context,
-        ?string $name = null,
-    ) {
+    public function __construct(?string $name = null) {
         $this->name = $name ?? '';
     }
 
     public function was_wrong(): bool {
         return $this->name_changed;
-    }
-
-    public function mime_to_type(string $mime): string {
-        return array_find_key(
-            $this->context->get_types(),
-            fn(array $values): bool => isset($values['mime']) && array_any(
-                $values['mime'],
-                fn(string $test): bool => str_contains($mime, $test),
-            ),
-        ) ?? 'file';
     }
 }
 

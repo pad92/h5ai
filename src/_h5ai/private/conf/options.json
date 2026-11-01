@@ -60,8 +60,8 @@
         "unmanagedInNewWindow": false
     },
     "cache": {
-        "warm_at_startup": true,
-        "warm_interval": 86400
+        "warmAtStartup": true,
+        "warmInterval": 86400
     },
     "autorefresh": {
         "enabled": true,

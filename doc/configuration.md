@@ -57,8 +57,10 @@ Configure automatic background cache warming (for pre-generating thumbnails and 
 
 | Key | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `warm_at_startup` | `boolean` | `false` | If `true`, triggers the cache warmer script in the background on request if it has not run recently. Keep disabled on large trees unless cache warming is scheduled deliberately. |
-| `warm_interval` | `number` | `86400` | The execution interval in seconds for the background cache warmer (default is 24 hours). |
+| `warmAtStartup` | `boolean` | `false` | If `true`, triggers the cache warmer script in the background on request if it has not run recently. Keep disabled on large trees unless cache warming is scheduled deliberately. |
+| `warmInterval` | `number` | `86400` | The execution interval in seconds for the background cache warmer (default is 24 hours). |
+
+Older releases named these options `warm_at_startup` and `warm_interval`; those names are still read when the new ones are absent.
 
 > [!TIP]
 > **Manual execution and low priority (`nice`)**
@@ -67,7 +69,7 @@ Configure automatic background cache warming (for pre-generating thumbnails and 
 > The task is executed with low scheduling priority to prevent resource starvation.
 > 
 > **How invalidation works**
-> The computed folder sizes are saved in `_h5ai/private/cache/foldersizes.json`. Each entry expires after five minutes. Changes to directory entries also invalidate an entry during synchronous reads; changes to an existing file may not change its directory's `mtime`, so those are picked up when the entry expires. Initial HTML and API listings use fresh cached folder sizes and refresh missing or expired entries in the background. If a refresh fails, the folder size remains unknown until a later refresh succeeds. Regular file sizes use the metadata already read for each item and remain available for display and sorting. Synchronous folder-size requests recompute expired entries inline. Ordinary directory and metadata reads can still block on an unavailable mount.
+> The computed folder sizes are saved in `_h5ai/private/cache/foldersizes.json`, one entry per folder with its direct subfolders. Each entry expires after five minutes, and expired entries are removed from the file when it is next written. When the cache warmer reads an entry, a change in the entries of that folder or of any folder below it invalidates it; changes to an existing file may not change its directory's `mtime`, so those are picked up when the entry expires. Initial HTML, API listings and search results only use fresh cached folder sizes and hand missing or expired entries to a background refresh. If a refresh fails, the folder size remains unknown until a later refresh succeeds. Regular file sizes use the metadata already read for each item and remain available for display and sorting. Only the cache warmer and the background refresh worker compute folder sizes. Ordinary directory and metadata reads can still block on an unavailable mount.
 
 ### Extensions configuration
 
@@ -120,8 +122,8 @@ Calculates and displays the sizes of directories.
 > This operation can significantly slow down directory loading speeds, especially on large folders.
 - `enabled` (default: `true`).
 - `type` (default: `"shell-du"`): Can be `"php"` (slow, adds up sizes of files recursively in PHP) or `"shell-du"` (uses command line `du`, faster but still potentially expensive).
-- `timeout` (default: `50`, maximum: `3600`): Maximum runtime in seconds of a single `du` pass started while serving a request, and only used when `type` is `"shell-du"`. Search results and fallback listings compute folder sizes inline, which is what this limit protects. When it expires h5ai kills the command and the affected folders keep the size they already had in the cache. Keep it below the `request_terminate_timeout` of your PHP-FPM pool (60 seconds in the Docker image), otherwise PHP-FPM kills the worker first and the cached size is lost.
-- `backgroundTimeout` (default: `900`, maximum: `3600`): Same limit for the `du` passes started by the CLI cache warmer and the background refresh worker. No pool limit applies to those, so this is much larger: cutting a genuinely large tree short would leave it permanently uncached and retried on every pass. Raise it if a full pass over your share needs longer.
+- `timeout` (default: `50`, maximum: `3600`): Maximum runtime in seconds of a `du` pass started while serving a request. Listings, fallback pages and search results now read folder sizes from the cache and leave the computation to the background worker, so no request starts such a pass and this setting currently has no effect. It is still accepted so existing configurations remain valid.
+- `backgroundTimeout` (default: `900`, maximum: `3600`): Same limit for the `du` passes started by the CLI cache warmer and the background refresh worker. The cache warmer measures the whole share with a single `du` pass, so this limit must cover a full pass. No pool limit applies to those, so this is much larger: cutting a genuinely large tree short would leave it permanently uncached and retried on every pass. Raise it if a full pass over your share needs longer.
 > [!NOTE]
 > A timeout only helps when the storage is slow. If a network mount hangs outright, the kernel leaves `du` in uninterruptible I/O where no signal can reach it, and plain directory reads block the same way, so h5ai cannot recover on its own and neither can PHP-FPM. The mount itself has to be repaired. NFS does offer `soft`, which makes calls fail instead of hang, but `nfs(5)` warns that it can cause silent data corruption, so it is not a general recommendation.
 
@@ -154,7 +156,7 @@ Enables in-browser preview and playback of audio files.
 #### `preview-img`
 Enables overlay preview of images.
 - `enabled` (default: `true`).
-- `size` (default: `1000`): Maximum preview size (e.g. `1000` pixels), or `false` for original image size. Enabling this setting (by passing a numeric value or `true`) instructs the server to pre-generate optimized image samples for previews. When active, h5ai dynamically requests a sample size corresponding to 80% of the viewport dimensions to optimize rendering quality and network bandwidth (especially important for large files such as RAW image formats like CR3, DNG, NEF, ARW, etc.).
+- `size` (default: `1000`): Only checked for being set. The preview first shows the original image. When the browser cannot decode it (camera RAW formats such as CR3, DNG, NEF or ARW), a set value lets h5ai ask the server for a WebP sample instead; `false` turns that fallback off. The sample width is 80% of the larger viewport dimension, rounded up to a multiple of 256 pixels and capped by `thumbnails.maxDimension`; the number itself is not used as a size.
 - `types`: File types configured for image preview.
 
 #### `preview-txt`
@@ -204,7 +206,7 @@ Defines default sorting criteria.
 #### `thumbnails`
 Generates preview thumbnails for images, videos, and document files.
 > [!NOTE]
-> For document/video thumbnails, the server requires helper binaries (e.g., `ffmpeg`, `convert`) as listed in the requirements. The `_h5ai/private/cache` directory must also be writable by the web server.
+> For document/video thumbnails, the server requires helper binaries (e.g., `ffmpeg`, `magick`) as listed in the requirements. The `_h5ai/private/cache` directory must also be writable by the web server.
 - `enabled` (default: `true`).
 - `img`: Array of image types to generate thumbnails for.
 - `mov`: Array of video types to generate thumbnails for.
@@ -213,11 +215,11 @@ Generates preview thumbnails for images, videos, and document files.
 - `aud`: Array of audio types to generate thumbnails for (cover art).
 - `delay` (default: `1`): Delay in milliseconds before starting thumbnail generation on page load.
 - `size` (default: `240`): Height in pixels of the generated thumbnails.
-- `seek` (default: `50`): Percentage of total video duration to seek into when generating video thumbnails (requires `ffprobe` or `avprobe`).
+- `seek` (default: `50`): Percentage of total video duration to seek into when generating video thumbnails. Measuring the duration requires `ffprobe` (with `ffmpeg`) or `avprobe` (with `avconv`); without it, thumbnails show the frame at 0.1 seconds.
 - `exif` (default: `true`): Use embedded EXIF thumbnails if available (faster).
 - `chunksize` (default: `20`): Number of thumbnails requested in a single batch.
 - `maxBatchSize` (default: `40`): Hard server-side maximum number of thumbnails accepted in one request.
-- `maxDimension` (default: `4096`): Hard server-side maximum width or height of a generated thumbnail.
+- `maxDimension` (default: `4096`): Hard server-side maximum width or height of a generated thumbnail. Listing thumbnails always use `size`. A request with an explicit size, such as an image preview sample, keeps the image's aspect ratio and has its width rounded up to a multiple of 256 pixels, so each image gets at most a few cached sample sizes.
 - `allowGraphicsMagick` (default: `false`): Enables `gm` only as a compatibility fallback when ImageMagick is unavailable. Keep disabled for untrusted files because GraphicsMagick does not load h5ai's restrictive ImageMagick policy.
 - `blocklist` (default: `[]`): Array of types for which thumbnail generation is explicitly disabled. Removing a type from one of the arrays above (`img`, `mov`, etc.) implicitly adds it to the blocklist.
 

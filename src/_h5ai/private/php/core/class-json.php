@@ -42,14 +42,22 @@ class Json {
             $char = $commented_json[$i];
             $next = $commented_json[$i + 1] ?? '';
 
-            if ($insideComment === null && $char === '"' && ($i === 0 || $commented_json[$i - 1] !== '\\')) {
-                $insideString = !$insideString;
-            }
-
             if ($insideString) {
                 $parts[] = $char;
+                if ($char === '\\') {
+                    // Copy the escaped character verbatim: an escaped quote
+                    // must not end the string, and an escaped backslash must
+                    // not escape the closing quote ("C:\\").
+                    $parts[] = $next;
+                    $i++;
+                } elseif ($char === '"') {
+                    $insideString = false;
+                }
             } elseif ($insideComment === null) {
-                if ($char === '/' && $next === '/') {
+                if ($char === '"') {
+                    $insideString = true;
+                    $parts[] = $char;
+                } elseif ($char === '/' && $next === '/') {
                     $insideComment = CommentStyle::Single;
                     $i++;
                 } elseif ($char === '/' && $next === '*') {

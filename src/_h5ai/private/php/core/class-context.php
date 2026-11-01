@@ -1,6 +1,13 @@
 <?php
 
 class Context {
+    // Depth of an API listing (`items.what`). Each level includes the ones
+    // before it: the folder's content, then the content of every ancestor
+    // up to the root (for the tree), then the content of each subfolder.
+    public const LIST_FOLDER = 1;
+    public const LIST_WITH_ANCESTORS = 2;
+    public const LIST_WITH_SUBFOLDERS = 3;
+
     private const AS_ADMIN_SESSION_KEY = 'AS_ADMIN';
     private const L10N_ISO_CODES = [
         'af', 'bg', 'cs', 'da', 'de', 'el', 'en', 'es', 'et', 'fi', 'fr', 'he',
@@ -12,6 +19,7 @@ class Context {
     private array $options;
     private string $passhash;
     private ?array $types = null;
+    private ?TypeMatcher $type_matcher = null;
     private readonly PathPolicy $paths;
     private ?array $foldersize_mode = null;
 
@@ -26,10 +34,6 @@ class Context {
         $this->options['hasCustomPasshash'] = $this->passhash !== '';
         unset($this->options['passhash']);
         $this->paths = new PathPolicy($this->setup, $this->options);
-    }
-
-    public function get_session(): Session {
-        return $this->session;
     }
 
     public function get_request(): Request {
@@ -48,7 +52,7 @@ class Context {
         return Util::array_query($this->options, $keypath, $default);
     }
 
-    // [$withFoldersize, $withDu, $timeout, $background_timeout] for the current
+    // [$with_foldersize, $with_du, $timeout, $background_timeout] for the current
     // request. The two timeouts differ because a request must answer inside the
     // pool's request_terminate_timeout while a CLI worker has no such limit;
     // callers pick the one matching their context. Constant per request, so it
@@ -85,8 +89,26 @@ class Context {
         return $this->types ??= Json::load($this->setup->get('CONF_PATH') . '/types.json');
     }
 
+    public function get_type_matcher(): TypeMatcher {
+        return $this->type_matcher ??= new TypeMatcher($this->get_types());
+    }
+
+    // Refused without checking the password while the client is throttled
+    // (see LoginThrottle). Login is disabled when no passhash is configured.
     public function login_admin(string $pass): bool {
+        if ($this->passhash === '') {
+            $this->session->set(self::AS_ADMIN_SESSION_KEY, false);
+            return false;
+        }
+        $client = $this->request->client_address();
+        $throttle = new LoginThrottle($this->setup->get('CACHE_PRV_PATH') . '/login-failures.json');
+        if ($throttle->is_blocked($client)) {
+            Util::log('admin login refused: too many failed attempts from this client');
+            $this->session->set(self::AS_ADMIN_SESSION_KEY, false);
+            return false;
+        }
         $ok = $this->verify_pass($pass);
+        $throttle->record($client, $ok);
         if ($ok) {
             // Prevent session fixation when elevating privileges.
             $this->session->regenerate();
@@ -101,9 +123,14 @@ class Context {
             return false;
         }
 
-        // Legacy unsalted SHA-512 hex digests (includes the default empty-password hash).
+        // Legacy unsalted SHA-512 hex digests (includes the default empty-password
+        // hash). Still accepted so existing installations keep working.
         if (preg_match('/^[a-f0-9]{128}$/i', $stored)) {
-            return hash_equals(strtolower($stored), hash('sha512', $pass));
+            $ok = hash_equals(strtolower($stored), hash('sha512', $pass));
+            if ($ok) {
+                Util::log('deprecated: passhash is an unsalted SHA-512 digest; replace it with a password_hash() value');
+            }
+            return $ok;
         }
 
         // Modern password_hash() digests (bcrypt/argon2).
@@ -117,7 +144,18 @@ class Context {
     }
 
     public function is_admin(): bool {
-        return (bool) $this->session->get(self::AS_ADMIN_SESSION_KEY);
+        return self::is_admin_session($this->session);
+    }
+
+    private static function is_admin_session(Session $session): bool {
+        return (bool) $session->get(self::AS_ADMIN_SESSION_KEY);
+    }
+
+    // Decided before Setup exists, since Setup probes the host on creation.
+    // Re-probing runs a shell command per tool, and the info page asks for
+    // it on every load, so only an administrator session triggers it.
+    public static function wants_setup_refresh(Request $request, Session $session): bool {
+        return $request->query_boolean('refresh', false) && self::is_admin_session($session);
     }
 
     public function is_api_request(): bool {
@@ -136,41 +174,14 @@ class Context {
         return $this->query_option('view.fallbackMode', false) || $this->is_text_browser();
     }
 
-    public function to_href(string $path, bool $trailing_slash = true): string {
-        return $this->paths->to_href($path, $trailing_slash);
-    }
-
-    public function to_path(string $href): string {
-        return $this->paths->to_path($href);
-    }
-
-    public function is_hidden(string $name): bool {
-        return $this->paths->is_hidden($name);
-    }
-
-    public function read_dir(string $path): array {
-        return $this->paths->read_dir($path);
-    }
-
-    public function is_managed_href(string $href): bool {
-        return $this->paths->is_managed_href($href);
-    }
-
-    public function is_managed_file(string $path): bool {
-        return $this->paths->is_managed_file($path);
-    }
-
-    public function is_managed_path(string $path): bool {
-        return $this->paths->is_managed_path($path);
-    }
-
-    public function is_custom_file(string $path): bool {
-        return $this->paths->is_custom_file($path);
+    // Path <-> URL mapping and access checks for the served tree.
+    public function paths(): PathPolicy {
+        return $this->paths;
     }
 
     public function get_current_path(): string {
         $current_href = Util::normalize_path($this->setup->get('REQUEST_HREF'), true);
-        $current_path = $this->to_path($current_href);
+        $current_path = $this->paths->to_path($current_href);
 
         if (!is_dir($current_path)) {
             $current_path = Util::normalize_path(dirname($current_path), false);
@@ -179,34 +190,35 @@ class Context {
         return $current_path;
     }
 
+    // Items for an API listing of $href, sorted folders first, as JSON-ready
+    // arrays. $what is one of the LIST_* depths; an unmanaged $href yields [].
+    // Folder sizes come from the cache only (see with_cached_folder_sizes()).
     public function get_items(string $href, int $what): array {
-        if (!$this->is_managed_href($href)) {
+        if (!$this->paths->is_managed_href($href)) {
             return [];
         }
 
-        Filesize::begin_async_mode();
-        $cache = [];
-        try {
-            $folder = Item::get($this, $this->to_path($href), $cache);
+        $cache = $this->with_cached_folder_sizes(function () use ($href, $what): array {
+            $cache = [];
+            $folder = Item::get($this, $this->paths->to_path($href), $cache);
 
-            if ($what >= 3 && $folder !== null) {
+            if ($what >= self::LIST_WITH_SUBFOLDERS && $folder !== null) {
                 foreach ($folder->get_content($cache) as $item) {
                     $item->get_content($cache);
                 }
                 $folder = $folder->get_parent($cache);
             }
 
-            while ($what >= 2 && $folder !== null) {
+            while ($what >= self::LIST_WITH_ANCESTORS && $folder !== null) {
                 $folder->get_content($cache);
                 $folder = $folder->get_parent($cache);
             }
 
-            if ($what === 1 && $folder !== null) {
+            if ($what === self::LIST_FOLDER && $folder !== null) {
                 $folder->get_content($cache);
             }
-        } finally {
-            $stale_paths = Filesize::end_async_mode();
-        }
+            return $cache;
+        });
 
         uasort($cache, Item::cmp(...));
         $result = [];
@@ -215,16 +227,15 @@ class Context {
         }
 
         $db = null;
-        $height = $this->options['thumbnails']['size'] ?? 240;
-        $width = (int) floor($height * (4 / 3));
+        [$width, $height] = Thumb::default_dimensions($this);
 
         if ($this->query_option('thumbnails.enabled', false) && $this->setup->get('HAS_PHP_WEBP')) {
             foreach ($result as &$item_obj) {
                 if (!isset($item_obj['managed'])) {
                     continue;
                 }
-                $custom_thumb = Thumb::check_custom_thumb($this->to_path($item_obj['href']));
-                if ($custom_thumb === null || !$this->is_managed_file($custom_thumb)) {
+                $custom_thumb = Thumb::check_custom_thumb($this->paths->to_path($item_obj['href']));
+                if ($custom_thumb === null || !$this->paths->is_managed_file($custom_thumb)) {
                     continue;
                 }
 
@@ -239,10 +250,20 @@ class Context {
             unset($item_obj);
         }
 
-        if (!empty($stale_paths)) {
-            $this->trigger_folder_refresh($stale_paths);
-        }
+        return $result;
+    }
 
+    // Runs $build with folder sizes served from the cache only: a request
+    // never waits on du. Folders missing from the cache or expired are
+    // handed to the background refresh worker afterwards.
+    public function with_cached_folder_sizes(callable $build): mixed {
+        Filesize::begin_async_mode();
+        try {
+            $result = $build();
+        } finally {
+            $stale_paths = Filesize::end_async_mode();
+        }
+        $this->trigger_folder_refresh($stale_paths);
         return $result;
     }
 
@@ -296,16 +317,17 @@ class Context {
         return $results;
     }
 
+    // Answers a thumbs API request: for each entry {type, href[, width,
+    // height]} the thumbnail href (or null) and, when generation found the
+    // browser's type wrong, the corrected type (or null). At most
+    // thumbnails.maxBatchSize entries are processed.
     public function get_thumbs(array $requests): array {
         $hrefs = [];
         $thumbs = [];
         $filetypes = [];
-        $height = $this->options['thumbnails']['size'] ?? 240;
-        $width = (int) floor($height * (4 / 3));
         $db = new CacheDB($this->setup);
 
         $max_batch = max(1, (int) $this->query_option('thumbnails.maxBatchSize', 40));
-        $max_dimension = max(1, (int) $this->query_option('thumbnails.maxDimension', 4096));
 
         foreach (array_slice($requests, 0, $max_batch) as $req) {
             if (!is_array($req) || !isset($req['type'], $req['href'])
@@ -319,8 +341,8 @@ class Context {
                 $filetypes[] = null;
                 continue;
             }
-            $path = $this->to_path($req['href']);
-            if (!$this->is_managed_file($path)) {
+            $path = $this->paths->to_path($req['href']);
+            if (!$this->paths->is_managed_file($path)) {
                 $hrefs[] = null;
                 $filetypes[] = null;
                 continue;
@@ -333,8 +355,7 @@ class Context {
                 continue;
             }
 
-            $req_width = min($max_dimension, max(1, isset($req['width']) ? (int) $req['width'] : $width));
-            $req_height = min($max_dimension, max(0, isset($req['height']) ? (int) $req['height'] : $height));
+            [$req_width, $req_height] = Thumb::request_dimensions($this, $req);
             $hrefs[] = $thumbs[$path]->thumb($req_width, $req_height);
 
             if ($thumbs[$path]->get_type()?->was_wrong()) {

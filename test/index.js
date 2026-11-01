@@ -7,6 +7,7 @@ if (!global.window) {
     global.window = dom.window;
     global.document = dom.window.document;
     global.navigator = dom.window.navigator;
+    global.DOMParser = dom.window.DOMParser;
 }
 
 const {test} = require('scar');
@@ -17,10 +18,13 @@ require('./tests/premisses');
 require('./tests/unit/core/event');
 require('./tests/unit/core/format');
 require('./tests/unit/util/naturalCmp');
-require('./tests/unit/util/parsePatten');
+require('./tests/unit/util/parsePattern');
+require('./tests/unit/util/sanitizeHtml');
 require('./tests/unit/util/media');
 require('./tests/unit/preview-md');
 require('./tests/unit/types-md');
 require('./tests/unit/server');
+require('./tests/unit/main/infoChecks');
+require('./tests/unit/packageName');
 
 pin_html();

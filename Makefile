@@ -17,7 +17,7 @@ PHP_COVERAGE_IMAGE = php:8.4.27-cli@sha256:a4ae1f57e22b89a0a69c5e085b3010ee727d0
 GRYPE_IMAGE = anchore/grype:v0.116.0@sha256:fd4ab4d1042b522c896e73bdf09ab8bf384fa417df99d6dd0d6e1008c7e7c821
 SYFT_IMAGE = anchore/syft:v1.49.0@sha256:13b53ebabe3d215268c90cf8fb9b875f0183908245f376fd4b3a2cb69d21d484
 
-.PHONY: help all install build lint test coverage clean clean-all scan docker-build docker-test docker-grype docker-clean test-docker-config
+.PHONY: help all install build lint test test-php coverage clean clean-all scan docker-build docker-test docker-grype docker-clean test-docker-config
 
 .DEFAULT_GOAL := help
 
@@ -27,7 +27,8 @@ help:
 	@echo "  install       Install Node.js dependencies"
 	@echo "  build         Build h5ai application (creates build/h5ai-*.zip)"
 	@echo "  lint          Run linters"
-	@echo "  test          Run application tests"
+	@echo "  test          Run JavaScript and PHP tests"
+	@echo "  test-php      Run the PHPUnit suite (downloads a pinned PHPUnit)"
 	@echo "  coverage      Run JavaScript and PHP tests and combine line coverage"
 	@echo "  clean         Clean build output"
 	@echo "  clean-all     Clean build output, node_modules and Docker artifacts"
@@ -53,8 +54,12 @@ build: node_modules
 lint: node_modules
 	npm run lint
 
-test: node_modules
+test: node_modules test-php
 	npm run test
+
+# The source tree and phpunit.xml.dist define the suite and the covered files.
+test-php: $(PHPUNIT_PHAR)
+	php $(PHPUNIT_PHAR)
 
 $(PHPUNIT_PHAR):
 	curl --fail --silent --show-error --location https://phar.phpunit.de/phpunit-$(PHPUNIT_VERSION).phar --output $@
@@ -65,9 +70,9 @@ coverage: node_modules $(PHPUNIT_PHAR)
 	@mkdir -p coverage/php
 	@if php -m | grep -qi '^xdebug$$'; then \
 		find src test/php -name '*.php' -print0 | xargs -0 -n1 php -l && \
-		XDEBUG_MODE=coverage php $(PHPUNIT_PHAR) --do-not-cache-result --coverage-filter src/_h5ai/private/php --coverage-cobertura coverage/php/cobertura.xml --coverage-text --only-summary-for-coverage-text test/php/RegressionTest.php; \
+		XDEBUG_MODE=coverage php $(PHPUNIT_PHAR) --coverage-cobertura coverage/php/cobertura.xml --coverage-text --only-summary-for-coverage-text; \
 	else \
-		docker run --rm -v "$(CURDIR):/workspace" -w /workspace -v "$(PHPUNIT_PHAR):/tmp/phpunit.phar:ro" $(PHP_COVERAGE_IMAGE) sh -ec 'pecl install xdebug-3.5.3; docker-php-ext-enable xdebug; find src test/php -name "*.php" -print0 | xargs -0 -n1 php -l; XDEBUG_MODE=coverage php /tmp/phpunit.phar --do-not-cache-result --coverage-filter src/_h5ai/private/php --coverage-cobertura coverage/php/cobertura.xml --coverage-text --only-summary-for-coverage-text test/php/RegressionTest.php'; \
+		docker run --rm -v "$(CURDIR):/workspace" -w /workspace -v "$(PHPUNIT_PHAR):/tmp/phpunit.phar:ro" $(PHP_COVERAGE_IMAGE) sh -ec 'apt-get update -qq && apt-get install -y -qq --no-install-recommends libpng-dev libjpeg62-turbo-dev libwebp-dev; docker-php-ext-configure gd --with-jpeg --with-webp; docker-php-ext-install -j"$$(nproc)" gd; pecl install xdebug-3.5.3; docker-php-ext-enable xdebug; find src test/php -name "*.php" -print0 | xargs -0 -n1 php -l; XDEBUG_MODE=coverage php /tmp/phpunit.phar --coverage-cobertura coverage/php/cobertura.xml --coverage-text --only-summary-for-coverage-text'; \
 	fi
 	node scripts/coverage-summary.js
 
@@ -170,6 +175,7 @@ docker-test: docker-build
 	@if docker logs h5ai-test-noauth 2>&1 | grep -q "Generated random h5ai administration password"; then echo "FAIL: startup must not generate or log an admin password"; docker rm -f h5ai-test-noauth; exit 1; fi
 	docker rm -f h5ai-test-noauth
 	sh test/docker/test-php-tar.sh $(TEST_IMAGE) $(TEST_HOST)
+	sh test/docker/test-document-thumbs.sh $(TEST_IMAGE) $(TEST_HOST)
 	@echo "Testing container with basic authentication..."
 	$(TEST_RUN) --name h5ai-test-auth -e ENV_U=admin -e ENV_P=secret $(TEST_IMAGE)
 	$(call wait_for_http,,HTTP/1.1 401 Unauthorized,✓ Unauthenticated request correctly blocked (401 Unauthorized),✗ Unauthenticated request test failed (did not return 401),h5ai-test-auth)

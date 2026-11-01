@@ -1,5 +1,59 @@
 # Changelog
 
+## v1.4.0 - *2026-11-01*
+
+### Upgrade notes
+
+* **Administrator login** is now limited per client (see Security below). Behind a reverse proxy, pass the real client address (`REAL_IP_FROM` in the Docker image); otherwise every visitor shares the proxy's address, and failed attempts by anyone can lock out the administrator.
+* **`foldersize.timeout` has no effect any more**: no request computes folder sizes now. The option is still accepted, so existing configurations stay valid.
+* **Cache warmer options** are renamed `cache.warmAtStartup` and `cache.warmInterval`, like every other option. The old `warm_at_startup` and `warm_interval` names are still read when the new ones are absent.
+* **Docker image**: Ghostscript is now installed, which adds about 19 MiB to the download (66 MiB on disk).
+* **PHP tests**: `npm run test:php` and `make test` now run PHPUnit, which the Makefile downloads once (checksum verified), so the first run needs network access.
+
+### Security
+
+* **Administrator login**: after 5 failed attempts within 15 minutes, h5ai refuses the client until its oldest failure is 15 minutes old, even with the right password. Clients are stored as hashes. A legacy unsalted SHA-512 `passhash` still works but logs a deprecation warning at each login.
+* **Info page**: only a logged-in administrator can force a new probe of the host's command-line tools; an anonymous `?refresh=1` no longer runs the shell probes.
+* **Thumbnail cache size**: a thumbnail requested at an explicit size, such as an image preview sample, keeps its aspect ratio and has its width rounded up to a multiple of 256 pixels. A client can no longer fill the disk with one cached file per pixel width.
+* **Served root**: a path that only shares the root's name prefix (`/srv/data2` for a root at `/srv/data`) is no longer treated as inside it.
+
+### Thumbnails
+
+* **PDF and PostScript**: document thumbnails work again. The capture check expected JPEG, while ImageMagick and GraphicsMagick write WebP. They now run `magick`, since ImageMagick 7 warns on every call to the deprecated `convert`, which remains the fallback on ImageMagick 6 hosts.
+* **Failures stay contained**: an image GD cannot decode (a TIFF without ImageMagick support, a corrupt file, an empty capture) no longer fails the whole request with an HTTP 500; only that file gets no thumbnail. An unopenable, corrupt or table-less `thumbs_cache.db` is now bypassed or rebuilt instead of failing the request.
+* **Each tool runs once**: a failing PDF used to run the capture tool four times. When the tool for the declared type fails, the file is identified again by name, then by content, so a video saved with a wrong extension gets a video thumbnail.
+* **Videos**: `ffprobe` and `avprobe` are detected. Without them, the thumbnail shows the frame at 0.1 seconds instead of failing.
+* **Cache warmer**: it no longer stops with a type error on the first file, and it generates exactly the thumbnails listings ask for (same size, configured types minus the blocklist, archives included).
+
+### Downloads
+
+* **Errors**: an empty or invalid selection, or an archiver that fails before writing anything, gets a JSON error instead of an attachment named like the archive. An archiver that fails after writing ends the download early rather than appending JSON to the archive.
+* **PHP TAR archives**: each entry is written at the size announced in its header. A file that shrinks, grows or becomes unreadable during the download is padded or cut, so the archive and its `Content-Length` stay consistent.
+
+### Folder sizes and caches
+
+* **Search** reads folder sizes from the cache and queues missing ones for the background refresh, like listings, instead of running `du` while answering.
+* **`foldersizes.json`** keeps one entry per folder with its direct subfolders, so it grows with the number of folders rather than with their depth (139 KB down to 12 KB for a 41-level chain). Expired entries are dropped when the file is written, a `du` pass caches every folder it measured, and entries in the previous format are recomputed.
+* **Cache warmer**: it measures the share with one `du` pass instead of one per folder. The request that starts it releases its lock before launching it, so the worker no longer risks giving up, and a second worker started while one runs leaves the running one's start marker alone.
+* **Large trees**: folders already visited during a download, search or cache warming are tracked in an indexed set instead of a list scanned for each folder.
+
+### Other fixes
+
+* **Configuration**: a comment after a JSON string ending in an escaped backslash (such as `"C:\\"`) is now stripped, instead of making `options.json` fall back to defaults. An outdated `cmds.json` is rebuilt, and a missing setup key raises an error instead of producing a blank page.
+* **Fallback listings**: sizes use the browser's units (`KB`, `MB`… or `KiB`, `MiB`… with `view.binaryPrefix`) instead of a truncated `KB` count.
+
+### Docker and CI
+
+* **Docker image**: Ghostscript renders PDF and PostScript thumbnails, and brings ImageMagick's TIFF and JPEG 2000 modules. `make docker-test` checks PDF and TIFF thumbnails in the running container.
+* **Branch image builds**: fixed a regression from v1.3.7's branch-name version labels. A branch such as `fix/...` put the release archive in a subfolder and broke `build:image`; the archive file name now replaces such characters, while h5ai still shows the branch name.
+* **CI**: the PHP test job builds GD with JPEG and WebP, so image tests run instead of being skipped.
+
+### Tests, documentation and internals
+
+* **Tests**: the PHP suite runs with PHPUnit (`phpunit.xml.dist`) as isolated tests, each in its own temporary folder, instead of one script counted as a single assertion. Tests needing GD or SQLite are reported as skipped when the extension is missing. The HTML sanitizer used for custom headers, footers and Markdown has its own tests.
+* **Documentation**: documented `H5AI_ROOT_PATH`, Ghostscript for PDF thumbnails and the probe tools for video thumbnails, and corrected `preview-img.size`, which only switches the server-side sample on or off.
+* **Internals**: file type matching lives in one class; version constants live in `private/php/version.php`; both CLI workers start through `Bootstrap::cli_context()`; `Context::paths()` replaces eight delegating methods; archive limits and search patterns are read once per request; API listing depths have named constants; method names follow snake_case; unused methods are removed. The `ERR_ILLIGAL_PARAM` constant is spelt `ERR_ILLEGAL_PARAM`, and the value sent to clients is unchanged.
+
 ## v1.3.7 - *2026-10-31*
 
 * **File sizes**: non-finite values such as `Infinity` are rejected instead of being shown as a size.

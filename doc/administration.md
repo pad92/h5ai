@@ -40,8 +40,17 @@ Access to the Info Page is secured using a password hash defined in the main con
 4. Save the file. The new password takes effect immediately.
 
 Never send an administrator password to an online hash generator. Legacy
-128-character SHA-512 hashes remain readable for compatibility, but should not
-be used for new installations.
+128-character SHA-512 hashes remain readable for compatibility, but are
+deprecated: each login with one writes a warning to the PHP error log. Replace
+them with a `password_hash()` value.
+
+After 5 failed logins within 15 minutes, h5ai refuses further attempts from
+the same client, even with the right password, until the oldest failure is 15
+minutes old. Failures are kept as hashed client addresses in
+`_h5ai/private/cache/login-failures.json`. The client address is the one the
+web server sees: behind a reverse proxy, configure it to pass the real address
+(`REAL_IP_FROM` in the Docker image), or every visitor shares the proxy's
+budget and failed attempts by anyone delay the administrator.
 
 > [!IMPORTANT]
 > Administrator login is disabled while `passhash` is empty. Configure a hash
@@ -78,9 +87,21 @@ caches with filesystem paths. It must not be reachable over HTTP.
 After deployment, verify that `/_h5ai/private/conf/options.json` returns 403 or
 404 before using the application.
 
+### Served directory
+
+h5ai lists the parent folder of its `_h5ai` folder by default. Set the
+`H5AI_ROOT_PATH` environment variable to serve another folder, for example
+when `_h5ai` is installed outside the shared tree. PHP must see the variable:
+with PHP-FPM, pass it with `env[H5AI_ROOT_PATH] = /path/to/share` in the pool
+configuration (the Docker image does this and serves `/share`). The cache
+warmer and background refresh scripts read the same variable, so set it for
+cron jobs as well.
+
 ## 4. Diagnostic tests reference
 
 Once logged in, the page displays a series of checks covering core features and optional extensions. Here is what each test verifies and what to do when it fails.
+
+h5ai caches the command-line tools it finds in `_h5ai/private/cache/cmds.json`. Opening this page while logged in probes them again, so install or remove a tool and reload the page to update the results. Anonymous visits never trigger the probes. The cache is also rebuilt automatically when it lacks a tool that a newer h5ai release checks for.
 
 ### Core checks
 
@@ -109,12 +130,12 @@ Once logged in, the page displays a series of checks covering core features and 
 * **Fileinfo module**: Checks if the PHP Fileinfo module is active (used for determining file MIME types safely).
 * **Use EXIF thumbs**: Checks for the PHP `exif` module. When active, h5ai extracts embedded JPEG preview thumbnails from photos directly instead of decoding the full image, which is much faster.
 * **Video thumbs**: Verifies command line program `ffmpeg` or `avconv` is installed on the host. Required to capture frame previews from videos.
-* **PDF thumbs**: Verifies hardened ImageMagick `convert` is installed. GraphicsMagick is available only as an explicit compatibility fallback with `thumbnails.allowGraphicsMagick`; it does not use the bundled security policy.
+* **PDF thumbs**: Verifies hardened ImageMagick is installed: `magick` (ImageMagick 7), or `convert` on ImageMagick 6 hosts. h5ai uses `magick` whenever it is available. Rendering PDF and PostScript files also needs Ghostscript (`gs`), which this check does not detect; the Docker image includes it. GraphicsMagick is available only as an explicit compatibility fallback with `thumbnails.allowGraphicsMagick`; it does not use the bundled security policy.
 
 > [!NOTE]
 > **Media-processor hardening (SSRF/LFI).** Because thumbnails are generated from user-supplied files, h5ai applies defense-in-depth against crafted media that tries to make the processor reach the network or read arbitrary local files:
 > - `ffmpeg`/`avconv` are invoked with `-protocol_whitelist file,crypto,data`, blocking remote (e.g. HLS/concat/playlist) fetches.
-> - A restrictive ImageMagick policy is shipped at `_h5ai/private/conf/magick/policy.xml` and activated via the `MAGICK_CONFIGURE_PATH` environment variable (set automatically; it applies to the Imagick PHP extension and `convert`). It disables risky coders (`URL`, `HTTPS`, `MSL`, `SVG`, `MVG`, `EPHEMERAL`, ...) and external delegates, with one exception: `PDF`/PostScript stay readable and the Ghostscript delegate stays enabled so the documented `doc` thumbnails keep working. GraphicsMagick `gm` does not read this policy and is therefore disabled by default. Do not enable it or relax the policy unless you fully trust every file served. You can verify the ImageMagick policy with `MAGICK_CONFIGURE_PATH=/path/to/_h5ai/private/conf/magick magick -list policy`.
+> - A restrictive ImageMagick policy is shipped at `_h5ai/private/conf/magick/policy.xml` and activated via the `MAGICK_CONFIGURE_PATH` environment variable (set automatically; it applies to the Imagick PHP extension and to `magick`/`convert`). It disables risky coders (`URL`, `HTTPS`, `MSL`, `SVG`, `MVG`, `EPHEMERAL`, ...) and external delegates, with one exception: `PDF`/PostScript stay readable and the Ghostscript delegate stays enabled so the documented `doc` thumbnails keep working. GraphicsMagick `gm` does not read this policy and is therefore disabled by default. Do not enable it or relax the policy unless you fully trust every file served. You can verify the ImageMagick policy with `MAGICK_CONFIGURE_PATH=/path/to/_h5ai/private/conf/magick magick -list policy`.
 
 ### Utility checks
 
@@ -125,7 +146,7 @@ Once logged in, the page displays a series of checks covering core features and 
 
 ## 5. Troubleshooting command line utilities
 
-If a CLI-based tool (like `ffmpeg`, `convert`, `zip`, `tar`, or `du`) shows a failure status, verify that:
+If a CLI-based tool (like `ffmpeg`, `magick`, `zip`, `tar`, or `du`) shows a failure status, verify that:
 1. The binary is installed on the host system (e.g., via `apt install ffmpeg imagemagick zip tar`).
 2. The web server process user has permission to execute the binary.
 3. Your PHP configuration has **not** disabled command execution functions (such as `exec` or `passthru`) in your `php.ini`:

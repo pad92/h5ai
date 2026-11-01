@@ -27,7 +27,7 @@ class Api {
         $base_href = $this->request->query_string('baseHref');
         $hrefs = $this->request->query('hrefs', '');
         Util::json_fail(
-            Util::ERR_ILLIGAL_PARAM,
+            Util::ERR_ILLEGAL_PARAM,
             'hrefs must be a string or an array of strings',
             !is_string($hrefs) && (!is_array($hrefs) || !array_all(
                 $hrefs,
@@ -38,26 +38,44 @@ class Api {
         $as = preg_replace('/[^\w.\-]/', '_', $as);
 
         $archive = new Archive($this->context);
+        Util::json_fail(Util::ERR_FAILED, 'nothing to package', !$archive->prepare($type, $base_href, $hrefs));
 
         set_time_limit(max(1, (int) $this->context->query_option('download.timeout', 300)));
         session_write_close();
         header('Content-Type: application/octet-stream');
         header('Content-Disposition: attachment; filename="' . $as . '"');
         header('Connection: close');
-        $ok = $archive->output($type, $base_href, $hrefs);
-
-        Util::json_fail(Util::ERR_FAILED, 'packaging failed', !$ok);
+        if (!$archive->stream()) {
+            // The first flush() sends the headers. Until then nothing reached
+            // the client (php-tar may have buffered some bytes), so the answer
+            // can still become an error instead of an attachment. Afterwards,
+            // appending JSON would only corrupt the archive: the client gets a
+            // truncated download.
+            if (!headers_sent()) {
+                while (ob_get_level() > 0) {
+                    ob_end_clean();
+                }
+                header_remove('Content-Disposition');
+                Util::json_error(Util::ERR_FAILED, 'packaging failed');
+            }
+            Util::log('archive: download of ' . $as . ' failed after it started');
+        }
         exit;
     }
 
     private function on_get(): never {
         $response = [];
 
-        foreach (['langs', 'options', 'types'] as $name) {
-            if ($this->request->query_boolean($name, false)) {
-                $methodname = 'get_' . $name;
-                $response[$name] = $this->context->$methodname();
-            }
+        if ($this->request->query_boolean('langs', false)) {
+            $response['langs'] = $this->context->get_langs();
+        }
+
+        if ($this->request->query_boolean('options', false)) {
+            $response['options'] = $this->context->get_options();
+        }
+
+        if ($this->request->query_boolean('types', false)) {
+            $response['types'] = $this->context->get_types();
         }
 
         if ($this->request->query_boolean('setup', false)) {
@@ -102,7 +120,7 @@ class Api {
             Util::json_fail(Util::ERR_UNSUPPORTED, 'thumbnails not supported', !$this->setup->get('HAS_PHP_WEBP'));
             $thumbs = $this->request->query_array('thumbs');
             $max_batch = max(1, (int) $this->context->query_option('thumbnails.maxBatchSize', 40));
-            Util::json_fail(Util::ERR_ILLIGAL_PARAM, 'too many thumbnail requests', count($thumbs) > $max_batch);
+            Util::json_fail(Util::ERR_ILLEGAL_PARAM, 'too many thumbnail requests', count($thumbs) > $max_batch);
             [$response['thumbs'], $response['filetypes']] = $this->context->get_thumbs($thumbs);
         }
 

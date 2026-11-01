@@ -12,8 +12,11 @@ class Item {
         return strcasecmp($item1->path, $item2->path);
     }
 
+    // The item for a path inside the served root, or null for any other path
+    // (a sibling sharing the root's name prefix included).
     public static function get(Context $context, string $path, array &$cache): ?self {
-        if (!str_starts_with($path, $context->get_setup()->get('ROOT_PATH'))) {
+        $root = $context->get_setup()->get('ROOT_PATH');
+        if ($path !== $root && !str_starts_with($path, rtrim($root, '/') . '/')) {
             return null;
         }
 
@@ -39,7 +42,7 @@ class Item {
     ) {
         $this->path = Util::normalize_path($path, false);
         $this->is_folder = is_dir($this->path);
-        $this->href = $context->to_href($this->path, $this->is_folder);
+        $this->href = $context->paths()->to_href($this->path, $this->is_folder);
         $this->date = @filemtime($this->path);
         $this->size = Util::filesize($context, $this->path, $this->is_folder);
     }
@@ -52,7 +55,7 @@ class Item {
         ];
 
         if ($this->is_folder) {
-            $obj['managed'] = $this->context->is_managed_href($this->href);
+            $obj['managed'] = $this->context->paths()->is_managed_href($this->href);
             $obj['fetched'] = $this->is_content_fetched;
         }
 
@@ -70,11 +73,11 @@ class Item {
     public function get_content(array &$cache): array {
         $items = [];
 
-        if (!$this->context->is_managed_href($this->href)) {
+        if (!$this->context->paths()->is_managed_href($this->href)) {
             return $items;
         }
 
-        $files = $this->context->read_dir($this->path);
+        $files = $this->context->paths()->read_dir($this->path);
         foreach ($files as $file) {
             $item = self::get($this->context, $this->path . '/' . $file, $cache);
             $items[$item->path] = $item;

@@ -17,6 +17,7 @@ import uglify from 'gulp-uglify';
 import {fileURLToPath} from 'url';
 import {PassThrough} from 'stream';
 import pkg from './package.json' with {type: 'json'};
+import {packageFileName} from './scripts/package-name.js';
 
 const {src, dest, series, parallel} = gulp;
 const __filename = fileURLToPath(import.meta.url);
@@ -151,7 +152,7 @@ const copyTestStyles = () => src(path.join(BUILD, '_h5ai/public/css/styles.css')
     .pipe(dest(path.join(BUILD, 'test')));
 
 const createZip = () => src(path.join(BUILD, '_h5ai/**'))
-    .pipe(zip(`${pkg.name}-${version}.zip`))
+    .pipe(zip(packageFileName(pkg.name, version)))
     .pipe(dest(BUILD));
 
 const build = series(parallel(buildScripts, buildStyles), parallel(buildPhpFromPug, copy));

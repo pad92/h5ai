@@ -20,12 +20,20 @@ class CacheDB {
         if (!extension_loaded('sqlite3')) {
             return;
         }
-        $is_new = !file_exists($path);
-        $db = new SQLite3($path);
+        // The thumbnail type cache is an optimisation: an unwritable cache
+        // folder or a corrupt database must disable it, not fail the request.
+        try {
+            $db = new SQLite3($path);
+        } catch (Exception $exception) {
+            Util::log('thumbnail cache disabled, cannot open ' . $path . ': ' . $exception->getMessage());
+            return;
+        }
         $db->exec('PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA temp_store = MEMORY;');
 
-        if ($is_new) {
-            $db->exec('CREATE TABLE types (id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, type TEXT UNIQUE);');
+        // Test the schema rather than the file: a concurrent request or an
+        // interrupted first run can leave a database file without tables.
+        if ($db->querySingle("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'archives'") === null) {
+            $db->exec('CREATE TABLE IF NOT EXISTS types (id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, type TEXT UNIQUE);');
 
             $seed = $db->prepare('INSERT OR IGNORE INTO types VALUES (NULL, :type);');
             foreach (Thumb::HANDLED_TYPES as $array) {
@@ -36,7 +44,10 @@ class CacheDB {
                 }
             }
 
-            $db->exec('CREATE TABLE archives
+            // Despite its name, `archives` records thumbnail outcomes for any
+            // type: archive errors and corrected types. Renaming it would
+            // only throw away every cached outcome.
+            $db->exec('CREATE TABLE IF NOT EXISTS archives
  (hashedp TEXT NOT NULL UNIQUE PRIMARY KEY,
  typeid INTEGER, error INTEGER, ver INTEGER, tstamp INTEGER,
  FOREIGN KEY(typeid) REFERENCES types(id)) WITHOUT ROWID;');
@@ -50,9 +61,11 @@ class CacheDB {
             return;
         }
         $this->ins_stmt ??= $this->conn->prepare(
-            'INSERT OR REPLACE INTO archives VALUES (:id, :typeid, :err, :ver, :time);');
-
+            'INSERT OR REPLACE INTO archives VALUES (:id, :typeid, :err, :ver, :time);') ?: null;
         $stmt = $this->ins_stmt;
+        if ($stmt === null) {
+            return;
+        }
         $stmt->reset();
 
         $stmt->bindValue(':id', $hash, SQLITE3_TEXT);
@@ -60,6 +73,9 @@ class CacheDB {
         $typeid = $this->select_typeid($type);
         if (!$typeid) {
             $ins_type = $this->conn->prepare('INSERT INTO types VALUES (NULL, :type);');
+            if ($ins_type === false) {
+                return;
+            }
             $ins_type->bindValue(':type', $type, SQLITE3_TEXT);
             $ins_type->execute();
             $typeid = $this->select_typeid($type);
@@ -72,11 +88,17 @@ class CacheDB {
     }
 
     private function select_typeid(string $type): ?int {
-        $this->sel_type_stmt ??= $this->conn->prepare('SELECT id FROM types WHERE type = :type;');
+        $this->sel_type_stmt ??= $this->conn->prepare('SELECT id FROM types WHERE type = :type;') ?: null;
         $stmt = $this->sel_type_stmt;
+        if ($stmt === null) {
+            return null;
+        }
         $stmt->reset();
         $stmt->bindValue(':type', $type, SQLITE3_TEXT);
         $res = $stmt->execute();
+        if ($res === false) {
+            return null;
+        }
         $row = $res->fetchArray(SQLITE3_ASSOC);
         $res->finalize();
         return $row ? (int) $row['id'] : null;
@@ -90,13 +112,18 @@ class CacheDB {
             'SELECT archives.ver, archives.tstamp, types.type
  FROM archives, types
  WHERE hashedp = :id
- and archives.typeid = types.id;');
-
+ and archives.typeid = types.id;') ?: null;
         $stmt = $this->sel_stmt;
+        if ($stmt === null) {
+            return null;
+        }
         $stmt->reset();
 
         $stmt->bindValue(':id', $hash, SQLITE3_TEXT);
         $res = $stmt->execute();
+        if ($res === false) {
+            return null;
+        }
 
         $row = $res->fetchArray(SQLITE3_ASSOC);
         $res->finalize();
@@ -116,7 +143,8 @@ class CacheDB {
         $hash |= ($this->setup->get('HAS_CMD_FFMPEG')
                || $this->setup->get('HAS_CMD_AVCONV')) ? 0b1000 : 0;
         $hash |= ($this->setup->get('HAS_CMD_GM')
-               || $this->setup->get('HAS_CMD_CONVERT')) ? 0b10000 : 0;
+               || $this->setup->get('HAS_CMD_CONVERT')
+               || $this->setup->get('HAS_CMD_MAGICK')) ? 0b10000 : 0;
         $this->version = $hash;
         return $hash;
     }

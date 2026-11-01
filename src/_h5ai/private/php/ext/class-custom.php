@@ -10,7 +10,7 @@ class Custom {
 
         foreach (self::EXTENSIONS as $ext) {
             $file = $path . '/' . $file_prefix . '.' . $name . '.' . $ext;
-            if ($this->context->is_custom_file($file)) {
+            if ($this->context->paths()->is_custom_file($file)) {
                 $content = file_get_contents($file);
                 $type = $ext;
                 return;
@@ -29,8 +29,8 @@ class Custom {
         }
 
         $root_path = $this->context->get_setup()->get('ROOT_PATH');
-        $path = $this->context->to_path($href);
-        if (!$this->context->is_managed_path($path)) {
+        $path = $this->context->paths()->to_path($href);
+        if (!$this->context->paths()->is_managed_path($path)) {
             return $empty;
         }
 

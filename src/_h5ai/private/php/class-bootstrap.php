@@ -16,10 +16,10 @@ class Bootstrap {
 
         $session = new Session($_SESSION);
         $request = Request::from_globals();
-        $setup = new Setup($request->query_boolean('refresh', false));
+        $setup = new Setup(Context::wants_setup_refresh($request, $session));
         $context = new Context($session, $request, $setup);
 
-        self::trigger_background_warming($context);
+        CacheWarmer::launch_if_due($context);
 
         if ($context->is_api_request()) {
             new Api($context)->apply();
@@ -37,44 +37,19 @@ class Bootstrap {
         }
     }
 
-    private static function trigger_background_warming(Context $context): void {
-        $setup = $context->get_setup();
-        if (!$context->query_option('cache.warm_at_startup', false)) {
-            return;
-        }
+    // Shared by the CLI workers (warm-cache.php, refresh-cache.php): they see
+    // the served tree as a GET request for its root would.
+    public static function cli_context(): Context {
+        require_once __DIR__ . '/version.php';
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+        $_SERVER['REQUEST_URI'] = '/';
+        $_SERVER['SCRIPT_NAME'] = '/_h5ai/public/index.php';
+        $_SERVER['SERVER_SOFTWARE'] = 'CLI';
+        $_SERVER['HTTP_USER_AGENT'] = 'CLI';
+        spl_autoload_register(self::autoload(...));
 
-        $lock_file = $setup->get('CACHE_PRV_PATH') . '/warmer.lock';
-        $fp = @fopen($lock_file, 'c+');
-        if (!$fp) {
-            return;
-        }
-
-        if (flock($fp, LOCK_EX | LOCK_NB)) {
-            $lastrun_file = $setup->get('CACHE_PRV_PATH') . '/warmer.lastrun';
-            $laststart_file = $setup->get('CACHE_PRV_PATH') . '/warmer.laststart';
-            $lastrun = @file_get_contents($lastrun_file);
-            $laststart = @file_get_contents($laststart_file);
-            $now = time();
-            $interval = (int) $context->query_option('cache.warm_interval', 86400);
-            $laststart = (int) $laststart;
-            if ($laststart > 0 && ($now - $laststart) > 300) {
-                @unlink($laststart_file);
-                $laststart = 0;
-            }
-            $last_activity = max((int) $lastrun, $laststart);
-
-            if (!$last_activity || ($now - $last_activity) > $interval) {
-                @file_put_contents($laststart_file, (string) $now, LOCK_EX);
-                $script_path = $setup->get('PRIVATE_PATH') . '/php/warm-cache.php';
-                if (!Util::launch_background($script_path)) {
-                    @unlink($laststart_file);
-                }
-            }
-            flock($fp, LOCK_UN);
-            fclose($fp);
-        } else {
-            fclose($fp);
-        }
+        $session_store = [];
+        return new Context(new Session($session_store), new Request([], ''), new Setup());
     }
 
     public static function autoload(string $class_name): bool {

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/12.5/phpunit.xsd"
+         bootstrap="test/php/bootstrap.php"
+         cacheResult="false"
+         colors="true"
+         failOnRisky="true"
+         failOnWarning="true">
+    <testsuites>
+        <testsuite name="h5ai">
+            <directory suffix="Test.php">test/php</directory>
+        </testsuite>
+    </testsuites>
+    <source>
+        <include>
+            <directory>src/_h5ai/private/php</directory>
+        </include>
+    </source>
+</phpunit>
