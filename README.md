@@ -102,7 +102,21 @@ docker run -d -p 80:80 \
   pad92/docker-h5ai:latest
 ```
 
-A `docker-compose.yml` example is included for convenience. See
+The container reads these environment variables:
+
+| Variable | Default | Effect |
+| --- | --- | --- |
+| `H5AI_ADMIN_PASSWORD` | unset | Password of the admin page (`/_h5ai/public/index.php`), hashed into `options.json` at each start and never logged. Unset or empty keeps the stored `passhash`; the shipped one is empty, so admin login stays disabled. |
+| `ENV_U`, `ENV_P` | unset | User and password of an HTTP basic authentication protecting the whole site. Both must be set. |
+| `PUID`, `PGID` | `angie` account IDs | Remap the runtime account `angie` to the owner of the shared files. |
+| `REAL_IP_FROM` | unset | Comma-separated CIDRs of trusted reverse proxies, to log and rate-limit the real client address. |
+| `REAL_IP_HEADER` | `X-Forwarded-For` | Header holding the client address when `REAL_IP_FROM` is set. |
+
+See [doc/administration.md](doc/administration.md) for the admin password and
+the diagnostic page.
+
+A `docker-compose.yml` example is included for convenience. It reads
+`H5AI_ADMIN_PASSWORD` from a `.env` file next to it. See
 [`CHANGELOG.md`](CHANGELOG.md) for the changelog, which covers both the
 application and the Docker image.
 
