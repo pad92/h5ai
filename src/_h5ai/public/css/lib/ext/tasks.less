@@ -1,0 +1,75 @@
+@keyframes tasks-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes tasks-sweep {
+    from {
+        margin-left: -40%;
+    }
+
+    to {
+        margin-left: 100%;
+    }
+}
+
+#tasks img {
+    animation: tasks-spin 2s linear infinite;
+}
+
+// Positioned by tasks.js under the toolbar icon: the topbar hides overflow.
+#tasks-panel {
+    .popup;
+    .rounded;
+
+    position: fixed;
+    z-index: 150;
+    min-width: 240px;
+    padding: 4px 0;
+    color: @col-text;
+    background: @col-back-paper;
+
+    .task {
+        padding: 8px 16px;
+    }
+
+    .task-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        white-space: nowrap;
+        line-height: 20px;
+    }
+
+    .figures {
+        color: @col-text-secondary-black;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .task-bar {
+        overflow: hidden;
+        height: 4px;
+        margin-top: 4px;
+        border-radius: 2px;
+        background: @col-divider-black;
+    }
+
+    .task-fill {
+        height: 100%;
+        background: @col-back-selected;
+        transition: width 0.4s ease;
+    }
+
+    .indeterminate .task-fill {
+        width: 40% !important;
+        animation: tasks-sweep 1.5s ease-in-out infinite;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #tasks img,
+    #tasks-panel .indeterminate .task-fill {
+        animation: none;
+    }
+}

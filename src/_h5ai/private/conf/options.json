@@ -202,6 +202,11 @@
         "natural": true,
         "folders": 0
     },
+    "tasks": {
+        "enabled": true,
+        "interval": 3000,
+        "idleInterval": 30000
+    },
     "thumbnails": {
         "enabled": true,
         "img": [

@@ -8,6 +8,7 @@
 * **`foldersize.timeout` has no effect any more**: no request computes folder sizes now. The option is still accepted, so existing configurations stay valid.
 * **Cache warmer options** are renamed `cache.warmAtStartup` and `cache.warmInterval`, like every other option. The old `warm_at_startup` and `warm_interval` names are still read when the new ones are absent.
 * **Docker image**: Ghostscript is now installed, which adds about 19 MiB to the download (66 MiB on disk).
+* **Task indicator**: the shipped `options.json` enables it. An existing `options.json` without a `tasks` block leaves it off; copy the block from the new file to get it.
 * **PHP tests**: `npm run test:php` and `make test` now run PHPUnit, which the Makefile downloads once (checksum verified), so the first run needs network access.
 
 ### Security
@@ -16,6 +17,10 @@
 * **Info page**: only a logged-in administrator can force a new probe of the host's command-line tools; an anonymous `?refresh=1` no longer runs the shell probes.
 * **Thumbnail cache size**: a thumbnail requested at an explicit size, such as an image preview sample, keeps its aspect ratio and has its width rounded up to a multiple of 256 pixels. A client can no longer fill the disk with one cached file per pixel width.
 * **Served root**: a path that only shares the root's name prefix (`/srv/data2` for a root at `/srv/data`) is no longer treated as inside it.
+
+### Interface
+
+* **Task indicator**: a spinning gear appears in the toolbar while the cache warmer, the folder size worker or the thumbnails of the page are running. Hovering over it shows each task with its progress and the estimated time left, based on the previous run for server tasks. See `tasks` in the configuration guide.
 
 ### Thumbnails
 

@@ -16,6 +16,8 @@ require('../ext/thumbnails');
 require('../ext/title');
 require('../ext/tree');
 require('../ext/theme');
+// Last, so that showing and hiding it never moves the other tools.
+require('../ext/tasks');
 
 const settings = require('../core/settings');
 const previewKeys = ['preview-aud', 'preview-img', 'preview-txt', 'preview-vid'];

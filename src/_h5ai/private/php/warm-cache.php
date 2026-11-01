@@ -26,7 +26,10 @@ echo "Starting cache warming...\n";
 $start_time = microtime(true);
 
 $warmer = new CacheWarmer($context);
-$pruned = $warmer->warm();
+// Written while this process holds warmer.lock, as TaskStatus requires.
+$status = new TaskStatus($setup->get('CACHE_PRV_PATH'), TaskStatus::WARMER);
+$pruned = $warmer->warm($status);
+$status->finish();
 echo "Pruned the thumbnails of {$pruned} vanished files.\n";
 
 $lastrun_file = $setup->get('CACHE_PRV_PATH') . '/warmer.lastrun';
