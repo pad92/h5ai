@@ -52,16 +52,14 @@ class Context {
         return Util::array_query($this->options, $keypath, $default);
     }
 
-    // [$with_foldersize, $with_du, $timeout, $background_timeout] for the current
-    // request. The two timeouts differ because a request must answer inside the
-    // pool's request_terminate_timeout while a CLI worker has no such limit;
-    // callers pick the one matching their context. Constant per request, so it
-    // is memoized to avoid recomputing it for every listed item.
+    // [$with_foldersize, $with_du, $timeout]. Only the CLI workers compute
+    // folder sizes, so the timeout is foldersize.backgroundTimeout;
+    // foldersize.timeout is no longer read. Constant per request, so it is
+    // memoized to avoid recomputing it for every listed item.
     public function foldersize_mode(): array {
         return $this->foldersize_mode ??= [
             $this->query_option('foldersize.enabled', false),
             $this->setup->get('HAS_CMD_DU') && $this->query_option('foldersize.type', null) === 'shell-du',
-            $this->foldersize_timeout('foldersize.timeout', Filesize::DEFAULT_TIMEOUT),
             $this->foldersize_timeout('foldersize.backgroundTimeout', Filesize::DEFAULT_BACKGROUND_TIMEOUT),
         ];
     }

@@ -144,7 +144,7 @@ abstract class H5aiTestCase extends TestCase {
         $values = [
             'cache' => [], 'persistent_cache' => $file === null ? null : [],
             'persistent_cache_path' => $file, 'persistent_cache_dirty' => false,
-            'dirty_entries' => [], 'async_mode' => false, 'stale_paths' => [],
+            'dirty_entries' => [], 'stale_paths' => [],
         ];
         foreach ($values as $property => $value) {
             (new ReflectionProperty(Filesize::class, $property))->setValue(null, $value);

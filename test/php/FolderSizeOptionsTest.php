@@ -9,18 +9,19 @@ final class FolderSizeOptionsTest extends H5aiTestCase {
     // the documented default rather than casting to 0.
     public static function timeouts(): array {
         return [
-            'above the ceiling' => [['timeout' => 99999999, 'backgroundTimeout' => 1e9], Filesize::MAX_TIMEOUT, Filesize::MAX_TIMEOUT],
-            'below the floor' => [['timeout' => 0, 'backgroundTimeout' => -5], 1, 1],
-            'not numeric' => [['timeout' => 'abc', 'backgroundTimeout' => null], Filesize::DEFAULT_TIMEOUT, Filesize::DEFAULT_BACKGROUND_TIMEOUT],
-            'absent' => [[], Filesize::DEFAULT_TIMEOUT, Filesize::DEFAULT_BACKGROUND_TIMEOUT],
+            'above the ceiling' => [['backgroundTimeout' => 1e9], Filesize::MAX_TIMEOUT],
+            'below the floor' => [['backgroundTimeout' => -5], 1],
+            'not numeric' => [['backgroundTimeout' => null], Filesize::DEFAULT_BACKGROUND_TIMEOUT],
+            'absent' => [[], Filesize::DEFAULT_BACKGROUND_TIMEOUT],
+            // No request computes folder sizes any more: the option is ignored.
+            'request timeout only' => [['timeout' => 7], Filesize::DEFAULT_BACKGROUND_TIMEOUT],
         ];
     }
 
     #[DataProvider('timeouts')]
-    public function testTimeoutsAreClampedOrDefaulted(array $override, int $expected, int $expectedBackground): void {
-        [, , $timeout, $backgroundTimeout] = $this->context(['foldersize' => ['enabled' => true] + $override])->foldersize_mode();
+    public function testTheTimeoutIsClampedOrDefaulted(array $override, int $expected): void {
+        [, , $timeout] = $this->context(['foldersize' => ['enabled' => true] + $override])->foldersize_mode();
         self::assertSame($expected, $timeout);
-        self::assertSame($expectedBackground, $backgroundTimeout);
     }
 
     // Written as raw JSON because json_encode() cannot represent INF.
@@ -28,12 +29,11 @@ final class FolderSizeOptionsTest extends H5aiTestCase {
         $this->context(); // writes types.json
         file_put_contents(
             $this->tmp . '/conf/options.json',
-            '{"view":{"hidden":[],"unmanaged":[]},"foldersize":{"enabled":true,"timeout":1e9999,"backgroundTimeout":1e9999}}',
+            '{"view":{"hidden":[],"unmanaged":[]},"foldersize":{"enabled":true,"backgroundTimeout":1e9999}}',
         );
         $store = [];
         $context = new Context(new Session($store), new Request([], ''), new TestSetup($this->setupValues()));
-        [, , $timeout, $backgroundTimeout] = $context->foldersize_mode();
+        [, , $timeout] = $context->foldersize_mode();
         self::assertSame(Filesize::MAX_TIMEOUT, $timeout);
-        self::assertSame(Filesize::MAX_TIMEOUT, $backgroundTimeout);
     }
 }

@@ -91,7 +91,6 @@
     "foldersize": {
         "enabled": true,
         "type": "shell-du",
-        "timeout": 50,
         "backgroundTimeout": 900
     },
     "info": {

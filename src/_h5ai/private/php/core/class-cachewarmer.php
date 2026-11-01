@@ -99,8 +99,7 @@ class CacheWarmer {
         $this->warm_path($root);
         $pruned = $this->thumb_instance?->prune_orphans() ?? 0;
 
-        // Runs from warm-cache.php on the CLI: use the background timeout.
-        [$with_foldersize, $with_du, , $timeout] = $this->context->foldersize_mode();
+        [$with_foldersize, $with_du, $timeout] = $this->context->foldersize_mode();
         if ($with_foldersize) {
             $status?->phase('sizes');
             Filesize::refresh_tree($root, $with_du, $timeout);
