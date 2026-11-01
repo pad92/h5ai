@@ -422,6 +422,7 @@ scan:grype:deps:
         --volumes-from "$JOB_CONTAINER_ID:ro" \
         -e SYFT_JAVASCRIPT_INCLUDE_DEV_DEPENDENCIES=true \
         "$SYFT_IMAGE" dir:"$CI_PROJECT_DIR" \
+        --source-name h5ai --source-version "$CI_COMMIT_SHORT_SHA" \
         --exclude './node_modules/**' \
         --exclude './build/**' \
         --exclude './.npm/**' \
