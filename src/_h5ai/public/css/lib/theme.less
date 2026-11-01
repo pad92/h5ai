@@ -3,11 +3,14 @@
 */
 
 body[data-theme="dark"] {
+    // Native scrollbars and form controls follow the theme instead of
+    // staying light.
+    color-scheme: dark;
     color: @col-text-primary-white;
     background: @col-grey-900;
 }
 
-body[data-theme="dark"] #root,
+body[data-theme="dark"]#root,
 body[data-theme="dark"] #mainrow,
 body[data-theme="dark"] #content,
 body[data-theme="dark"] #mainrow #content {
@@ -109,80 +112,6 @@ body[data-theme="dark"] #langs,
 body[data-theme="dark"] #langs option {
     background: @col-grey-900;
     color: @col-text-primary-white;
-}
-
-body[data-theme="dark"]#root.info #content {
-    color: @col-text-primary-white !important;
-}
-
-body[data-theme="dark"]#root.info code {
-    background: darken(@col-grey-900, 2%) !important;
-    border: 1px solid rgba(255, 255, 255, 0.06) !important;
-    color: @col-text-primary-white !important;
-}
-
-body[data-theme="dark"]#root.info #header a {
-    color: @col-text-primary-white !important;
-}
-
-body[data-theme="dark"]#root.info #pass {
-    background: @col-grey-900 !important;
-    color: @col-text-primary-white !important;
-    border: 1px solid rgba(255, 255, 255, 0.06) !important;
-
-    &::placeholder {
-        color: @col-text-secondary-white !important;
-    }
-}
-
-body[data-theme="dark"]#root.info #login,
-body[data-theme="dark"]#root.info #logout {
-    color: #fff;
-}
-
-body[data-theme="dark"]#root.info #hint {
-    color: @col-text-primary-white !important;
-}
-
-body[data-theme="dark"]#root.info #tests {
-    color: @col-text-primary-white !important;
-}
-
-body[data-theme="dark"]#root.info #tests .test {
-    background: @col-grey-900 !important;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
-    color: @col-text-primary-white !important;
-}
-
-body[data-theme="dark"] #login-wrapper,
-body[data-theme="dark"] #login,
-body[data-theme="dark"] #logout,
-body[data-theme="dark"] #hint,
-body[data-theme="dark"] #tests,
-body[data-theme="dark"] #tests .test {
-    background: @col-grey-900 !important;
-    color: @col-text-primary-white !important;
-    border: 1px solid rgba(255, 255, 255, 0.06) !important;
-}
-
-body[data-theme="dark"] #header a {
-    color: @col-text-primary-white !important;
-}
-
-body[data-theme="dark"]#root.info #tests .label {
-    color: @col-text-primary-white;
-}
-
-body[data-theme="dark"]#root.info #tests .result.passed {
-    color: @col-okay;
-}
-
-body[data-theme="dark"]#root.info #tests .result.failed {
-    color: @col-error;
-}
-
-body[data-theme="dark"]#root.info #tests .info {
-    color: @col-text-secondary-white;
 }
 
 body[data-theme="dark"] #view .item {

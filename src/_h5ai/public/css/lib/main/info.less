@@ -1,107 +1,211 @@
+// Admin info page. Colors are translucent greys over inherited text and
+// background, so the same rules serve the light and the dark theme.
+// #content already scrolls (view/content.less).
+
+@info-tint: rgba(128, 128, 128, 0.1);
+@info-line: rgba(128, 128, 128, 0.3);
+
 #root.info {
     #content {
-        flex: 1 1 auto;
-        order: 50;
-        color: @col-text;
+        padding: 0 16px 48px;
+
+        // max-width must include the padding and border of the cards.
+        &, * {
+            box-sizing: border-box;
+        }
+
+        > * {
+            max-width: 640px;
+            margin: 16px auto 0;
+        }
+    }
+
+    // Only holds the theme toggle: a row of its own above the scrolling
+    // content, so it never covers the page or its scrollbar.
+    #toolbar {
+        align-self: flex-end;
+    }
+
+    #header {
+        margin-top: 0;
         text-align: center;
-    }
+        white-space: nowrap;
 
-    code {
-        margin: 0 0.2em;
-        padding: 2px 4px;
-        border-radius: 4px;
-        letter-spacing: 0.05em;
-        background: @col-back-panel;
-        border: 1px solid @col-border;
-        font-size: 0.9em;
-    }
+        a {
+            // Stays on one line on a phone.
+            font-size: min(4em, 15vw);
+            font-weight: 300;
+            color: inherit;
+            text-decoration: none;
 
-    #header a {
-        .eased-transition;
-
-        font-size: 4em;
-        font-weight: 300;
-        margin: 0.8em 0 0;
-        color: @col-text;
-        text-decoration: none;
-
-        &:hover {
-            color: @col-text-hover;
+            &:hover {
+                color: @col-text-hover;
+            }
         }
 
         .version {
-            font-size: 0.45em;
-            font-weight: 100;
-            opacity: 0.5;
             margin-left: 0.2em;
+            font-size: 0.45em;
+            opacity: 0.5;
             vertical-align: super;
         }
     }
 
-    #pass {
-        .el-input;
-
-        display: inline-block;
-        margin: 8px;
-        padding: 0 12px;
-        line-height: 28px;
-        width: 200px;
-        vertical-align: top;
+    // The global code rule sets a light theme text color.
+    code {
+        padding: 1px 4px;
+        color: inherit;
+        border-radius: 4px;
+        background: @info-tint;
+        font-size: 0.9em;
+        overflow-wrap: anywhere;
     }
 
-    #login, #logout {
+    .card {
+        display: block;
+        margin: 16px 0 0;
+        padding: 16px;
+        border: 1px solid @info-line;
+        border-radius: 8px;
+    }
+
+    .row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .grow {
+        flex: 1 1 200px;
+        min-width: 0;
+        margin: 0;
+    }
+
+    label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 700;
+    }
+
+    #pass, button {
+        padding: 0 12px;
+        border-radius: 4px;
+        font-family: inherit;
+        font-size: inherit;
+        line-height: 36px;
+    }
+
+    #pass {
+        border: 1px solid @info-line;
+        background: transparent;
+        color: inherit;
+    }
+
+    button {
         .el-button;
 
-        display: inline-block;
-        margin: 8px;
-        padding: 0 12px;
-        line-height: 28px;
-        vertical-align: top;
+        border: 0;
+
+        &:disabled {
+            opacity: 0.6;
+            cursor: progress;
+        }
     }
 
-    #hint {
-        margin: 12px auto;
-        width: 320px;
+    :focus-visible {
+        outline: 2px solid @col-link;
+        outline-offset: 2px;
     }
 
-    #tests {
-        display: inline-block;
-        text-align: left;
-        list-style-type: none;
-        margin: 48px 0;
+    // Outcome color, shared by the row marker, its value and the counters.
+    .passed {
+        --state: @col-okay;
+    }
+
+    .failed, .error {
+        --state: @col-error;
+    }
+
+    .result, .count, .error, #checks-summary, #metrics-status {
+        color: var(--state, inherit);
+    }
+
+    .error {
+        flex-basis: 100%;
+        margin: 8px 0 0;
+    }
+
+    #metrics-status:empty {
+        display: none;
+    }
+
+    #checks, #metrics {
+        margin-top: 32px;
+
+        h2 {
+            margin: 0;
+        }
+    }
+
+    .group {
         padding: 0;
+        overflow: hidden;
 
-        .test {
-            background: @col-back-paper;
-            margin: 12px 0 0;
-            padding: 8px 12px 12px;
-            border-bottom: 1px solid @col-border;
+        summary {
+            display: flex;
+            gap: 8px;
+            padding: 8px 16px;
+            background: @info-tint;
+            font-weight: 700;
+            cursor: pointer;
         }
 
-        .label {
-            display: inline-block;
-            width: 250px;
-            font-size: 1.4em;
+        &[open] summary {
+            border-bottom: 1px solid @info-line;
         }
 
-        .result {
-            display: inline-block;
-            width: 250px;
-            text-align: right;
-            font-size: 1.4em;
-            font-weight: bold;
-
-            &.passed {
-                color: @col-okay;
-            }
-
-            &.failed {
-                color: @col-error;
-            }
+        h2 {
+            flex: 1;
+            margin: 0;
+            font-size: 0.85em;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
         }
+    }
 
-        .info {
-            margin: 4px 0 0;
+    .tests {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+    }
+
+    .test {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 2px 16px;
+        padding: 10px 16px;
+        border-left: 4px solid var(--state, @info-line);
+
+        & + .test {
+            border-top: 1px solid @info-line;
         }
+    }
+
+    .result {
+        text-align: right;
+        overflow-wrap: anywhere;
+    }
+
+    .desc:empty {
+        display: none;
+    }
+
+    .desc {
+        // Escaped: Less would compute 1 / -1 as a division.
+        grid-column: ~"1 / -1";
+        margin: 0;
+        font-size: 0.9em;
+        opacity: 0.7;
     }
 }

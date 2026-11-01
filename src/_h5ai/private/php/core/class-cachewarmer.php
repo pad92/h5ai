@@ -7,7 +7,11 @@ class CacheWarmer {
     private readonly Setup $setup;
     private readonly TypeMatcher $types;
     private ?Thumb $thumb_instance = null;
+    // Thumbnail type => its category (img, mov, doc, ar, aud).
     private array $thumb_types = [];
+    // Category => files of that kind met by the walk, and how many of them
+    // have a thumbnail. Written to COVERAGE_FILE for the info page.
+    private array $coverage = [];
     private int $thumb_width = 0;
     private int $thumb_height = 0;
     private ?TaskStatus $status = null;
@@ -24,6 +28,9 @@ class CacheWarmer {
             $this->thumb_types = self::requested_thumb_types($this->context);
         }
     }
+
+    // Thumbnail coverage of the last warm run, in the private cache.
+    public const COVERAGE_FILE = 'warmer.coverage.json';
 
     // A start marker older than this is a worker that died before writing
     // warmer.lastrun: it no longer blocks a new start.
@@ -75,6 +82,21 @@ class CacheWarmer {
         return true;
     }
 
+    // When the warmer last finished and when a request will start it next
+    // (null when it never ran or is disabled).
+    public static function schedule(Context $context): array {
+        $enabled = (bool) self::cache_option($context, 'warmAtStartup', 'warm_at_startup', false);
+        $interval = (int) self::cache_option($context, 'warmInterval', 'warm_interval', 86400);
+        $lastrun = (int) @file_get_contents($context->get_setup()->get('CACHE_PRV_PATH') . '/warmer.lastrun');
+        $lastrun = $lastrun > 0 ? $lastrun : null;
+        return [
+            'enabled' => $enabled,
+            'interval' => $interval,
+            'lastRun' => $lastrun,
+            'nextRun' => $enabled && $lastrun !== null ? $lastrun + $interval : null,
+        ];
+    }
+
     // cache.$name, falling back to the name older releases used ($legacy_name).
     private static function cache_option(Context $context, string $name, string $legacy_name, mixed $default): mixed {
         return $context->query_option('cache.' . $name, $context->query_option('cache.' . $legacy_name, $default));
@@ -82,12 +104,35 @@ class CacheWarmer {
 
     // Mirrors thumbnails.js: the configured categories minus the blocklist.
     // The browser sends the item type itself, so the warmer does too.
+    // Returns type => category; a type listed twice keeps its first category.
     private static function requested_thumb_types(Context $context): array {
+        $blocked = (array) $context->query_option('thumbnails.blocklist', []);
         $types = [];
         foreach (self::THUMB_CATEGORIES as $category) {
-            $types = [...$types, ...(array) $context->query_option('thumbnails.' . $category, [])];
+            foreach ((array) $context->query_option('thumbnails.' . $category, []) as $type) {
+                if (is_string($type) && !in_array($type, $blocked, true)) {
+                    $types[$type] ??= $category;
+                }
+            }
         }
-        return array_values(array_diff($types, (array) $context->query_option('thumbnails.blocklist', [])));
+        return $types;
+    }
+
+    // The coverage of the last warm run: {at, categories: {category: {files,
+    // thumbnails}}}, or null before the first run with thumbnails enabled.
+    public static function last_coverage(string $cache_path): ?array {
+        $content = @file_get_contents($cache_path . '/' . self::COVERAGE_FILE);
+        $data = $content === false ? null : json_decode($content, true);
+        return is_array($data) && isset($data['at'], $data['categories']) ? $data : null;
+    }
+
+    private function save_coverage(): void {
+        $file = $this->setup->get('CACHE_PRV_PATH') . '/' . self::COVERAGE_FILE;
+        $tmp = $file . '.' . bin2hex(random_bytes(6)) . '.tmp';
+        $json = json_encode(['at' => time(), 'categories' => (object) $this->coverage]);
+        if ($json === false || @file_put_contents($tmp, $json) === false || !@rename($tmp, $file)) {
+            @unlink($tmp);
+        }
     }
 
     // Returns how many vanished thumbnail sources were pruned. $status, when
@@ -96,8 +141,12 @@ class CacheWarmer {
         $root = $this->setup->get('ROOT_PATH');
         $this->status = $status;
         $status?->phase('files');
+        $this->coverage = array_fill_keys(array_unique(array_values($this->thumb_types)), ['files' => 0, 'thumbnails' => 0]);
         $this->warm_path($root);
         $pruned = $this->thumb_instance?->prune_orphans() ?? 0;
+        if ($this->thumb_instance !== null) {
+            $this->save_coverage();
+        }
 
         [$with_foldersize, $with_du, $timeout] = $this->context->foldersize_mode();
         if ($with_foldersize) {
@@ -126,9 +175,12 @@ class CacheWarmer {
                 && $this->thumb_instance !== null
                 && $this->context->paths()->is_managed_file($child_path)) {
                 $type = $this->types->type_of_name($file);
-                if (in_array($type, $this->thumb_types, true)) {
+                $category = $this->thumb_types[$type] ?? null;
+                if ($category !== null) {
                     $href = $this->context->paths()->to_href($child_path, false);
-                    $this->thumb_instance->thumb_for($type, $href, $this->thumb_width, $this->thumb_height);
+                    $thumb = $this->thumb_instance->thumb_for($type, $href, $this->thumb_width, $this->thumb_height);
+                    $this->coverage[$category]['files']++;
+                    $this->coverage[$category]['thumbnails'] += $thumb === null ? 0 : 1;
                 }
             }
         }

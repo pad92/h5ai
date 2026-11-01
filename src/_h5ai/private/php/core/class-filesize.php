@@ -92,6 +92,25 @@ class Filesize {
         self::$persistent_cache_dirty = true;
     }
 
+    // Entries of the folder size cache file and how many are still served
+    // (younger than CACHE_TTL). Counts only: paths never leave the server.
+    public static function cache_stats(string $file): array {
+        $content = @file_get_contents($file);
+        $entries = $content === false ? null : json_decode($content, true);
+        $entries = is_array($entries) ? $entries : [];
+        $cached_at = array_filter(array_map(
+            static fn(mixed $entry): ?int => is_array($entry) && is_int($entry['cached_at'] ?? null) ? $entry['cached_at'] : null,
+            $entries,
+        ), is_int(...));
+        return [
+            'entries' => count($entries),
+            'fresh' => count(array_filter($entries, self::is_cache_entry_fresh(...))),
+            'bytes' => $content === false ? 0 : strlen($content),
+            'ttl' => self::CACHE_TTL,
+            'newest' => $cached_at === [] ? null : max($cached_at),
+        ];
+    }
+
     private static function is_cache_entry_fresh(mixed $entry): bool {
         if (!is_array($entry) || !isset($entry['size'], $entry['cached_at'], $entry['children'])
             || !is_int($entry['size']) || !is_int($entry['cached_at']) || !is_array($entry['children'])

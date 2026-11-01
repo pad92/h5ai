@@ -33,7 +33,17 @@ This release includes v1.3.7, which was prepared but never published.
 
 * **Downloads**: several files selected in the browser download together in one archive. A failed archive returns a JSON error instead of a broken file. PHP TAR archives handle long and non-ASCII names, and their size header is exact.
 
+* **Info page** (`/_h5ai/public/index.php`):
+    * Without a configured password, the page explains how to set one. It no longer claims that the preset password is empty, since login is disabled in that case.
+    * A wrong password or a refused attempt shows an error instead of silently reloading the page.
+    * The login is a real form with a labelled field and buttons, so it works with the keyboard and password managers.
+    * A "Background tasks and cache" section shows the cache warmer state and schedule, its last run, the thumbnail cache size, how many images, videos, documents, archives and audio files have a thumbnail, and the folder size cache. Only an admin session can read these figures (`get` with `metrics`).
+    * The theme toggle is available on this page too.
+    * Checks are grouped with a pass count, show which video and document tool is used, and stay readable on narrow screens. A group whose checks all pass is folded.
+
 * **Other fixes**:
+    * In dark mode, scrollbars and other native controls are dark too.
+    * When h5ai cannot start, the hint says so and points to the browser console instead of linking to the defunct browsehappy.com.
     * Clicking a track in the audio player queue plays it, and late covers stay on their own track.
     * An `options.json` with a comment after a string ending in `\\` no longer falls back to defaults.
     * On hosts that disable `exec` or `proc_open`, listings no longer stop with a fatal error, and `tar`/`zip` downloads return an error.
