@@ -23,6 +23,7 @@
 * **Failures stay contained**: an image GD cannot decode (a TIFF without ImageMagick support, a corrupt file, an empty capture) no longer fails the whole request with an HTTP 500; only that file gets no thumbnail. An unopenable, corrupt or table-less `thumbs_cache.db` is now bypassed or rebuilt instead of failing the request.
 * **Each tool runs once**: a failing PDF used to run the capture tool four times. When the tool for the declared type fails, the file is identified again by name, then by content, so a video saved with a wrong extension gets a video thumbnail.
 * **Videos**: `ffprobe` and `avprobe` are detected. Without them, the thumbnail shows the frame at 0.1 seconds instead of failing.
+* **Deleted files**: the cache warmer now deletes the thumbnails and cache entries of files that no longer exist. Before, they stayed on disk, reachable by their URL, forever. Nothing is deleted while the share's root folder is empty or unreadable.
 * **Cache warmer**: it no longer stops with a type error on the first file, and it generates exactly the thumbnails listings ask for (same size, configured types minus the blocklist, archives included).
 
 ### Downloads

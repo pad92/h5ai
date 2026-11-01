@@ -89,15 +89,18 @@ class CacheWarmer {
         return array_values(array_diff($types, (array) $context->query_option('thumbnails.blocklist', [])));
     }
 
-    public function warm(): void {
+    // Returns how many vanished thumbnail sources were pruned.
+    public function warm(): int {
         $root = $this->setup->get('ROOT_PATH');
         $this->warm_path($root);
+        $pruned = $this->thumb_instance?->prune_orphans() ?? 0;
 
         // Runs from warm-cache.php on the CLI: use the background timeout.
         [$with_foldersize, $with_du, , $timeout] = $this->context->foldersize_mode();
         if ($with_foldersize) {
             Filesize::refresh_tree($root, $with_du, $timeout);
         }
+        return $pruned;
     }
 
     private function warm_path(string $path, array &$visited = []): void {

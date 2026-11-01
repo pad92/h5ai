@@ -5,6 +5,7 @@ class CacheDB {
     private ?SQLite3Stmt $sel_stmt = null;
     private ?SQLite3Stmt $ins_stmt = null;
     private ?SQLite3Stmt $sel_type_stmt = null;
+    private ?SQLite3Stmt $src_stmt = null;
     private int $version;
 
     public function __construct(private readonly Setup $setup) {
@@ -52,6 +53,11 @@ class CacheDB {
  typeid INTEGER, error INTEGER, ver INTEGER, tstamp INTEGER,
  FOREIGN KEY(typeid) REFERENCES types(id)) WITHOUT ROWID;');
         }
+        // Outside the schema test: databases of older releases lack it.
+        // Thumbnail names only carry sha1(source path), so this is the only
+        // way back from a thumbnail to its source.
+        $db->exec('CREATE TABLE IF NOT EXISTS sources
+ (hashedp TEXT NOT NULL PRIMARY KEY, path TEXT NOT NULL) WITHOUT ROWID;');
 
         $this->conn = $db;
     }
@@ -129,6 +135,46 @@ class CacheDB {
         $res->finalize();
 
         return $row ?: null;
+    }
+
+    public function record_source(string $hash, string $path): void {
+        if (!$this->conn) {
+            return;
+        }
+        $this->src_stmt ??= $this->conn->prepare('INSERT OR IGNORE INTO sources VALUES (:id, :path);') ?: null;
+        if ($this->src_stmt === null) {
+            return;
+        }
+        $this->src_stmt->reset();
+        $this->src_stmt->bindValue(':id', $hash, SQLITE3_TEXT);
+        $this->src_stmt->bindValue(':path', $path, SQLITE3_TEXT);
+        $this->src_stmt->execute();
+    }
+
+    // Hash => source path of every recorded thumbnail source.
+    public function sources(): array {
+        $sources = [];
+        $res = $this->conn?->query('SELECT hashedp, path FROM sources;');
+        if (!$res) {
+            return $sources;
+        }
+        while ($row = $res->fetchArray(SQLITE3_ASSOC)) {
+            $sources[$row['hashedp']] = $row['path'];
+        }
+        $res->finalize();
+        return $sources;
+    }
+
+    // Drops everything known about the source with this hash.
+    public function forget_source(string $hash): void {
+        foreach (['sources', 'archives'] as $table) {
+            $stmt = $this->conn?->prepare("DELETE FROM {$table} WHERE hashedp = :id;");
+            if (!$stmt) {
+                continue;
+            }
+            $stmt->bindValue(':id', $hash, SQLITE3_TEXT);
+            $stmt->execute();
+        }
     }
 
     public function obsolete_entry(array $row, int|false $mtime): bool {

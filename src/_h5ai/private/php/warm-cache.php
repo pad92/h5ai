@@ -26,7 +26,8 @@ echo "Starting cache warming...\n";
 $start_time = microtime(true);
 
 $warmer = new CacheWarmer($context);
-$warmer->warm();
+$pruned = $warmer->warm();
+echo "Pruned the thumbnails of {$pruned} vanished files.\n";
 
 $lastrun_file = $setup->get('CACHE_PRV_PATH') . '/warmer.lastrun';
 @file_put_contents($lastrun_file, time());

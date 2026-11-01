@@ -137,7 +137,50 @@ class Thumb {
         $this->type = new FileType($type);
         $this->image = null;
 
-        return $this->thumb($width, $height);
+        // Also records the sources of thumbnails generated before sources
+        // were recorded, so prune_orphans() learns about them on a warm run.
+        $thumb_href = $this->thumb($width, $height);
+        if ($thumb_href !== null) {
+            $this->db->record_source($this->source_hash, $this->source_path);
+        }
+        return $thumb_href;
+    }
+
+    // Deletes the thumbnails and cache entries of recorded sources that no
+    // longer exist, and returns how many sources were dropped. An unmounted
+    // share is an empty root folder: then nothing counts as gone. Otherwise a
+    // file is gone when its closest existing folder is readable.
+    public function prune_orphans(): int {
+        $root_entries = @scandir($this->setup->get('ROOT_PATH'));
+        if ($root_entries === false || count($root_entries) <= 2) {
+            return 0;
+        }
+        $pruned = 0;
+        foreach ($this->db->sources() as $hash => $path) {
+            if (!preg_match('/^[0-9a-f]{40}$/', $hash) || !self::is_gone($path)) {
+                continue;
+            }
+            foreach (glob($this->thumbs_path . '/thumb-' . $hash . '-*.webp') ?: [] as $thumb) {
+                @unlink($thumb);
+            }
+            $this->db->forget_source($hash);
+            $pruned++;
+        }
+        return $pruned;
+    }
+
+    private static function is_gone(string $path): bool {
+        if (file_exists($path) || is_link($path)) {
+            return false;
+        }
+        $folder = dirname($path);
+        while (!is_dir($folder)) {
+            if (dirname($folder) === $folder) {
+                return false;
+            }
+            $folder = dirname($folder);
+        }
+        return @scandir($folder) !== false;
     }
 
     public function thumb(int $width, int $height): ?string {
@@ -209,6 +252,7 @@ class Thumb {
         $this->image->save_dest_webp($this->thumb_path, 80);
 
         if ($this->thumb_path !== null && file_exists($this->thumb_path)) {
+            $this->db->record_source($this->source_hash, $this->source_path);
             return $this->thumb_href;
         }
         unset($this->image);
