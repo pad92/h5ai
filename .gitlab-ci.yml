@@ -38,12 +38,18 @@ variables:
   GRYPE_IMAGE: "anchore/grype:v0.116.0@sha256:fd4ab4d1042b522c896e73bdf09ab8bf384fa417df99d6dd0d6e1008c7e7c821"
   SYFT_IMAGE: "anchore/syft:v1.49.0@sha256:13b53ebabe3d215268c90cf8fb9b875f0183908245f376fd4b3a2cb69d21d484"
 
-cache:
+# Every job runs on the single `chataigne` runner, which keeps this cache
+# locally: node_modules is reused as long as the lockfile and the Node major
+# version stay the same, so node jobs only install on a cache miss.
+cache: &node_cache
   key:
+    prefix: node24
     files:
       - package-lock.json
   paths:
     - .npm/
+    - node_modules/
+  policy: pull
 
 .pipeline-rules: &pipeline_rules
   - if: $CI_PIPELINE_SOURCE == "merge_request_event"
@@ -66,7 +72,7 @@ cache:
 .node-job:
   image: node:24.17.0-slim@sha256:862263c612aa437e3037674b85419622a9d93bff80aa1eee5398dfe686375532
   before_script:
-    - npm ci
+    - '[ -x node_modules/.bin/gulp ] || npm ci --prefer-offline --no-audit --no-fund'
 
 # ── Lint ─────────────────────────────────────────────────────────────────────
 
@@ -74,6 +80,10 @@ lint:app:
   extends: .node-job
   stage: lint
   needs: []
+  # First node job of the pipeline: it fills the cache for the others.
+  cache:
+    <<: *node_cache
+    policy: pull-push
   script:
     - npm run lint
   rules: *pipeline_rules
@@ -84,7 +94,7 @@ lint:dockerfile:
   needs: []
   cache: []
   script:
-    - hadolint --failure-threshold error Dockerfile
+    - hadolint --failure-threshold error Dockerfile ci/php-test.Dockerfile
   rules: *pipeline_rules
 
 # ── Build ────────────────────────────────────────────────────────────────────
@@ -104,56 +114,63 @@ build:app:
 
 .docker-build-base:
   image: $DOCKER_IMAGE
-  variables:
-    BUILDER_NAME: "builder-$CI_JOB_ID"
-  # binfmt install/uninstall below mutates the shared runner host; serialize
-  # every job extending this base so they cannot race each other's QEMU
-  # registration.
+  # Serializes the jobs below: build:candidate mutates the runner host's QEMU
+  # registration, and both use the host's BuildKit builders.
   resource_group: docker-build
   cache: []
   needs:
     - job: lint:dockerfile
   before_script:
-    - docker run --privileged --rm tonistiigi/binfmt:qemu-v10.2.3-68@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0 --uninstall qemu-* || true
-    - docker run --privileged --rm tonistiigi/binfmt:qemu-v10.2.3-68@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0 --install all || true
-    - docker buildx create --name $BUILDER_NAME --use --bootstrap
     - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
     # Version/build metadata consumed by the Dockerfile ARGs (image labels).
     - H5AI_VERSION=$(sed -n 's/.*"version":[[:space:]]*"\([^"]*\)".*/\1/p' package.json | head -n1)
     - if [ -n "$CI_COMMIT_BRANCH" ]; then H5AI_VERSION=$CI_COMMIT_BRANCH; fi
     - BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
     - BUILD_ARGS="--build-arg H5AI_VERSION=$H5AI_VERSION --build-arg BUILD_DATE=$BUILD_DATE --build-arg BUILD_VCSREF=$CI_COMMIT_SHORT_SHA"
-  after_script:
-    - docker buildx rm $BUILDER_NAME || true
   rules: *pipeline_rules
 
+# Branch and MR image, single platform, left in the runner host's Docker for
+# test:docker (both run on the same host through its socket): no tarball
+# artifact goes back and forth to GitLab. The persistent `h5ai-ci` builder
+# keeps BuildKit's layer cache between pipelines. Images of earlier
+# pipelines that test:docker did not remove (a cancelled pipeline) are
+# pruned after a day.
 build:image:
   extends: .docker-build-base
   stage: build
   rules: *build_image_rules
   script:
+    - docker image prune --all --force --filter label=h5ai.ci-pipeline --filter until=24h
+    - docker buildx inspect h5ai-ci >/dev/null 2>&1 || docker buildx create --name h5ai-ci --driver docker-container
     - |
       docker buildx build \
+        --builder h5ai-ci \
         --load \
         --pull \
         $BUILD_ARGS \
-        -t h5ai-local:latest \
+        --label "h5ai.ci-pipeline=$CI_PIPELINE_ID" \
+        -t "h5ai-ci:$CI_PIPELINE_ID" \
         --cache-from "type=registry,ref=$CI_REGISTRY_IMAGE:cache" \
-        --cache-to "type=registry,ref=$CI_REGISTRY_IMAGE:cache,mode=max" \
         .
-    - docker save -o image.tar h5ai-local:latest
-  artifacts:
-    paths:
-      - image.tar
-    expire_in: 1 day
 
 # Multi-arch candidate is only needed by the publish stage: build it (and scan
 # it) only on pipelines that can publish, instead of paying the emulated arm64
-# build and a throwaway ci-* tag on every MR/branch pipeline.
+# build and a throwaway ci-* tag on every MR/branch pipeline. It uses a
+# builder of its own, and refreshes the registry cache that it and build:image
+# start from.
 build:candidate:
   extends: .docker-build-base
   stage: build
   rules: *publish_rules
+  variables:
+    BUILDER_NAME: "builder-$CI_JOB_ID"
+  before_script:
+    - !reference [.docker-build-base, before_script]
+    - docker run --privileged --rm tonistiigi/binfmt:qemu-v10.2.3-68@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0 --uninstall qemu-* || true
+    - docker run --privileged --rm tonistiigi/binfmt:qemu-v10.2.3-68@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0 --install all || true
+    - docker buildx create --name $BUILDER_NAME --use --bootstrap
+  after_script:
+    - docker buildx rm $BUILDER_NAME || true
   script:
     - |
       docker buildx build \
@@ -164,6 +181,7 @@ build:candidate:
         $BUILD_ARGS \
         -t "$CANDIDATE_IMAGE" \
         --cache-from "type=registry,ref=$CI_REGISTRY_IMAGE:cache" \
+        --cache-to "type=registry,ref=$CI_REGISTRY_IMAGE:cache,mode=max" \
         .
       CANDIDATE_DIGEST=$(sed -n 's/.*"containerimage\.digest"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' build-metadata.json | head -n1)
       printf 'CANDIDATE_DIGEST=%s\n' "${CANDIDATE_DIGEST:-none}" > build.env
@@ -193,24 +211,21 @@ test:app:
     expire_in: 1 week
   rules: *pipeline_rules
 
+# The PHP environment (GD, Xdebug, PHPUnit) is built once on the runner host
+# and kept by its Docker layer cache; the tests run in it on this job's
+# checkout, shared with --volumes-from (see scan:grype:deps for why).
 test:php:
   stage: test
-  image: php:8.4.27-cli@sha256:a4ae1f57e22b89a0a69c5e085b3010ee727d094e1542d249e48a01bec3c44810
+  image: $DOCKER_IMAGE
   needs: []
   cache: []
-  before_script:
-    # GD with JPEG and WebP, as in the runtime image, so image decoding and
-    # thumbnail tests run instead of being skipped.
-    - apt-get update -qq && apt-get install -y -qq --no-install-recommends libpng-dev libjpeg62-turbo-dev libwebp-dev
-    - docker-php-ext-configure gd --with-jpeg --with-webp
-    - docker-php-ext-install -j"$(nproc)" gd
-    - pecl install xdebug-3.5.3
-    - docker-php-ext-enable xdebug
-    - curl --fail --silent --show-error --location https://phar.phpunit.de/phpunit-12.5.42.phar --output /tmp/phpunit.phar
-    - echo 'bcd5cef3751188d7953f46efafd407c1acf37c5f49dbf7933e413eb20e933ac5  /tmp/phpunit.phar' | sha256sum --check -
   script:
-    - find src test/php -name '*.php' -print0 | xargs -0 -n1 php -l
-    - XDEBUG_MODE=coverage php /tmp/phpunit.phar --coverage-cobertura coverage/php/cobertura.xml --coverage-text --only-summary-for-coverage-text
+    - docker build -q -t h5ai-php-test:ci -f ci/php-test.Dockerfile ci
+    - JOB_CONTAINER_ID=$(docker ps -q -f "label=com.gitlab.gitlab-runner.job.id=$CI_JOB_ID")
+    - |
+      docker run --rm --volumes-from "$JOB_CONTAINER_ID" -w "$CI_PROJECT_DIR" -e XDEBUG_MODE=coverage h5ai-php-test:ci sh -ec '
+        find src test/php -name "*.php" -print0 | xargs -0 -n1 php -l
+        php /usr/local/bin/phpunit.phar --coverage-cobertura coverage/php/cobertura.xml --coverage-text --only-summary-for-coverage-text'
   artifacts:
     paths:
       - coverage/php/
@@ -243,7 +258,7 @@ test:docker:
   # keep the local single-platform image because they do not build a candidate.
   needs:
     - job: build:image
-      artifacts: true
+      artifacts: false
       optional: true
     - job: build:candidate
       artifacts: true
@@ -251,6 +266,8 @@ test:docker:
   cache: []
   before_script:
     - apk add --no-cache curl
+  after_script:
+    - docker rmi "h5ai-ci:$CI_PIPELINE_ID" >/dev/null 2>&1 || true
   script:
     - |
       if [ -n "${CI_COMMIT_TAG:-}" ] || [ "${CI_COMMIT_BRANCH:-}" = "master" ]; then
@@ -270,8 +287,8 @@ test:docker:
         esac
         echo "HTTP and authentication checks exercise $RUNTIME_PLATFORM only; the Grype scan covers linux/amd64 and linux/arm64."
       else
-        docker load -i image.tar
-        TEST_IMAGE_REF=h5ai-local:latest
+        # Left in the host's Docker by build:image.
+        TEST_IMAGE_REF="h5ai-ci:$CI_PIPELINE_ID"
         echo "Runtime checks use branch image $TEST_IMAGE_REF"
       fi
     - |
@@ -328,6 +345,9 @@ test:docker-publish:
 # on predominantly unfixed findings.
 scan:grype:image:
   stage: scan
+  # The Grype database lives in the runner host's `h5ai-grype-db` volume:
+  # only updates are downloaded. One scan at a time may update it.
+  resource_group: grype-db
   needs:
     - job: build:candidate
       artifacts: true
@@ -353,6 +373,7 @@ scan:grype:image:
           -e GRYPE_REGISTRY_AUTH_AUTHORITY="$CI_REGISTRY" \
           -e GRYPE_REGISTRY_AUTH_USERNAME="$CI_REGISTRY_USER" \
           -e GRYPE_REGISTRY_AUTH_PASSWORD="$CI_REGISTRY_PASSWORD" \
+          -e GRYPE_DB_CACHE_DIR=/grype-db -v h5ai-grype-db:/grype-db \
           "$GRYPE_IMAGE" "registry:$CANDIDATE_REF" \
           --platform "$platform" --only-fixed --fail-on high
         rc=$?
@@ -388,6 +409,9 @@ scan:grype:image:
 # reuses its real mounts instead of guessing a host path.
 scan:grype:deps:
   stage: scan
+  # The Grype database lives in the runner host's `h5ai-grype-db` volume:
+  # only updates are downloaded. One scan at a time may update it.
+  resource_group: grype-db
   needs: []
   cache: []
   image: $DOCKER_IMAGE
@@ -398,12 +422,14 @@ scan:grype:deps:
         --volumes-from "$JOB_CONTAINER_ID:ro" \
         -e SYFT_JAVASCRIPT_INCLUDE_DEV_DEPENDENCIES=true \
         "$SYFT_IMAGE" dir:"$CI_PROJECT_DIR" \
+        --source-name h5ai --source-version "$CI_COMMIT_SHORT_SHA" \
         --exclude './node_modules/**' \
         --exclude './build/**' \
         --exclude './.npm/**' \
         -o syft-json > npm-sbom.json
-      docker run --rm --volumes-from "$JOB_CONTAINER_ID:ro" "$GRYPE_IMAGE" \
-        sbom:"$CI_PROJECT_DIR/npm-sbom.json" --only-fixed --fail-on high
+      docker run --rm --volumes-from "$JOB_CONTAINER_ID:ro" \
+        -e GRYPE_DB_CACHE_DIR=/grype-db -v h5ai-grype-db:/grype-db \
+        "$GRYPE_IMAGE" sbom:"$CI_PROJECT_DIR/npm-sbom.json" --only-fixed --fail-on high
   artifacts:
     paths:
       - npm-sbom.json
