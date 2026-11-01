@@ -139,8 +139,12 @@ const copyFonts = () => src([
 
 const copy = parallel(copyPhpAndStatic, copyJson, copyRootFiles, copyMoviPlayer, copyFonts);
 
+// The browser test bundle carries every test and is never shipped: the size
+// hints meant for the served scripts.js do not apply to it.
+const WEBPACK_TEST_CFG = {...WEBPACK_CFG, performance: {hints: false}};
+
 const buildTests = () => src(path.join(TEST, 'index.js'))
-    .pipe(webpack(WEBPACK_CFG))
+    .pipe(webpack(WEBPACK_TEST_CFG))
     .pipe(insert.prepend('//= require "pre.js"\n\n'))
     .pipe(include({hardFail: true, includePaths: [path.join(SRC, '_h5ai/public/js')]}))
     .pipe(dest(path.join(BUILD, 'test')));
