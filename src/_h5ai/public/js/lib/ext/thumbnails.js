@@ -96,12 +96,33 @@ const requestQueue = queue => {
     }).catch(() => undefined);
 };
 
+// Thumbnails requested and answered since none was pending, for the
+// toolbar task indicator. Overlapping listings add to the same count.
+const progress = {done: 0, total: 0};
+
+const publishProgress = () => {
+    event.pub('thumbs.progress', {done: progress.done, total: progress.total});
+    if (progress.done >= progress.total) {
+        progress.done = 0;
+        progress.total = 0;
+    }
+};
+
 const breakAndRequestQueue = queue => {
     const len = queue.length;
     const chunksize = settings.chunksize;
+    if (!len) {
+        return;
+    }
+    progress.total += len;
+    publishProgress();
     let p = Promise.resolve();
     for (let i = 0; i < len; i += chunksize) {
-        p = p.then(() => requestQueue(queue.slice(i, i + chunksize)));
+        const chunk = queue.slice(i, i + chunksize);
+        p = p.then(() => requestQueue(chunk)).then(() => {
+            progress.done += chunk.length;
+            publishProgress();
+        });
     }
 };
 

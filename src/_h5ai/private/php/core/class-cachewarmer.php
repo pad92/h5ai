@@ -10,6 +10,7 @@ class CacheWarmer {
     private array $thumb_types = [];
     private int $thumb_width = 0;
     private int $thumb_height = 0;
+    private ?TaskStatus $status = null;
 
     // $thumb lets tests observe the generated thumbnails.
     public function __construct(private readonly Context $context, ?Thumb $thumb = null) {
@@ -89,15 +90,19 @@ class CacheWarmer {
         return array_values(array_diff($types, (array) $context->query_option('thumbnails.blocklist', [])));
     }
 
-    // Returns how many vanished thumbnail sources were pruned.
-    public function warm(): int {
+    // Returns how many vanished thumbnail sources were pruned. $status, when
+    // given, follows the walk (one item per file) and the folder sizes.
+    public function warm(?TaskStatus $status = null): int {
         $root = $this->setup->get('ROOT_PATH');
+        $this->status = $status;
+        $status?->phase('files');
         $this->warm_path($root);
         $pruned = $this->thumb_instance?->prune_orphans() ?? 0;
 
         // Runs from warm-cache.php on the CLI: use the background timeout.
         [$with_foldersize, $with_du, , $timeout] = $this->context->foldersize_mode();
         if ($with_foldersize) {
+            $status?->phase('sizes');
             Filesize::refresh_tree($root, $with_du, $timeout);
         }
         return $pruned;
@@ -120,7 +125,10 @@ class CacheWarmer {
             $child_path = $path . '/' . $file;
             if (is_dir($child_path) && !is_link($child_path)) {
                 $this->warm_path($child_path, $visited);
-            } elseif (!is_dir($child_path)
+                continue;
+            }
+            $this->status?->advance();
+            if (!is_dir($child_path)
                 && $this->thumb_instance !== null
                 && $this->context->paths()->is_managed_file($child_path)) {
                 $type = $this->types->type_of_name($file);

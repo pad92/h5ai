@@ -32,6 +32,9 @@ const defaultTranslations = {
     parentDirectory: 'Parent Directory',
     search: 'search',
     size: 'Size',
+    taskRefresh: 'folder sizes',
+    taskThumbs: 'thumbnails',
+    taskWarmer: 'cache warming',
     tree: 'Tree',
     view: 'View'
 };

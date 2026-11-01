@@ -78,6 +78,11 @@ class Api {
             $response['types'] = $this->context->get_types();
         }
 
+        if ($this->request->query_boolean('tasks', false)) {
+            Util::json_fail(Util::ERR_DISABLED, 'tasks disabled', !$this->context->query_option('tasks.enabled', false));
+            $response['tasks'] = TaskStatus::running($this->setup->get('CACHE_PRV_PATH'));
+        }
+
         if ($this->request->query_boolean('setup', false)) {
             $response['setup'] = $this->setup->to_jsono($this->context->is_admin());
         }

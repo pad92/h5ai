@@ -206,6 +206,13 @@ Defines default sorting criteria.
 - `natural` (default: `true`): Use natural sort order (e.g., `2` comes before `10`).
 - `folders` (default: `0`): Where folders are placed: `0` for top, `1` for in place, `2` for bottom.
 
+#### `tasks`
+Shows a spinning gear in the toolbar while the cache warmer, the folder size refresh worker or the thumbnails of the current page are running. Hovering over it, or focusing it with the keyboard, lists each task with its progress and the estimated time left.
+The server tasks are estimated from their previous run, so a first run shows neither a percentage nor a time left. Every visitor sees these tasks, but never a file name or path.
+- `enabled` (default: `false`).
+- `interval` (default: `3000`): polling interval in milliseconds while a server task runs (minimum `1000`).
+- `idleInterval` (default: `30000`): polling interval in milliseconds while no server task runs. A page in a background tab sends no request and checks again when it becomes visible.
+
 #### `thumbnails`
 Generates preview thumbnails for images, videos, and document files.
 > [!NOTE]

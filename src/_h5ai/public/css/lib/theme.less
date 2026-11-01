@@ -388,3 +388,18 @@ body[data-theme="dark"] #fallback-hints a:visited {
 body[data-theme="dark"] div#pv-content-txt code {
     color: @col-text-primary-white;
 }
+
+/* Task indicator dark mode */
+body[data-theme="dark"] #tasks-panel {
+    background: @col-grey-900;
+    color: @col-text-primary-white;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+
+    .figures {
+        color: @col-text-secondary-white;
+    }
+
+    .task-bar {
+        background: @col-divider-white;
+    }
+}

@@ -17,6 +17,9 @@
     "parentDirectory": "Dossier parent",
     "search": "rechercher",
     "size": "Taille",
+    "taskRefresh": "tailles des dossiers",
+    "taskThumbs": "miniatures",
+    "taskWarmer": "préchauffage du cache",
     "tree": "Arborescence",
     "view": "Disposition"
 }
