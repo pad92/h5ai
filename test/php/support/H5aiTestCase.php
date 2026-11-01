@@ -72,6 +72,15 @@ abstract class H5aiTestCase extends TestCase {
         return new $class($session ?? new Session($store), new Request([], ''), new TestSetup($this->setupValues($setup)));
     }
 
+    // A cached thumbnail of $source, as Thumb writes it: named after the
+    // source path and carrying its mtime. Returns the thumbnail name.
+    protected function seedThumbnail(string $source, string $size): string {
+        $name = 'thumb-' . sha1($source) . '-' . $size . '.webp';
+        $thumb = $this->write($this->tmp . '/cache-pub/thumbs/' . $name, 'webp');
+        touch($thumb, filemtime($source));
+        return $name;
+    }
+
     // Puts scripts named after $tools first on PATH until the test ends.
     // Each appends its arguments to a log read by toolLog(), then runs $body.
     protected function fakeTools(array $tools): void {
