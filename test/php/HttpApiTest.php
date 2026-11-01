@@ -282,6 +282,66 @@ final class HttpApiTest extends H5aiTestCase {
         self::assertArrayNotHasKey('metrics', $answer);
     }
 
+    public function testPurgeIsRefusedOutsideAnAdminSession(): void {
+        $entry = ['size' => 1, 'mtime' => 1, 'cached_at' => time(), 'children' => []];
+        $this->writeSetup([]);
+        $sizes = $this->write($this->tmp . '/cache/foldersizes.json', json_encode(['/a' => $entry]));
+        $answer = $this->postJson(['action' => 'purge', 'cache' => 'folderSizes']);
+        self::assertSame(Util::ERR_DISABLED, $answer['err'] ?? null);
+        self::assertStringContainsString('/a', (string) file_get_contents($sizes), 'nothing was purged');
+    }
+
+    public function testAnAdminPurgesOneKnownCacheWhenNoTaskRuns(): void {
+        $entry = ['size' => 1, 'mtime' => 1, 'cached_at' => time(), 'children' => []];
+        $this->writeSetup(['TEST_SESSION' => ['__H5AI__AS_ADMIN' => true]]);
+        $sizes = $this->write($this->tmp . '/cache/foldersizes.json', json_encode(['/a' => $entry, '/b' => $entry]));
+
+        self::assertSame(Util::ERR_ILLEGAL_PARAM, $this->postJson(['action' => 'purge', 'cache' => 'conf'])['err'] ?? null);
+
+        $lock = fopen($this->tmp . '/cache/refresh.lock', 'c+');
+        flock($lock, LOCK_EX);
+        $this->write($this->tmp . '/cache/task-refresh.json', json_encode(['phase' => 'sizes', 'done' => 0, 'total' => null, 'started' => time(), 'phaseStarted' => time()]));
+        $busy = $this->postJson(['action' => 'purge', 'cache' => 'folderSizes']);
+        self::assertSame(Util::ERR_FAILED, $busy['err'] ?? null);
+        self::assertStringContainsString('refresh', $busy['msg'] ?? '');
+        fclose($lock);
+
+        self::assertSame(['purged' => 'folderSizes', 'removed' => ['entries' => 2]], $this->postJson(['action' => 'purge', 'cache' => 'folderSizes']));
+        self::assertFileDoesNotExist($sizes);
+    }
+
+    public function testTaskActionsNeedAnAdminAndAKnownTask(): void {
+        foreach (['start', 'stop'] as $action) {
+            self::assertSame(Util::ERR_DISABLED, $this->postJson(['action' => $action, 'task' => 'warmer'])['err'] ?? null);
+        }
+        $this->writeSetup(['TEST_SESSION' => ['__H5AI__AS_ADMIN' => true]]);
+        foreach (['start', 'stop'] as $action) {
+            self::assertSame(Util::ERR_ILLEGAL_PARAM, $this->postJson(['action' => $action, 'task' => 'rm'])['err'] ?? null);
+        }
+        $stop = $this->postJson(['action' => 'stop', 'task' => 'warmer']);
+        self::assertSame(Util::ERR_FAILED, $stop['err'] ?? null);
+        self::assertStringContainsString('not running', $stop['msg'] ?? '');
+    }
+
+    public function testARunningTaskIsStoppedNotStartedAgain(): void {
+        $this->writeSetup(['TEST_SESSION' => ['__H5AI__AS_ADMIN' => true]]);
+        $lock = fopen($this->tmp . '/cache/refresh.lock', 'c+');
+        flock($lock, LOCK_EX);
+        $this->write($this->tmp . '/cache/task-refresh.json', json_encode(['phase' => 'sizes', 'done' => 0, 'total' => null, 'started' => time(), 'phaseStarted' => time()]));
+
+        $start = $this->postJson(['action' => 'start', 'task' => 'refresh']);
+        self::assertSame(Util::ERR_FAILED, $start['err'] ?? null);
+        self::assertStringContainsString('already running', $start['msg'] ?? '');
+        self::assertSame(['stopping' => 'refresh'], $this->postJson(['action' => 'stop', 'task' => 'refresh']));
+        self::assertFileExists($this->tmp . '/cache/task-refresh.stop');
+        fclose($lock);
+    }
+
+    public function testRefreshCannotStartWithoutFolderSizes(): void {
+        $this->writeSetup(['TEST_SESSION' => ['__H5AI__AS_ADMIN' => true]]);
+        self::assertSame(Util::ERR_DISABLED, $this->postJson(['action' => 'start', 'task' => 'refresh'])['err'] ?? null);
+    }
+
     public function testThumbnailsNeedWebpAndABoundedBatch(): void {
         $this->writeOptions(['thumbnails' => ['enabled' => true, 'maxBatchSize' => 1]]);
         $thumbs = ['action' => 'get', 'thumbs' => [['type' => 'file', 'href' => '/first.txt'], ['type' => 'file', 'href' => '/second.txt']]];

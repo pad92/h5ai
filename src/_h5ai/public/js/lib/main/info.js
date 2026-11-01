@@ -13,6 +13,10 @@ const MSG_LOGIN_DISABLED =
     '<code>_h5ai/private/conf/options.json</code>.';
 const MSG_LOGIN_REFUSED = 'Wrong password, or too many failed attempts. Try again later.';
 const MSG_REQUEST_FAILED = 'The server did not answer the request. Try again.';
+// How long a purge button waits for its confirming click.
+const PURGE_CONFIRM_MS = 4000;
+// How long a started worker gets to write its first status.
+const TASK_START_MS = 1000;
 
 // Rows without a pass/fail outcome only report a value.
 const NEUTRAL = null;
@@ -130,6 +134,7 @@ const addTest = ($list, [label, info, passed, result]) => {
     $test.find('.label').text(label);
     $test.find('.result').text(result !== undefined && result !== '' ? result : yesNo(passed));
     $test.find('.desc').html(info);
+    return $test;
 };
 
 const addChecks = () => {
@@ -164,13 +169,70 @@ const addChecks = () => {
         .text(`${passed} of ${total} checks passed`);
 };
 
-const renderMetrics = metrics => {
+// The buttons of the metrics rows. A purge destroys data: its first click
+// only arms the button, a second one within PURGE_CONFIRM_MS purges, a
+// confirmation inside the page without a blocking dialog. A started worker
+// writes its status shortly after launch: the metrics reload once it has.
+const ACTIONS = {
+    purge: {text: 'Purge', param: 'cache', answer: 'purged', isConfirmed: true, reloadDelay: 0},
+    start: {text: 'Start', param: 'task', answer: 'started', isConfirmed: false, reloadDelay: TASK_START_MS},
+    stop: {text: 'Stop', param: 'task', answer: 'stopping', isConfirmed: false, reloadDelay: 0}
+};
+
+const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+const addActionButton = ($test, label, {kind, name}, onDone) => {
+    const spec = ACTIONS[kind];
+    const $button = dom('<button type="button"></button>')
+        .addCls('action', kind)
+        .attr('aria-label', `${spec.text} ${label}`)
+        .text(spec.text)
+        .appTo($test);
+    let timer = null;
+    const disarm = () => {
+        clearTimeout(timer);
+        timer = null;
+        $button.rmCls('armed').text(spec.text);
+    };
+    const run = () => {
+        $button.prop('disabled', true);
+        server.request({action: kind, [spec.param]: name})
+            .then(resp => {
+                if (!resp || resp[spec.answer] !== name) {
+                    throw new Error(resp && resp.msg || 'refused');
+                }
+                return spec.reloadDelay ? wait(spec.reloadDelay).then(onDone) : onDone();
+            })
+            .catch(err => {
+                dom('#metrics-status').addCls('error').text(`${spec.text} ${label} failed: ${err.message}.`);
+                $button.prop('disabled', false);
+            });
+    };
+    $button.on('click', () => {
+        if (!spec.isConfirmed) {
+            run();
+        } else if (timer === null) {
+            $button.addCls('armed').text(`Confirm ${spec.text.toLowerCase()}`);
+            timer = setTimeout(disarm, PURGE_CONFIRM_MS);
+        } else {
+            disarm();
+            run();
+        }
+    });
+};
+
+const renderMetrics = (metrics, onDone) => {
     const $groups = dom('#metrics .groups').clr();
     metricGroups(metrics).forEach(([title, rows]) => {
         const $group = dom(groupTpl).appTo($groups);
         $group.find('h2').text(title);
         const $list = $group.find('.tests');
-        rows.forEach(([label, info, value]) => addTest($list, [label, info, NEUTRAL, value]));
+        rows.forEach(([label, info, value, action]) => {
+            const $test = addTest($list, [label, info, NEUTRAL, value]);
+            if (action) {
+                addActionButton($test, label, action, onDone);
+            }
+        });
     });
 };
 
@@ -182,7 +244,7 @@ const loadMetrics = () => {
             if (!resp || !resp.metrics) {
                 throw new Error(resp && resp.msg || 'no metrics in the answer');
             }
-            renderMetrics(resp.metrics);
+            renderMetrics(resp.metrics, loadMetrics);
             $status.text('');
         })
         .catch(() => $status.addCls('error').text(MSG_REQUEST_FAILED))

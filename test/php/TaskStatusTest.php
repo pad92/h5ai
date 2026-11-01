@@ -70,6 +70,22 @@ final class TaskStatusTest extends H5aiTestCase {
         fclose($lock);
     }
 
+    public function testOnlyARunningTaskCanBeAskedToStopAndANewRunIgnoresAnOldRequest(): void {
+        self::assertFalse(TaskStatus::request_stop($this->cache(), 'refresh'), 'nothing runs');
+        self::assertFileDoesNotExist($this->cache() . '/task-refresh.stop');
+
+        $lock = $this->holdLock('refresh');
+        $this->writeJson('task-refresh.json', $this->workerStatus('sizes', 0, null, 1, 1));
+        self::assertTrue(TaskStatus::request_stop($this->cache(), 'refresh'));
+        self::assertTrue(TaskStatus::is_stopping($this->cache(), 'refresh'));
+        self::assertTrue(new TaskStatus($this->cache(), 'warmer')->stop_requested() === false, 'another task is not concerned');
+        fclose($lock);
+
+        $next = new TaskStatus($this->cache(), TaskStatus::REFRESH);
+        self::assertFalse($next->stop_requested(), 'a request for an earlier run');
+        self::assertFalse(TaskStatus::is_stopping($this->cache(), 'refresh'));
+    }
+
     public function testAFinishedRunLeavesOnlyItsEstimate(): void {
         $status = new TaskStatus($this->cache(), TaskStatus::REFRESH);
         $status->phase('sizes', 3);

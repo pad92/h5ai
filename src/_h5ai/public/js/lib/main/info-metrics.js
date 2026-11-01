@@ -1,6 +1,8 @@
 // Rows of the info page metrics, built from the `metrics` API answer
 // (Metrics::collect). Free of DOM access: each row is
-// [label, description (trusted static HTML), shown value].
+// [label, description (trusted static HTML), shown value, action or
+// undefined]. An action is {kind: 'purge', name: <CachePurge cache>} or
+// {kind: 'start' | 'stop', name: <TaskStatus task>}.
 
 const {formatSize, formatDate} = require('../core/format');
 const {formatFigures} = require('../ext/tasks-progress');
@@ -45,9 +47,22 @@ const percentOf = (part, total) => total > 0 ? `${Math.floor(part / total * 100)
 
 // "idle" or "running · 42 % · ~ 2 min", followed by how long the previous
 // finished run took, the best guess of how long the next one will.
-const taskState = (running, last) => {
-    const state = running ? `running · ${formatFigures(running.percent, running.remaining)}` : 'idle';
+const taskState = ({running, stopping, last}) => {
+    let state = 'idle';
+    if (stopping) {
+        state = 'stopping';
+    } else if (running) {
+        state = `running · ${formatFigures(running.percent, running.remaining)}`;
+    }
     return last ? `${state} · last run ${formatDuration(last.seconds)}` : state;
+};
+
+// Start when idle, Stop while running, nothing once a stop is requested.
+const taskAction = ({running, stopping}, name) => {
+    if (stopping) {
+        return undefined;
+    }
+    return {kind: running ? 'stop' : 'start', name};
 };
 
 const lastRunText = (last, now) => {
@@ -58,7 +73,7 @@ const lastRunText = (last, now) => {
 };
 
 const warmerRows = (warmer, now) => {
-    const {schedule, last, running} = warmer;
+    const {schedule, last} = warmer;
     let scheduleText;
     if (!schedule.enabled) {
         scheduleText = 'Disabled: set <code>cache.warmAtStartup</code> to warm thumbnails and folder sizes in the background.';
@@ -67,7 +82,7 @@ const warmerRows = (warmer, now) => {
     } else {
         scheduleText = `Runs every ${formatDuration(schedule.interval)}; next run ${formatRelative(schedule.nextRun, now)}.`;
     }
-    const rows = [['Cache warmer', scheduleText, taskState(running, last)]];
+    const rows = [['Cache warmer', scheduleText, taskState(warmer), taskAction(warmer, 'warmer')]];
 
     if (last) {
         const files = last.phases.files;
@@ -90,14 +105,15 @@ const warmerRows = (warmer, now) => {
 
 const taskRows = (tasks, now) => [
     ...warmerRows(tasks.warmer, now),
-    ['Folder size refresh', `Recomputes expired folder sizes after a listing. ${lastRunText(tasks.refresh.last, now)}`,
-        taskState(tasks.refresh.running, tasks.refresh.last)]
+    ['Folder size refresh',
+        `Recomputes expired folder sizes after a listing; Start recomputes the whole share. ${lastRunText(tasks.refresh.last, now)}`,
+        taskState(tasks.refresh), taskAction(tasks.refresh, 'refresh')]
 ];
 
 const coverageRows = (coverage, now) => {
     if (!coverage) {
         return [['Thumbnail coverage',
-            'Counted by the cache warmer while it walks the share: none of its runs had thumbnails enabled yet.',
+            'Counted by the cache warmer while it walks the share: no run with thumbnails enabled since they were last purged, or ever.',
             'unknown']];
     }
     const categories = Object.keys(coverage.categories);
@@ -118,7 +134,7 @@ const coverageRows = (coverage, now) => {
 const cacheRows = (cache, now) => {
     const {thumbnails, thumbnailDb, folderSizes} = cache;
     const average = thumbnails.files > 0 ? `, ${formatSize(Math.round(thumbnails.bytes / thumbnails.files))} on average` : '';
-    let dbText = `${plural(thumbnailDb.sources || 0, 'source file')} recorded, used to prune thumbnails of deleted files.`;
+    let dbText = `${plural(thumbnailDb.sources || 0, 'source file')} recorded, used to prune thumbnails of deleted files. Purged with the thumbnail files.`;
     if (thumbnailDb.bytes === null) {
         dbText = 'Not created yet.';
     } else if (thumbnailDb.sources === null) {
@@ -128,13 +144,14 @@ const cacheRows = (cache, now) => {
 
     return [
         ['Thumbnail files',
-            `${plural(thumbnails.files, 'file')} for ${plural(thumbnails.sources, 'source file')}${average}, in <code>_h5ai/public/cache/thumbs</code>.`,
-            formatSize(thumbnails.bytes)],
+            `${plural(thumbnails.files, 'file')} for ${plural(thumbnails.sources, 'source file')}${average}, in <code>_h5ai/public/cache/thumbs</code>. A purge also empties the thumbnail database and the coverage.`,
+            formatSize(thumbnails.bytes), {kind: 'purge', name: 'thumbnails'}],
         ...coverageRows(thumbnails.coverage, now),
         ['Thumbnail database', dbText, thumbnailDb.bytes === null ? 'none' : formatSize(thumbnailDb.bytes)],
         ['Folder sizes',
             `${formatSize(folderSizes.bytes) || '0 B'} on disk. Entries are served for ${formatDuration(folderSizes.ttl)}.${newest}`,
-            `${folderSizes.fresh.toLocaleString('en')} of ${plural(folderSizes.entries, 'entry', 'entries')} fresh`]
+            `${folderSizes.fresh.toLocaleString('en')} of ${plural(folderSizes.entries, 'entry', 'entries')} fresh`,
+            {kind: 'purge', name: 'folderSizes'}]
     ];
 };
 

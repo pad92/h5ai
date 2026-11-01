@@ -32,11 +32,20 @@ if ($with_foldersize) {
     } else {
         $status->phase('sizes', count($paths));
         foreach ($paths as $path) {
+            if ($status->stop_requested()) {
+                break;
+            }
             Filesize::get_size($path, $with_foldersize, $with_du, $timeout);
             $status->advance();
         }
     }
-    $status->finish();
+    // A stop request is honoured between folders only: one du call over all
+    // of them cannot be interrupted cleanly.
+    if ($status->stop_requested()) {
+        $status->abandon();
+    } else {
+        $status->finish();
+    }
 }
 
 flock($fp, LOCK_UN);

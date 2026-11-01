@@ -28,6 +28,7 @@ class Metrics {
         foreach (TaskStatus::names() as $name) {
             $tasks[$name] = [
                 'running' => $running[$name] ?? null,
+                'stopping' => isset($running[$name]) && TaskStatus::is_stopping($cache, $name),
                 'last' => TaskStatus::last_run($cache, $name),
             ];
         }

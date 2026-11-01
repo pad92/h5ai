@@ -29,8 +29,15 @@ $warmer = new CacheWarmer($context);
 // Written while this process holds warmer.lock, as TaskStatus requires.
 $status = new TaskStatus($setup->get('CACHE_PRV_PATH'), TaskStatus::WARMER);
 $pruned = $warmer->warm($status);
-$status->finish();
-echo "Pruned the thumbnails of {$pruned} vanished files.\n";
+if ($warmer->was_stopped()) {
+    // Not recorded as a run, but warmer.lastrun below still postpones the
+    // next automatic start: the administrator stopped this one.
+    $status->abandon();
+    echo "Cache warming stopped on request.\n";
+} else {
+    $status->finish();
+    echo "Pruned the thumbnails of {$pruned} vanished files.\n";
+}
 
 $lastrun_file = $setup->get('CACHE_PRV_PATH') . '/warmer.lastrun';
 @file_put_contents($lastrun_file, time());

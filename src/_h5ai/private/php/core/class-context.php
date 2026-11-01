@@ -261,9 +261,11 @@ class Context {
         return $result;
     }
 
-    public function trigger_folder_refresh(array $paths): void {
+    // Hands $paths to the background refresh worker. False when nothing was
+    // launched: no path, a refresh already requested, or a failed launch.
+    public function trigger_folder_refresh(array $paths): bool {
         if ($paths === []) {
-            return;
+            return false;
         }
         $marker = $this->setup->get('CACHE_PRV_PATH') . '/refresh.requested';
         if (is_file($marker) && (time() - (int) @filemtime($marker)) > 300) {
@@ -271,13 +273,15 @@ class Context {
         }
         $marker_handle = @fopen($marker, 'x');
         if (!$marker_handle) {
-            return;
+            return false;
         }
         fclose($marker_handle);
         $script_path = $this->setup->get('PRIVATE_PATH') . '/php/refresh-cache.php';
         if (!Util::launch_background($script_path, $paths)) {
             @unlink($marker);
+            return false;
         }
+        return true;
     }
 
     public function get_langs(): array {

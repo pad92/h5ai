@@ -197,6 +197,25 @@
         overflow-wrap: anywhere;
     }
 
+    .action {
+        grid-column: 2;
+        justify-self: end;
+        line-height: 28px;
+    }
+
+    // Interrupting or destroying: outlined in red, filled once a purge is
+    // armed for its second click.
+    .purge, .stop {
+        border: 1px solid @col-error;
+        background: transparent;
+        color: @col-error;
+
+        &.armed {
+            background: @col-error;
+            color: @col-text-primary-white;
+        }
+    }
+
     .desc:empty {
         display: none;
     }

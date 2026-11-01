@@ -168,6 +168,102 @@ test('info page: an admin sees task and cache metrics and can refresh them', asy
     }
 });
 
+const purgeButtons = () => Object.fromEntries([...document.querySelectorAll('#metrics .purge')].map(el => [
+    el.closest('.test').querySelector('.label').textContent, el
+]));
+
+test('info page: each cache purges after a confirming second click, then the metrics reload', async () => {
+    const page = loadInfo({
+        setup: ADMIN_SETUP,
+        response: query => Promise.resolve(query.action === 'purge' ?
+            {purged: query.cache, removed: {files: 3, sources: 2}} :
+            {metrics: METRICS})
+    });
+    try {
+        await page.settle();
+        assert.deepEqual(Object.keys(purgeButtons()), ['Thumbnail files', 'Folder sizes'],
+            'the database goes with the thumbnail files, never alone');
+
+        const button = purgeButtons()['Thumbnail files'];
+        assert.equal(button.getAttribute('aria-label'), 'Purge Thumbnail files');
+        button.click();
+        assert.equal(button.textContent, 'Confirm purge');
+        assert.ok(button.classList.contains('armed'));
+        await page.settle();
+        assert.equal(page.requests.filter(query => query.action === 'purge').length, 0, 'one click purges nothing');
+
+        button.click();
+        await page.settle();
+        assert.deepEqual(page.requests.filter(query => query.action === 'purge'), [{action: 'purge', cache: 'thumbnails'}]);
+        assert.equal(page.requests.filter(query => query.metrics).length, 2, 'the metrics reload after the purge');
+    } finally {
+        page.done();
+    }
+});
+
+test('info page: a refused purge says why and reloads nothing', async () => {
+    const page = loadInfo({
+        setup: ADMIN_SETUP,
+        response: query => Promise.resolve(query.action === 'purge' ?
+            {err: 'ERR_FAILED', msg: 'a background task is running: warmer'} :
+            {metrics: METRICS})
+    });
+    try {
+        await page.settle();
+        const button = purgeButtons()['Folder sizes'];
+        button.click();
+        button.click();
+        await page.settle();
+        const status = document.querySelector('#metrics-status');
+        assert.equal(status.textContent, 'Purge Folder sizes failed: a background task is running: warmer.');
+        assert.ok(status.classList.contains('error'));
+        assert.equal(button.disabled, false, 'a retry stays possible');
+        assert.equal(page.requests.filter(query => query.metrics).length, 1);
+    } finally {
+        page.done();
+    }
+});
+
+const actionButton = label => document.querySelector(`#metrics .action[aria-label="${label}"]`);
+
+test('info page: an idle task starts in one click and the metrics reload once it runs', async () => {
+    const page = loadInfo({
+        setup: ADMIN_SETUP,
+        response: query => Promise.resolve(query.action === 'start' ? {started: query.task} : {metrics: METRICS})
+    });
+    try {
+        await page.settle();
+        assert.equal(actionButton('Stop Cache warmer').textContent, 'Stop', 'the fixture warmer runs');
+        const start = actionButton('Start Folder size refresh');
+        start.click();
+        assert.equal(start.disabled, true);
+        await page.settle();
+        assert.deepEqual(page.requests.filter(query => query.action === 'start'), [{action: 'start', task: 'refresh'}]);
+        assert.equal(page.requests.filter(query => query.metrics).length, 1, 'the worker gets time to write its status');
+        await new Promise(resolve => setTimeout(resolve, 1100));
+        await page.settle();
+        assert.equal(page.requests.filter(query => query.metrics).length, 2);
+    } finally {
+        page.done();
+    }
+});
+
+test('info page: a running task stops in one click', async () => {
+    const page = loadInfo({
+        setup: ADMIN_SETUP,
+        response: query => Promise.resolve(query.action === 'stop' ? {stopping: query.task} : {metrics: METRICS})
+    });
+    try {
+        await page.settle();
+        actionButton('Stop Cache warmer').click();
+        await page.settle();
+        assert.deepEqual(page.requests.filter(query => query.action === 'stop'), [{action: 'stop', task: 'warmer'}]);
+        assert.equal(page.requests.filter(query => query.metrics).length, 2, 'the metrics show the stop at once');
+    } finally {
+        page.done();
+    }
+});
+
 test('info page: refused metrics show an error and keep the checks', async () => {
     const page = loadInfo({
         setup: ADMIN_SETUP,

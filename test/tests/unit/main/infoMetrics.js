@@ -3,7 +3,7 @@ const {formatDuration, formatRelative, metricGroups} = require('../../../util/re
 
 const rowsOf = metrics => Object.fromEntries(metricGroups(metrics)
     .flatMap(([, rows]) => rows)
-    .map(([label, info, value]) => [label, {info, value}]));
+    .map(([label, info, value, action]) => [label, {info, value, action}]));
 
 const EMPTY = {
     now: 1000,
@@ -37,6 +37,10 @@ test('info metrics: a fresh install reads as unknown, never as zero coverage', (
     assert.equal(rows['Thumbnail coverage'].value, 'unknown');
     assert.equal(rows['Thumbnail files'].value, '0 B');
     assert.equal(rows['Thumbnail database'].value, 'none');
+    assert.equal(rows['Thumbnail database'].action, undefined, 'purged with the thumbnail files only');
+    assert.deepEqual(rows['Folder sizes'].action, {kind: 'purge', name: 'folderSizes'});
+    assert.deepEqual(rows['Thumbnail files'].action, {kind: 'purge', name: 'thumbnails'});
+    assert.deepEqual(rows['Cache warmer'].action, {kind: 'start', name: 'warmer'}, 'idle: it can be started');
     assert.equal(rows['Folder sizes'].value, '0 of 0 entries fresh');
 });
 
@@ -68,6 +72,19 @@ test('info metrics: a scheduled warmer and an unreadable database are explained'
     rows = rowsOf(metrics);
     assert.ok((/next run in 58 min/).test(rows['Cache warmer'].info));
     assert.equal(rows['Folder size refresh'].value, 'running · …', 'no previous run, no duration');
+});
+
+test('info metrics: a running task offers Stop, then nothing once its stop is requested', () => {
+    const metrics = JSON.parse(JSON.stringify(EMPTY));
+    metrics.tasks.warmer.running = {id: 'warmer', percent: 10, remaining: 60};
+    let rows = rowsOf(metrics);
+    assert.deepEqual(rows['Cache warmer'].action, {kind: 'stop', name: 'warmer'});
+    assert.deepEqual(rows['Folder size refresh'].action, {kind: 'start', name: 'refresh'});
+
+    metrics.tasks.warmer.stopping = true;
+    rows = rowsOf(metrics);
+    assert.equal(rows['Cache warmer'].action, undefined);
+    assert.equal(rows['Cache warmer'].value, 'stopping');
 });
 
 test('info metrics: each task shows how long its previous finished run took', () => {

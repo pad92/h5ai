@@ -175,6 +175,32 @@ dates only, never a path of the share, and only an admin session gets them.
 * **Folder sizes**: entries of `foldersizes.json`, how many are still served
   (younger than 5 minutes) and its size on disk.
 
+**Start** launches a background task now: the cache warmer whatever
+`cache.warmAtStartup` and `cache.warmInterval` say, or the folder size
+refresh over the whole share (refused while folder sizes are disabled). While
+a task runs, its button becomes **Stop**: the task finishes the file or folder
+in hand and ends there, so no thumbnail is left half written, and the row
+reads "stopping" meanwhile. A stopped run is not recorded as the last run; a
+stopped cache warmer still waits for its next interval before starting on its
+own. The folder size refresh with `du` measures all folders in one call,
+which a stop cannot interrupt: it ends when that call does.
+
+**Purge** empties a cache completely, to free its space or to clear an
+inconsistency. It takes two clicks: the first arms the button, the second,
+within 4 seconds, purges. It is refused while the cache warmer or the folder
+size refresh runs.
+
+* **Thumbnail files**: deletes every file of `_h5ai/public/cache/thumbs`,
+  empties the thumbnail database (recorded sources and capture outcomes) and
+  drops the coverage figures. Files and database go together: a database
+  emptied alone would leave thumbnails nothing can prune any more. Thumbnails
+  are generated again by listings and by the next cache warmer run.
+* **Folder sizes**: deletes `foldersizes.json` and the temporary files an
+  interrupted save left next to it. Sizes are computed again on demand.
+
+Other files of the caches are kept: `cmds.json` (probed again on each admin
+visit), `login-failures.json` (the login limit) and the task status files.
+
 ## 5. Troubleshooting command line utilities
 
 If a CLI-based tool (like `ffmpeg`, `magick`, `zip`, `tar`, or `du`) shows a failure status, verify that:

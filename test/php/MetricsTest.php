@@ -19,7 +19,7 @@ final class MetricsTest extends H5aiTestCase {
         self::assertSame(['files' => 0, 'sources' => 0, 'bytes' => 0, 'coverage' => null], $metrics['cache']['thumbnails']);
         self::assertSame(['bytes' => null, 'sources' => null], $metrics['cache']['thumbnailDb']);
         self::assertSame(['entries' => 0, 'fresh' => 0, 'bytes' => 0, 'ttl' => Filesize::CACHE_TTL, 'newest' => null], $metrics['cache']['folderSizes']);
-        self::assertSame(['running' => null, 'last' => null], $metrics['tasks']['refresh']);
+        self::assertSame(['running' => null, 'stopping' => false, 'last' => null], $metrics['tasks']['refresh']);
         self::assertSame(['enabled' => false, 'interval' => 86400, 'lastRun' => null, 'nextRun' => null], $metrics['tasks']['warmer']['schedule']);
         self::assertSame(['.', '..'], scandir($this->cache()), 'reading metrics must not create cache files');
         self::assertDirectoryDoesNotExist($this->tmp . '/cache-pub');
