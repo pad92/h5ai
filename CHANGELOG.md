@@ -42,6 +42,7 @@ This release includes v1.3.7, which was prepared but never published.
     * Checks are grouped with a pass count, show which video and document tool is used, and stay readable on narrow screens. The list scrolls instead of being cut off at the bottom of the window.
 
 * **Other fixes**:
+    * In dark mode, scrollbars and other native controls are dark too.
     * When h5ai cannot start, the hint says so and points to the browser console instead of linking to the defunct browsehappy.com.
     * Clicking a track in the audio player queue plays it, and late covers stay on their own track.
     * An `options.json` with a comment after a string ending in `\\` no longer falls back to defaults.
