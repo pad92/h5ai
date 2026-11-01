@@ -19,7 +19,9 @@ https://<your-domain>/_h5ai/public/index.php
 Use `http://` if the server does not provide HTTPS. In Docker, replace
 `<your-domain>` with the hostname and port mapped to the container.
 
-By default, when you visit this page, you will see a login prompt.
+With a password configured, the page shows a login form; a wrong password or
+a refused attempt is reported on the page. Without one, the page explains how
+to set it instead of showing a form that cannot succeed.
 
 ## 2. Password configuration (`passhash`)
 
@@ -99,50 +101,76 @@ cron jobs as well.
 
 ## 4. Diagnostic tests reference
 
-Once logged in, the page displays a series of checks covering core features and optional extensions. Here is what each test verifies and what to do when it fails.
+Once logged in, the page shows how many checks pass, then the checks in three
+groups: h5ai, Server and PHP, and Commands. Each row has a green (passed), red
+(failed) or grey (information only) marker. Here is what each check verifies
+and what to do when it fails.
 
 h5ai caches the command-line tools it finds in `_h5ai/private/cache/cmds.json`. Opening this page while logged in probes them again, so install or remove a tool and reload the page to update the results. Anonymous visits never trigger the probes. The cache is also rebuilt automatically when it lacks a tool that a newer h5ai release checks for. The Docker image deletes `cmds.json` each time the container starts, so a restart or an upgrade probes the tools again even when the private cache is kept on a volume.
 
-### Core checks
+### h5ai
 
-* **h5ai version**: Checks if the running version matches an official release format.
-* **Index file found**: Verifies that your web server directory index configuration includes `_h5ai/public/index.php`.
-* **Options/Types parsable**: Confirms that [options.json](../src/_h5ai/private/conf/options.json) and [types.json](../src/_h5ai/private/conf/types.json) contain valid JSON.
-* **Server software**: Detects if your web server is Apache, Lighttpd, Nginx, Cherokee, or Angie.
-* **PHP version**: Checks that PHP is at least version `8.4.0`.
-* **PHP arch**: Checks if PHP is running as `64-bit`. A 64-bit PHP runtime is required to display files and folder sizes greater than 2GB correctly.
-
-### Permission checks
-
-* **Public Cache directory**: Verifies the web server has write access to `_h5ai/public/cache/`.
-* **Private Cache directory**: Verifies the web server has write access to `_h5ai/private/cache/`.
+* **Version**: Green only when the running version is a tagged release (`X.Y.Z`).
+* **Index file**: Information only. Shows the path to add to your web server's directory index list, usually `/_h5ai/public/index.php`. h5ai cannot test this setting from PHP.
+* **Options / Types**: Confirm that [options.json](../src/_h5ai/private/conf/options.json) and [types.json](../src/_h5ai/private/conf/types.json) are readable and valid JSON.
+* **Public cache**: Verifies the web server has write access to `_h5ai/public/cache/`.
+* **Private cache**: Verifies the web server has write access to `_h5ai/private/cache/`.
 
 > [!IMPORTANT]
-> If either Cache directory check fails, resolve it by granting write permissions to the web server user (typically `www-data` or `nginx`):
+> If either cache check fails, resolve it by granting write permissions to the web server user (typically `www-data` or `nginx`):
 > ```bash
 > chmod -R 775 _h5ai/public/cache _h5ai/private/cache
 > chown -R www-data:www-data _h5ai/public/cache _h5ai/private/cache
 > ```
 
-### Media and thumbnail checks
+### Server and PHP
 
-* **Image thumbs**: Checks if the `GD` library is installed and compiled with `WebP` support.
-* **Fileinfo module**: Checks if the PHP Fileinfo module is active (used for determining file MIME types safely).
-* **Use EXIF thumbs**: Checks for the PHP `exif` module. When active, h5ai extracts embedded JPEG preview thumbnails from photos directly instead of decoding the full image, which is much faster.
-* **Video thumbs**: Verifies command line program `ffmpeg` or `avconv` is installed on the host. Required to capture frame previews from videos.
-* **PDF thumbs**: Verifies hardened ImageMagick is installed: `magick` (ImageMagick 7), or `convert` on ImageMagick 6 hosts. h5ai uses `magick` whenever it is available. Rendering PDF and PostScript files also needs Ghostscript (`gs`), which this check does not detect; the Docker image includes it. GraphicsMagick is available only as an explicit compatibility fallback with `thumbnails.allowGraphicsMagick`; it does not use the bundled security policy.
+* **Web server**: Detects if your web server is Apache, lighttpd, nginx, Cherokee or Angie, and shows its name and version.
+* **PHP version**: Shows the PHP version. h5ai refuses to start below `8.4.0`, so this check cannot fail on a running page.
+* **PHP architecture**: Checks if PHP is running as `64-bit`. A 64-bit PHP runtime is required to display files and folder sizes greater than 2GB correctly.
+* **GD with WebP**: Checks if the `GD` library is installed and compiled with `WebP` support. Required for all thumbnails.
+* **EXIF**: Checks for the PHP `exif` module. When active, h5ai detects image types and, with `thumbnails.exif`, extracts embedded JPEG preview thumbnails from photos instead of decoding the full image, which is much faster.
+* **Fileinfo**: Checks if the PHP Fileinfo module is active (used to detect the type of a file whose name does not tell it).
+* **Zip / Rar**: Check for the PHP `Zip` and `Rar` extensions, used to make thumbnails from images inside archives.
+* **SQLite3**: Checks for the PHP `sqlite3` extension, used by the thumbnail cache.
+
+### Commands
+
+* **Video thumbnails**: Verifies command line program `ffmpeg` or `avconv` is installed on the host, and shows the one h5ai uses (`ffmpeg` first). Required to capture frame previews from videos.
+* **Document thumbnails**: Shows the tool h5ai uses for PDF and PostScript files, and verifies hardened ImageMagick is installed: `magick` (ImageMagick 7), or `convert` on ImageMagick 6 hosts. h5ai uses `magick` whenever it is available. Rendering PDF and PostScript files also needs Ghostscript (`gs`), which this check does not detect; the Docker image includes it. GraphicsMagick is available only as an explicit compatibility fallback with `thumbnails.allowGraphicsMagick`; it does not use the bundled security policy.
 
 > [!NOTE]
 > **Media-processor hardening (SSRF/LFI).** Because thumbnails are generated from user-supplied files, h5ai applies defense-in-depth against crafted media that tries to make the processor reach the network or read arbitrary local files:
 > - `ffmpeg`/`avconv` are invoked with `-protocol_whitelist file,crypto,data`, blocking remote (e.g. HLS/concat/playlist) fetches.
 > - A restrictive ImageMagick policy is shipped at `_h5ai/private/conf/magick/policy.xml` and activated via the `MAGICK_CONFIGURE_PATH` environment variable (set automatically; it applies to the Imagick PHP extension and to `magick`/`convert`). It disables risky coders (`URL`, `HTTPS`, `MSL`, `SVG`, `MVG`, `EPHEMERAL`, ...) and external delegates, with one exception: `PDF`/PostScript stay readable and the Ghostscript delegate stays enabled so the documented `doc` thumbnails keep working. GraphicsMagick `gm` does not read this policy and is therefore disabled by default. Do not enable it or relax the policy unless you fully trust every file served. You can verify the ImageMagick policy with `MAGICK_CONFIGURE_PATH=/path/to/_h5ai/private/conf/magick magick -list policy`.
 
-### Utility checks
+* **tar / zip**: Check if system commands `tar` and `zip` are available. Recommended for fast packaged downloads.
+* **du**: Checks if system command `du` is available. Required if foldersize calculation type is set to `"shell-du"` in `options.json`.
 
-* **Zip/Rar module**: Checks for PHP `Zip` and `Rar` extensions. Required for on-the-fly archive previewing.
-* **SQLite3 module**: Checks for PHP `sqlite3` extension. Required for caching failed thumbnail/archive parsing states.
-* **Shell tar / Shell zip**: Checks if system commands `tar` and `zip` are available. Recommended for fast packaged downloads.
-* **Shell du**: Checks if system command `du` is available. Required if foldersize calculation type is set to `"shell-du"` in `options.json`.
+### Background tasks and cache
+
+Below the checks, the page shows figures read from the caches. **Refresh**
+reads them again without reloading the page. They contain counts, sizes and
+dates only, never a path of the share, and only an admin session gets them.
+
+* **Cache warmer**: whether it is running (with its progress), how often it
+  runs (`cache.warmInterval`) and when the next run is due. Disabled while
+  `cache.warmAtStartup` is off.
+* **Last warm run**: when the last run ended, how long it took, how many files
+  it walked and how long the folder sizes took.
+* **Folder size refresh**: the background worker that recomputes expired
+  folder sizes after a listing, and its last run.
+* **Thumbnail files**: the space used by `_h5ai/public/cache/thumbs`, the
+  number of files and of source files (one source can have several sizes).
+* **Images, Videos, Documents, Archives, Audio**: how many files of each kind
+  have a thumbnail, against the files of that kind in the share. The cache
+  warmer counts them while it walks the share, so the figures date from its
+  last run and stay unknown until a run with thumbnails enabled. Counting on
+  each visit of this page would take as long as the warmer itself.
+* **Thumbnail database**: the size of `thumbs_cache.db` and the number of
+  source files it records.
+* **Folder sizes**: entries of `foldersizes.json`, how many are still served
+  (younger than 5 minutes) and its size on disk.
 
 ## 5. Troubleshooting command line utilities
 

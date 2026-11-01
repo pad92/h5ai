@@ -17,6 +17,30 @@ class CacheDB {
         $this->conn?->close();
     }
 
+    // Size of the database and number of recorded thumbnail sources, read
+    // without creating or locking it. Null fields when it is missing or
+    // unreadable, or SQLite3 is not available.
+    public static function stats(string $path): array {
+        $bytes = 0;
+        foreach (['', '-wal'] as $suffix) {
+            $size = @filesize($path . $suffix);
+            $bytes += $size === false ? 0 : $size;
+        }
+        $stats = ['bytes' => is_file($path) ? $bytes : null, 'sources' => null];
+        if ($stats['bytes'] === null || !extension_loaded('sqlite3')) {
+            return $stats;
+        }
+        try {
+            $db = new SQLite3($path, SQLITE3_OPEN_READONLY);
+            $db->enableExceptions(true);
+            $stats['sources'] = (int) $db->querySingle('SELECT COUNT(*) FROM sources;');
+            $db->close();
+        } catch (Exception $exception) {
+            Util::log('thumbnail cache stats unavailable: ' . $exception->getMessage());
+        }
+        return $stats;
+    }
+
     public function create(string $path): void {
         if (!extension_loaded('sqlite3')) {
             return;

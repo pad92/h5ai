@@ -92,6 +92,36 @@ class TaskStatus {
         return $cache_path . '/task-' . $name . '.json';
     }
 
+    /** @return list<string> */
+    public static function names(): array {
+        return array_keys(self::PHASES);
+    }
+
+    // The last finished run of $name: when it ended, how long it took and
+    // the items and seconds of each phase. Null before the first run.
+    public static function last_run(string $cache_path, string $name): ?array {
+        $file = $cache_path . '/task-' . $name . '.last.json';
+        $finished = @filemtime($file);
+        $phases = self::read_json($file);
+        if ($finished === false || $phases === []) {
+            return null;
+        }
+        $clean = [];
+        foreach (self::PHASES[$name] ?? [] as $phase) {
+            if (isset($phases[$phase]) && is_array($phases[$phase])) {
+                $clean[$phase] = [
+                    'done' => (int) ($phases[$phase]['done'] ?? 0),
+                    'seconds' => (int) ($phases[$phase]['seconds'] ?? 0),
+                ];
+            }
+        }
+        return [
+            'finished' => $finished,
+            'seconds' => array_sum(array_column($clean, 'seconds')),
+            'phases' => $clean,
+        ];
+    }
+
     // The tasks running now: [{id, percent, remaining}], percent (0-99) and
     // remaining (seconds) being null while unknown.
     public static function running(string $cache_path, ?int $now = null): array {

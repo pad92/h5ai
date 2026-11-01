@@ -40,7 +40,7 @@ const loadInfo = ({setup, options = {}, response = Promise.resolve({})}) => {
     config.options = Object.assign({}, savedOptions, options);
     server.request = query => {
         requests.push(query);
-        return response;
+        return typeof response === 'function' ? response(query) : response;
     };
     const {cleanup} = fresh('main/info');
 
@@ -67,36 +67,120 @@ const loadInfo = ({setup, options = {}, response = Promise.resolve({})}) => {
     return {requests, reloads: () => reloads, settle, done};
 };
 
-const results = () => [...document.querySelectorAll('#tests .test')].map(el => ({
+const results = () => [...document.querySelectorAll('#checks .test')].map(el => ({
     label: el.querySelector('.label').textContent,
     result: el.querySelector('.result').textContent,
-    passed: el.querySelector('.result').classList.contains('passed')
+    outcome: ['passed', 'failed', 'neutral'].find(cls => el.classList.contains(cls))
 }));
 
-test('info page: an admin sees every check and can only log out', async () => {
-    const page = loadInfo({setup: ADMIN_SETUP});
+const byLabel = () => Object.fromEntries(results().map(row => [row.label, row]));
+
+const submitLogin = pass => {
+    document.querySelector('#pass').value = pass;
+    document.querySelector('#login').dispatchEvent(new window.Event('submit', {cancelable: true}));
+};
+
+const METRICS = {
+    now: 10000,
+    tasks: {
+        warmer: {
+            running: {id: 'warmer', percent: 42, remaining: 90},
+            last: {finished: 9000, seconds: 42, phases: {files: {done: 1200, seconds: 30}, sizes: {done: 0, seconds: 12}}},
+            schedule: {enabled: true, interval: 86400, lastRun: 9000, nextRun: 95400}
+        },
+        refresh: {running: null, last: null}
+    },
+    cache: {
+        thumbnails: {files: 3, sources: 2, bytes: 3000000, coverage: {at: 9000, categories: {img: {files: 4, thumbnails: 3}}}},
+        thumbnailDb: {bytes: 8192, sources: 2},
+        folderSizes: {entries: 5, fresh: 4, bytes: 512, ttl: 300, newest: 9940}
+    }
+};
+
+const adminResponse = query => Promise.resolve(query.metrics ? {metrics: METRICS} : {});
+
+test('info page: an admin sees grouped checks with a summary and can only log out', async () => {
+    const page = loadInfo({setup: ADMIN_SETUP, response: adminResponse});
     try {
-        const rows = results();
-        assert.equal(rows.length, 20);
-        const byLabel = Object.fromEntries(rows.map(row => [row.label, row]));
-        assert.deepEqual(byLabel['h5ai version'], {label: 'h5ai version', result: '1.4.0', passed: true});
-        assert.equal(byLabel['Server software'].result, 'nginx 1.27');
-        assert.equal(byLabel['PHP arch'].passed, true);
-        assert.equal(byLabel['Public Cache directory'].result, 'yes');
-        assert.equal(byLabel['Private Cache directory'].result, 'no');
-        assert.equal(byLabel['Private Cache directory'].passed, false);
-        assert.equal(byLabel['Video thumbs'].passed, true, 'ffmpeg alone is enough');
-        assert.equal(byLabel['PDF thumbs'].passed, true);
-        assert.equal(byLabel['Shell tar'].passed, false);
+        assert.equal(results().length, 20);
+        assert.deepEqual([...document.querySelectorAll('#checks h2')].map(el => el.textContent),
+            ['h5ai', 'Server and PHP', 'Commands']);
+        const rows = byLabel();
+        assert.deepEqual(rows.Version, {label: 'Version', result: '1.4.0', outcome: 'passed'});
+        assert.deepEqual(rows['Index file'],
+            {label: 'Index file', result: '/_h5ai/public/index.php', outcome: 'neutral'},
+            'the index file is a hint, not a check');
+        assert.equal(rows['Web server'].result, 'nginx 1.27');
+        assert.equal(rows['PHP architecture'].outcome, 'passed');
+        assert.equal(rows['Public cache'].result, 'yes');
+        assert.deepEqual(rows['Private cache'], {label: 'Private cache', result: 'no', outcome: 'failed'});
+        assert.deepEqual(rows['Video thumbnails'],
+            {label: 'Video thumbnails', result: 'ffmpeg', outcome: 'passed'}, 'ffmpeg alone is enough');
+        assert.equal(rows['Document thumbnails'].result, 'magick');
+        assert.equal(rows.tar.outcome, 'failed');
 
-        assert.equal(document.querySelector('#pass'), null);
+        const summary = document.querySelector('#checks-summary');
+        assert.equal(summary.textContent, '10 of 19 checks passed');
+        assert.ok(summary.classList.contains('failed'));
+
         assert.equal(document.querySelector('#login'), null);
-        assert.ok(document.querySelector('#hint'), 'the preset password hint stays');
+        assert.equal(document.querySelector('#login-disabled'), null);
 
-        document.querySelector('#logout').click();
         await page.settle();
-        assert.deepEqual(page.requests, [{action: 'logout'}]);
+        document.querySelector('#logout').click();
+        assert.equal(document.querySelector('#logout').disabled, true, 'no double logout');
+        await page.settle();
+        assert.deepEqual(page.requests, [{action: 'get', metrics: true}, {action: 'logout'}]);
         assert.equal(page.reloads(), 1);
+    } finally {
+        page.done();
+    }
+});
+
+const metricRows = () => Object.fromEntries([...document.querySelectorAll('#metrics .test')].map(el => [
+    el.querySelector('.label').textContent, el.querySelector('.result').textContent
+]));
+
+test('info page: an admin sees task and cache metrics and can refresh them', async () => {
+    const page = loadInfo({setup: ADMIN_SETUP, response: adminResponse});
+    try {
+        assert.equal(document.querySelector('#metrics-status').textContent, 'Loading…');
+        await page.settle();
+        assert.equal(document.querySelector('#metrics-status').textContent, '');
+        assert.deepEqual([...document.querySelectorAll('#metrics .group h2')].map(el => el.textContent),
+            ['Background tasks', 'Cache']);
+        assert.equal(results().length, 20, 'metrics are not counted as checks');
+        const rows = metricRows();
+        assert.equal(rows['Cache warmer'], 'running · 42 % · ~ 2 min');
+        assert.equal(rows['Last warm run'], '42 s');
+        assert.equal(rows['Folder size refresh'], 'idle');
+        assert.equal(rows['Thumbnail files'], '3.0 MB');
+        assert.equal(rows.Images, '3 of 4 (75 %)');
+        assert.equal(rows['Folder sizes'], '4 of 5 entries fresh');
+
+        document.querySelector('#metrics-refresh').click();
+        assert.equal(document.querySelector('#metrics-refresh').disabled, true);
+        await page.settle();
+        assert.equal(page.requests.filter(query => query.metrics).length, 2);
+        assert.equal(document.querySelectorAll('#metrics .group').length, 2, 'a refresh replaces the groups');
+    } finally {
+        page.done();
+    }
+});
+
+test('info page: refused metrics show an error and keep the checks', async () => {
+    const page = loadInfo({
+        setup: ADMIN_SETUP,
+        response: query => Promise.resolve(query.metrics ? {err: 'ERR_DISABLED', msg: 'metrics need an admin session'} : {})
+    });
+    try {
+        await page.settle();
+        const status = document.querySelector('#metrics-status');
+        assert.ok(status.classList.contains('error'));
+        assert.ok((/did not answer/).test(status.textContent));
+        assert.equal(document.querySelectorAll('#metrics .group').length, 0);
+        assert.equal(results().length, 20);
+        assert.equal(document.querySelector('#metrics-refresh').disabled, false, 'a retry stays possible');
     } finally {
         page.done();
     }
@@ -105,56 +189,97 @@ test('info page: an admin sees every check and can only log out', async () => {
 test('info page: a development version is flagged and a 32-bit PHP fails', () => {
     const page = loadInfo({setup: Object.assign({}, ADMIN_SETUP, {VERSION: '1.4.0-dev', PHP_ARCH: '32-bit'})});
     try {
-        const byLabel = Object.fromEntries(results().map(row => [row.label, row]));
-        assert.deepEqual(byLabel['h5ai version'], {label: 'h5ai version', result: '1.4.0-dev', passed: false});
-        assert.deepEqual(byLabel['PHP arch'], {label: 'PHP arch', result: '32-bit', passed: false});
+        const rows = byLabel();
+        assert.deepEqual(rows.Version, {label: 'Version', result: '1.4.0-dev', outcome: 'failed'});
+        assert.deepEqual(rows['PHP architecture'], {label: 'PHP architecture', result: '32-bit', outcome: 'failed'});
     } finally {
         page.done();
     }
 });
 
-test('info page: a visitor gets no checks and logs in with Enter or the button', async () => {
-    const page = loadInfo({setup: {AS_ADMIN: false}});
+test('info page: server values are shown as text, never parsed as HTML', () => {
+    const page = loadInfo({setup: Object.assign({}, ADMIN_SETUP, {INDEX_HREF: '/<img src=x onerror=alert(1)>/index.php'})});
     try {
-        assert.equal(document.querySelector('#tests'), null);
+        assert.equal(byLabel()['Index file'].result, '/<img src=x onerror=alert(1)>/index.php');
+        assert.equal(document.querySelector('#checks img'), null);
+    } finally {
+        page.done();
+    }
+});
+
+test('info page: a visitor gets no checks and logs in through a labelled form', async () => {
+    const page = loadInfo({
+        setup: {AS_ADMIN: false},
+        options: {hasCustomPasshash: true},
+        response: Promise.resolve({asAdmin: true})
+    });
+    try {
+        assert.equal(document.querySelector('#checks'), null);
         assert.equal(document.querySelector('#logout'), null);
         const pass = document.querySelector('#pass');
         assert.equal(document.activeElement, pass, 'the password field has focus');
+        assert.equal(document.querySelector('label[for="pass"]').textContent, 'Admin password');
+        assert.equal(pass.getAttribute('autocomplete'), 'current-password');
 
-        pass.value = 'secret';
-        const other = new window.KeyboardEvent('keydown');
-        Object.defineProperty(other, 'which', {value: 65});
-        pass.dispatchEvent(other);
-        assert.deepEqual(page.requests, [], 'other keys do not submit');
-
-        const enter = new window.KeyboardEvent('keydown');
-        Object.defineProperty(enter, 'which', {value: 13});
-        pass.dispatchEvent(enter);
-        document.querySelector('#login').click();
+        submitLogin('secret');
         await page.settle();
 
-        assert.deepEqual(page.requests, [
-            {action: 'login', pass: 'secret'},
-            {action: 'login', pass: 'secret'}
-        ]);
-        assert.equal(page.reloads(), 2);
+        assert.deepEqual(page.requests, [{action: 'login', pass: 'secret'}]);
+        assert.equal(page.reloads(), 1);
     } finally {
         page.done();
     }
 });
 
-test('info page: a refused login does not reload and a custom password hides the hint', async () => {
+test('info page: a wrong password shows an error and does not reload', async () => {
+    const page = loadInfo({
+        setup: {AS_ADMIN: false},
+        options: {hasCustomPasshash: true},
+        response: Promise.resolve({asAdmin: false})
+    });
+    try {
+        const error = document.querySelector('#login-error');
+        assert.equal(error.hidden, true);
+
+        submitLogin('wrong');
+        assert.equal(document.querySelector('#login button').disabled, true, 'no double submit');
+        await page.settle();
+
+        assert.equal(page.reloads(), 0);
+        assert.equal(error.hidden, false);
+        assert.equal(error.getAttribute('role'), 'alert');
+        assert.ok((/Wrong password/).test(error.textContent));
+        assert.equal(document.querySelector('#pass').value, '', 'the field is cleared for a retry');
+        assert.equal(document.querySelector('#login button').disabled, false);
+    } finally {
+        page.done();
+    }
+});
+
+test('info page: a failed login request shows an error and does not reload', async () => {
     const page = loadInfo({
         setup: {AS_ADMIN: false},
         options: {hasCustomPasshash: true},
         response: Promise.reject(new Error('refused'))
     });
     try {
-        assert.equal(document.querySelector('#hint'), null);
-        document.querySelector('#login').click();
+        submitLogin('secret');
         await page.settle();
         assert.equal(page.requests.length, 1);
         assert.equal(page.reloads(), 0);
+        assert.ok((/did not answer/).test(document.querySelector('#login-error').textContent));
+    } finally {
+        page.done();
+    }
+});
+
+test('info page: without a configured password the login form is replaced by how to set one', () => {
+    const page = loadInfo({setup: {AS_ADMIN: false}, options: {hasCustomPasshash: false}});
+    try {
+        assert.equal(document.querySelector('#login'), null, 'login cannot succeed, so no form');
+        const notice = document.querySelector('#login-disabled');
+        assert.ok((/H5AI_ADMIN_PASSWORD/).test(notice.textContent));
+        assert.ok(!(/empty string/).test(document.body.textContent), 'the stale empty-password hint is gone');
     } finally {
         page.done();
     }

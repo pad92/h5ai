@@ -276,6 +276,12 @@ final class HttpApiTest extends H5aiTestCase {
         self::assertSame(Util::ERR_DISABLED, $this->postJson(['action' => 'get'] + $part)['err'] ?? null);
     }
 
+    public function testMetricsAreRefusedOutsideAnAdminSession(): void {
+        $answer = $this->postJson(['action' => 'get', 'metrics' => true]);
+        self::assertSame(Util::ERR_DISABLED, $answer['err'] ?? null);
+        self::assertArrayNotHasKey('metrics', $answer);
+    }
+
     public function testThumbnailsNeedWebpAndABoundedBatch(): void {
         $this->writeOptions(['thumbnails' => ['enabled' => true, 'maxBatchSize' => 1]]);
         $thumbs = ['action' => 'get', 'thumbs' => [['type' => 'file', 'href' => '/first.txt'], ['type' => 'file', 'href' => '/second.txt']]];

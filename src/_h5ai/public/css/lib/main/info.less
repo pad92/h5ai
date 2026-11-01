@@ -1,107 +1,242 @@
+// Admin info page: login card, then the setup checks grouped in cards.
+
 #root.info {
     #content {
         flex: 1 1 auto;
         order: 50;
+        // #root clips its overflow, so the long check list scrolls here.
+        overflow-y: auto;
+        padding: 0 16px 48px;
         color: @col-text;
+    }
+
+    #header {
+        margin: 0.8em 0 0.4em;
         text-align: center;
-    }
+        font-size: 1em;
 
-    code {
-        margin: 0 0.2em;
-        padding: 2px 4px;
-        border-radius: 4px;
-        letter-spacing: 0.05em;
-        background: @col-back-panel;
-        border: 1px solid @col-border;
-        font-size: 0.9em;
-    }
+        a {
+            .eased-transition;
 
-    #header a {
-        .eased-transition;
+            font-size: 4em;
+            font-weight: 300;
+            color: @col-text;
+            text-decoration: none;
 
-        font-size: 4em;
-        font-weight: 300;
-        margin: 0.8em 0 0;
-        color: @col-text;
-        text-decoration: none;
-
-        &:hover {
-            color: @col-text-hover;
+            &:hover {
+                color: @col-text-hover;
+            }
         }
 
         .version {
             font-size: 0.45em;
-            font-weight: 100;
+            font-weight: 300;
             opacity: 0.5;
             margin-left: 0.2em;
             vertical-align: super;
         }
     }
 
+    code {
+        margin: 0 0.1em;
+        padding: 1px 4px;
+        border-radius: 4px;
+        background: @col-back-panel;
+        border: 1px solid @col-border;
+        font-size: 0.9em;
+        overflow-wrap: anywhere;
+    }
+
+    .card, #checks, #metrics {
+        max-width: 640px;
+        margin: 16px auto 0;
+    }
+
+    .card {
+        padding: 16px;
+        border: 1px solid @col-border-strong;
+        border-radius: 8px;
+        background: @col-back-paper;
+    }
+
+    .notice {
+        line-height: 1.6;
+    }
+
+    #login label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 700;
+    }
+
+    .row, #logout-wrapper {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+    }
+
+    #logout-wrapper span {
+        flex: 1 1 auto;
+    }
+
     #pass {
         .el-input;
 
-        display: inline-block;
-        margin: 8px;
+        flex: 1 1 200px;
+        min-width: 0;
         padding: 0 12px;
-        line-height: 28px;
-        width: 200px;
-        vertical-align: top;
+        line-height: 36px;
+        border-color: @col-border-strong;
+        border-radius: 4px;
     }
 
-    #login, #logout {
+    button {
         .el-button;
 
-        display: inline-block;
-        margin: 8px;
-        padding: 0 12px;
-        line-height: 28px;
-        vertical-align: top;
+        padding: 0 16px;
+        border: 0;
+        border-radius: 4px;
+        font-family: inherit;
+        font-size: inherit;
+        line-height: 36px;
+
+        &:disabled {
+            opacity: 0.6;
+            cursor: progress;
+            box-shadow: none;
+        }
     }
 
-    #hint {
-        margin: 12px auto;
-        width: 320px;
+    #pass:focus-visible, button:focus-visible {
+        outline: 2px solid @col-blue-400;
+        outline-offset: 2px;
     }
 
-    #tests {
-        display: inline-block;
-        text-align: left;
-        list-style-type: none;
-        margin: 48px 0;
+    .error {
+        margin: 12px 0 0;
+        color: @col-error;
+
+        &[hidden] {
+            display: none;
+        }
+    }
+
+    #metrics {
+        margin-top: 32px;
+    }
+
+    .metrics-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+
+        h2 {
+            margin: 0;
+            font-size: 1.2em;
+        }
+    }
+
+    #metrics-status {
+        margin: 8px 0 0;
+
+        &:empty {
+            display: none;
+        }
+
+        &.error {
+            color: @col-error;
+        }
+    }
+
+    #checks-summary {
+        margin: 24px 0 0;
+        text-align: center;
+        font-size: 1.2em;
+        font-weight: 700;
+
+        &.passed {
+            color: @col-okay;
+        }
+
+        &.failed {
+            color: @col-error;
+        }
+    }
+
+    .group {
+        margin: 16px 0 0;
+        border: 1px solid @col-border-strong;
+        border-radius: 8px;
+        background: @col-back-paper;
+        overflow: hidden;
+
+        h2 {
+            margin: 0;
+            padding: 8px 16px;
+            font-size: 0.85em;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            background: @col-back-panel;
+            border-bottom: 1px solid @col-border-strong;
+        }
+    }
+
+    .tests {
+        margin: 0;
         padding: 0;
+        list-style: none;
+    }
 
-        .test {
-            background: @col-back-paper;
-            margin: 12px 0 0;
-            padding: 8px 12px 12px;
-            border-bottom: 1px solid @col-border;
+    .test {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 2px 16px;
+        padding: 10px 16px;
+        border-left: 4px solid transparent;
+
+        & + .test {
+            border-top: 1px solid @col-border;
         }
 
-        .label {
-            display: inline-block;
-            width: 250px;
-            font-size: 1.4em;
+        &.passed {
+            border-left-color: @col-okay;
         }
 
-        .result {
-            display: inline-block;
-            width: 250px;
-            text-align: right;
-            font-size: 1.4em;
-            font-weight: bold;
-
-            &.passed {
-                color: @col-okay;
-            }
-
-            &.failed {
-                color: @col-error;
-            }
+        &.failed {
+            border-left-color: @col-error;
         }
 
-        .info {
-            margin: 4px 0 0;
+        &.neutral {
+            border-left-color: @col-border-stronger;
         }
+    }
+
+    .label {
+        font-weight: 700;
+    }
+
+    .result {
+        text-align: right;
+        font-weight: 700;
+        overflow-wrap: anywhere;
+
+        &.passed {
+            color: @col-okay;
+        }
+
+        &.failed {
+            color: @col-error;
+        }
+    }
+
+    .desc {
+        // Escaped: Less would compute 1 / -1 as a division.
+        grid-column: ~"1 / -1";
+        margin: 0;
+        font-size: 0.9em;
+        color: @col-text-secondary-black;
     }
 }

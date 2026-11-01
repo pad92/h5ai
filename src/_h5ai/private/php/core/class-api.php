@@ -84,6 +84,11 @@ class Api {
             $response['tasks'] = TaskStatus::running($this->setup->get('CACHE_PRV_PATH'));
         }
 
+        if ($this->request->query_boolean('metrics', false)) {
+            Util::json_fail(Util::ERR_DISABLED, 'metrics need an admin session', !$this->context->is_admin());
+            $response['metrics'] = new Metrics($this->context)->collect();
+        }
+
         if ($this->request->query_boolean('setup', false)) {
             $response['setup'] = $this->setup->to_jsono($this->context->is_admin());
         }

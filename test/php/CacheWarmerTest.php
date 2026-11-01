@@ -47,6 +47,43 @@ final class CacheWarmerTest extends H5aiTestCase {
         self::assertSame(array_values($seeded), $served, 'listings must be served the thumbnails the warmer produced');
     }
 
+    public function testTheWalkRecordsHowManyFilesOfEachKindHaveAThumbnail(): void {
+        foreach (['a.jpg', 'sub/b.jpg', 'c.zip', 'd.pdf', 'e.txt'] as $name) {
+            $this->write($this->root($name), 'x');
+        }
+        // Only a.jpg gets a thumbnail; d.pdf is blocklisted and e.txt has no
+        // thumbnail type, so neither is counted.
+        $context = $this->context(
+            ['thumbnails' => [
+                'enabled' => true, 'size' => 200,
+                'img' => ['img-jpg'], 'doc' => ['x-pdf'], 'ar' => ['ar-zip'], 'blocklist' => ['x-pdf'],
+            ]],
+            ['HAS_PHP_WEBP' => true],
+            ['img-jpg' => ['glob' => ['*.jpg']], 'x-pdf' => ['glob' => ['*.pdf']], 'ar-zip' => ['glob' => ['*.zip']]],
+        );
+        self::assertNull(CacheWarmer::last_coverage($this->tmp . '/cache'));
+
+        $thumb = new class($context) extends Thumb {
+            public function thumb_for(string $type, string $source_href, int $width, int $height): ?string {
+                return $source_href === '/a.jpg' ? '/thumb.webp' : null;
+            }
+        };
+        (new CacheWarmer($context, $thumb))->warm();
+
+        $coverage = CacheWarmer::last_coverage($this->tmp . '/cache');
+        self::assertEqualsWithDelta(time(), $coverage['at'], 5);
+        self::assertSame([
+            'img' => ['files' => 2, 'thumbnails' => 1],
+            'ar' => ['files' => 1, 'thumbnails' => 0],
+        ], $coverage['categories']);
+    }
+
+    public function testWithoutThumbnailsNoCoverageIsRecorded(): void {
+        $this->write($this->root('a.jpg'), 'x');
+        (new CacheWarmer($this->context(['thumbnails' => ['enabled' => false]])))->warm();
+        self::assertNull(CacheWarmer::last_coverage($this->tmp . '/cache'));
+    }
+
     // Warms a.jpg and b.jpg from seeded thumbnails and returns their paths.
     private function warmTwoImages(): array {
         $thumbs = [];

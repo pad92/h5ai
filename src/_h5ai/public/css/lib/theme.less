@@ -111,78 +111,46 @@ body[data-theme="dark"] #langs option {
     color: @col-text-primary-white;
 }
 
-body[data-theme="dark"]#root.info #content {
-    color: @col-text-primary-white !important;
-}
-
-body[data-theme="dark"]#root.info code {
-    background: darken(@col-grey-900, 2%) !important;
-    border: 1px solid rgba(255, 255, 255, 0.06) !important;
-    color: @col-text-primary-white !important;
-}
-
-body[data-theme="dark"]#root.info #header a {
-    color: @col-text-primary-white !important;
-}
-
-body[data-theme="dark"]#root.info #pass {
-    background: @col-grey-900 !important;
-    color: @col-text-primary-white !important;
-    border: 1px solid rgba(255, 255, 255, 0.06) !important;
-
-    &::placeholder {
-        color: @col-text-secondary-white !important;
+body[data-theme="dark"]#root.info {
+    #content,
+    #header a {
+        color: @col-text-primary-white;
     }
-}
 
-body[data-theme="dark"]#root.info #login,
-body[data-theme="dark"]#root.info #logout {
-    color: #fff;
-}
+    code {
+        background: darken(@col-grey-900, 2%);
+        border-color: @col-divider-white;
+        color: @col-text-primary-white;
+    }
 
-body[data-theme="dark"]#root.info #hint {
-    color: @col-text-primary-white !important;
-}
+    .card,
+    .group {
+        background: @col-grey-900;
+        border-color: @col-divider-white;
+    }
 
-body[data-theme="dark"]#root.info #tests {
-    color: @col-text-primary-white !important;
-}
+    .group h2 {
+        background: lighten(@col-grey-900, 3%);
+        border-bottom-color: @col-divider-white;
+    }
 
-body[data-theme="dark"]#root.info #tests .test {
-    background: @col-grey-900 !important;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
-    color: @col-text-primary-white !important;
-}
+    .test + .test {
+        border-top-color: @col-divider-white;
+    }
 
-body[data-theme="dark"] #login-wrapper,
-body[data-theme="dark"] #login,
-body[data-theme="dark"] #logout,
-body[data-theme="dark"] #hint,
-body[data-theme="dark"] #tests,
-body[data-theme="dark"] #tests .test {
-    background: @col-grey-900 !important;
-    color: @col-text-primary-white !important;
-    border: 1px solid rgba(255, 255, 255, 0.06) !important;
-}
+    .test.neutral {
+        border-left-color: @col-text-disabled-white;
+    }
 
-body[data-theme="dark"] #header a {
-    color: @col-text-primary-white !important;
-}
+    #pass {
+        background: darken(@col-grey-900, 2%);
+        border-color: @col-divider-white;
+        color: @col-text-primary-white;
+    }
 
-body[data-theme="dark"]#root.info #tests .label {
-    color: @col-text-primary-white;
-}
-
-body[data-theme="dark"]#root.info #tests .result.passed {
-    color: @col-okay;
-}
-
-body[data-theme="dark"]#root.info #tests .result.failed {
-    color: @col-error;
-}
-
-body[data-theme="dark"]#root.info #tests .info {
-    color: @col-text-secondary-white;
+    .desc {
+        color: @col-text-secondary-white;
+    }
 }
 
 body[data-theme="dark"] #view .item {

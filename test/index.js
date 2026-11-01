@@ -59,6 +59,7 @@ require('./tests/unit/types-md');
 require('./tests/unit/server');
 require('./tests/unit/main/infoChecks');
 require('./tests/unit/main/info');
+require('./tests/unit/main/infoMetrics');
 require('./tests/unit/ext/custom');
 require('./tests/unit/ext/piwikAnalytics');
 require('./tests/unit/ext/autorefresh');

@@ -1,192 +1,253 @@
 const {dom} = require('../util');
 const config = require('../config');
 const server = require('../server');
-const {canRenderDocuments} = require('./info-checks');
+const {videoTool, documentTool} = require('./info-checks');
+const {metricGroups} = require('./info-metrics');
 require('../ext/theme');
 
 
-const testsTpl =
-        '<ul id="tests"></ul>';
-const testTpl =
-        `<li class="test">
-            <span class="label"></span>
-            <span class="result"></span>
-            <div class="info"></div>
-        </li>`;
+const MSG_LOGIN_DISABLED =
+    'Admin login is disabled because no password is configured. Set ' +
+    '<code>H5AI_ADMIN_PASSWORD</code> for the Docker image, or a ' +
+    '<code>password_hash()</code> value as <code>passhash</code> in ' +
+    '<code>_h5ai/private/conf/options.json</code>.';
+const MSG_LOGIN_REFUSED = 'Wrong password, or too many failed attempts. Try again later.';
+const MSG_REQUEST_FAILED = 'The server did not answer the request. Try again.';
+
+// Rows without a pass/fail outcome only report a value.
+const NEUTRAL = null;
+
 const loginTpl =
-        `<div id="login-wrapper">
-            <input id="pass" type="password" placeholder="password"/>
-            <span id="login">login</span>
-            <span id="logout">logout</span>
-            <div id="hint">
-                The preset password is the empty string, just click login.
-                Change it in '_h5ai/private/conf/options.json'.
-            </div>
-        </div>`;
+    `<form id="login" class="card" autocomplete="on">
+        <label for="pass">Admin password</label>
+        <div class="row">
+            <input id="pass" name="pass" type="password" autocomplete="current-password" required/>
+            <button type="submit">Log in</button>
+        </div>
+        <p id="login-error" class="error" role="alert" hidden></p>
+    </form>`;
+const logoutTpl =
+    `<div id="logout-wrapper" class="card">
+        <span>Logged in as admin.</span>
+        <button id="logout" type="button">Log out</button>
+        <p id="logout-error" class="error" role="alert" hidden></p>
+    </div>`;
+const disabledTpl =
+    '<p id="login-disabled" class="card notice"></p>';
+const checksTpl =
+    `<div id="checks">
+        <p id="checks-summary" role="status"></p>
+    </div>`;
+const groupTpl =
+    `<section class="group">
+        <h2></h2>
+        <ul class="tests"></ul>
+    </section>`;
+const testTpl =
+    `<li class="test">
+        <span class="label"></span>
+        <span class="result"></span>
+        <p class="desc"></p>
+    </li>`;
+const metricsTpl =
+    `<div id="metrics">
+        <div class="metrics-head">
+            <h2>Background tasks and cache</h2>
+            <button id="metrics-refresh" type="button">Refresh</button>
+        </div>
+        <p id="metrics-status" role="status"></p>
+        <div class="groups"></div>
+    </div>`;
 const setup = config.setup;
 
 
-const addTest = (label, info, passed, result) => {
-    const $test = dom(testTpl).appTo('#tests');
-    $test.find('.label').text(label);
-    $test.find('.result')
-        .addCls(passed ? 'passed' : 'failed')
-        .text(result ? result : passed ? 'yes' : 'no');
-    $test.find('.info').html(info);
+const yesNo = passed => passed ? 'yes' : 'no';
+
+// Each check: [label, info (trusted static HTML), passed (true, false or
+// NEUTRAL), shown result]. Values from the server go into the result, which is
+// set as text.
+const checkGroups = () => {
+    const thumbnails = config.options && config.options.thumbnails;
+    const video = videoTool(setup);
+    const docTool = documentTool(setup, thumbnails);
+
+    return [
+        ['h5ai', [
+            ['Version', 'Green for a tagged release only',
+                (/^\d+\.\d+\.\d+$/).test(setup.VERSION), setup.VERSION],
+            ['Index file', 'Add this path to the index file list of the web server',
+                NEUTRAL, setup.INDEX_HREF],
+            ['Options', '<code>options.json</code> is readable and valid JSON',
+                config.options !== null],
+            ['Types', '<code>types.json</code> is readable and valid JSON',
+                config.types !== null],
+            ['Public cache', 'The web server can write to <code>_h5ai/public/cache</code>',
+                setup.HAS_WRITABLE_CACHE_PUB],
+            ['Private cache', 'The web server can write to <code>_h5ai/private/cache</code>',
+                setup.HAS_WRITABLE_CACHE_PRV]
+        ]],
+        ['Server and PHP', [
+            ['Web server', 'One of Apache, lighttpd, nginx, Cherokee or Angie',
+                setup.HAS_SERVER, `${setup.SERVER_NAME} ${setup.SERVER_VERSION}`.trim()],
+            ['PHP version', `At least ${setup.MIN_PHP_VERSION}`,
+                true, setup.PHP_VERSION],
+            ['PHP architecture', '64-bit shows file and folder sizes above about 2 GB correctly',
+                setup.PHP_ARCH === '64-bit', setup.PHP_ARCH],
+            ['GD with WebP', 'Image thumbnails',
+                setup.HAS_PHP_WEBP],
+            ['EXIF', 'Image type detection and embedded EXIF thumbnails',
+                setup.HAS_PHP_EXIF],
+            ['Fileinfo', 'File type detection for thumbnails',
+                setup.HAS_PHP_FILEINFO],
+            ['Zip', 'Thumbnails from images inside Zip archives',
+                setup.HAS_PHP_ZIP],
+            ['Rar', 'Thumbnails from images inside Rar archives',
+                setup.HAS_PHP_RAR],
+            ['SQLite3', 'Thumbnail cache',
+                setup.HAS_PHP_SQLITE3]
+        ]],
+        ['Commands', [
+            ['Video thumbnails', '<code>ffmpeg</code> or <code>avconv</code>',
+                Boolean(video), video || 'no'],
+            ['Document thumbnails',
+                'Hardened ImageMagick <code>magick</code> (or <code>convert</code> on ImageMagick 6)',
+                Boolean(docTool), docTool || 'no'],
+            ['tar', 'Tar downloads', setup.HAS_CMD_TAR],
+            ['zip', 'Zip downloads', setup.HAS_CMD_ZIP],
+            ['du', 'Folder sizes computed by the shell', setup.HAS_CMD_DU]
+        ]]
+    ];
 };
 
-const addTests = () => {
-    const thumbnails = config.options && config.options.thumbnails;
+const addTest = ($list, [label, info, passed, result]) => {
+    const $test = dom(testTpl).appTo($list);
+    const outcome = passed === NEUTRAL ? 'neutral' : passed ? 'passed' : 'failed';
+    $test.addCls(outcome);
+    $test.find('.label').text(label);
+    $test.find('.result')
+        .addCls(outcome)
+        .text(result !== undefined && result !== '' ? result : yesNo(passed));
+    $test.find('.desc').html(info);
+};
+
+const addChecks = () => {
     if (!setup.AS_ADMIN) {
         return;
     }
 
-    dom(testsTpl).appTo('#content');
+    const $checks = dom(checksTpl).appTo('#content');
+    let passed = 0;
+    let total = 0;
 
-    addTest(
-        'h5ai version', 'Only green if this is an official h5ai release',
-        (/^\d+\.\d+\.\d+$/).test(setup.VERSION), setup.VERSION
-    );
+    checkGroups().forEach(([title, checks]) => {
+        const $group = dom(groupTpl).appTo($checks);
+        $group.find('h2').text(title);
+        const $list = $group.find('.tests');
+        checks.forEach(check => {
+            addTest($list, check);
+            if (check[2] !== NEUTRAL) {
+                total += 1;
+                passed += check[2] ? 1 : 0;
+            }
+        });
+    });
 
-    addTest(
-        'Index file found', 'Add <code>' + setup.INDEX_HREF + '</code> to your index file list',
-        setup.INDEX_HREF
-    );
+    dom('#checks-summary')
+        .addCls(passed === total ? 'passed' : 'failed')
+        .text(`${passed} of ${total} checks passed`);
+};
 
-    addTest(
-        'Options parsable', 'File <code>options.json</code> is readable and syntax is correct',
-        config.options !== null
-    );
+const renderMetrics = metrics => {
+    const $groups = dom('#metrics .groups').clr();
+    metricGroups(metrics).forEach(([title, rows]) => {
+        const $group = dom(groupTpl).appTo($groups);
+        $group.find('h2').text(title);
+        const $list = $group.find('.tests');
+        rows.forEach(([label, info, value]) => addTest($list, [label, info, NEUTRAL, value]));
+    });
+};
 
-    addTest(
-        'Types parsable', 'File <code>types.json</code> is readable and syntax is correct',
-        config.types !== null
-    );
+const loadMetrics = () => {
+    const $button = dom('#metrics-refresh').prop('disabled', true);
+    const $status = dom('#metrics-status').text('Loading…').rmCls('error');
+    return server.request({action: 'get', metrics: true})
+        .then(resp => {
+            if (!resp || !resp.metrics) {
+                throw new Error(resp && resp.msg || 'no metrics in the answer');
+            }
+            renderMetrics(resp.metrics);
+            $status.text('');
+        })
+        .catch(() => $status.addCls('error').text(MSG_REQUEST_FAILED))
+        .then(() => $button.prop('disabled', false));
+};
 
-    addTest(
-        'Server software', 'Server is one of apache, lighttpd, nginx, cherokee or angie',
-        setup.HAS_SERVER, setup.SERVER_NAME + ' ' + setup.SERVER_VERSION
-    );
-
-    addTest(
-        'PHP version', 'PHP version &gt;= ' + setup.MIN_PHP_VERSION,
-        true, setup.PHP_VERSION
-    );
-
-    addTest(
-        'PHP arch', '64-bit required to correctly display file/folder sizes &gt; ~2GB',
-        setup.PHP_ARCH === '64-bit', setup.PHP_ARCH
-    );
-
-    addTest(
-        'Public Cache directory', 'Web server has write access',
-        setup.HAS_WRITABLE_CACHE_PUB
-    );
-
-    addTest(
-        'Private Cache directory', 'Web server has write access',
-        setup.HAS_WRITABLE_CACHE_PRV
-    );
-
-    addTest(
-        'Image thumbs', 'PHP GD extension with WebP support available',
-        setup.HAS_PHP_WEBP
-    );
-
-    addTest(
-        'Fileinfo module', 'PHP Fileinfo extension is available',
-        setup.HAS_PHP_FILEINFO
-    );
-
-    addTest(
-        'Zip module', 'PHP Zip extension is available',
-        setup.HAS_PHP_ZIP
-    );
-
-    addTest(
-        'Rar module', 'PHP Rar extension is available',
-        setup.HAS_PHP_RAR
-    );
-
-    addTest(
-        'SQLite3 module', 'PHP SQLite3 extension is available',
-        setup.HAS_PHP_SQLITE3
-    );
-
-    addTest(
-        'Use EXIF thumbs', 'PHP EXIF extension available',
-        setup.HAS_PHP_EXIF
-    );
-
-    addTest(
-        'Video thumbs', 'Command line program <code>avconv</code> or <code>ffmpeg</code> available',
-        setup.HAS_CMD_AVCONV || setup.HAS_CMD_FFMPEG
-    );
-
-    addTest(
-        'PDF thumbs', 'Hardened ImageMagick <code>magick</code> (or <code>convert</code> on ImageMagick 6) available',
-        canRenderDocuments(setup, thumbnails)
-    );
-
-    addTest(
-        'Shell tar', 'Command line program <code>tar</code> available',
-        setup.HAS_CMD_TAR
-    );
-
-    addTest(
-        'Shell zip', 'Command line program <code>zip</code> available',
-        setup.HAS_CMD_ZIP
-    );
-
-    addTest(
-        'Shell du', 'Command line program <code>du</code> available',
-        setup.HAS_CMD_DU
-    );
+const addMetrics = () => {
+    if (!setup.AS_ADMIN) {
+        return;
+    }
+    dom(metricsTpl).appTo('#content');
+    dom('#metrics-refresh').on('click', loadMetrics);
+    loadMetrics();
 };
 
 const reload = () => {
     global.window.location.reload();
 };
 
-const onLogin = () => {
-    server.request({
-        action: 'login',
-        pass: dom('#pass').val()
-    }).then(reload).catch(() => undefined);
+const showError = (selector, message) => {
+    dom(selector).text(message).rmAttr('hidden');
+};
+
+const onLogin = ev => {
+    ev.preventDefault();
+    const $button = dom('#login button');
+    const $pass = dom('#pass');
+    dom('#login-error').attr('hidden', '');
+    $button.prop('disabled', true);
+
+    server.request({action: 'login', pass: $pass.val()})
+        .then(resp => {
+            if (resp && resp.asAdmin) {
+                reload();
+                return;
+            }
+            showError('#login-error', MSG_LOGIN_REFUSED);
+            $pass.val('');
+            $pass[0].focus();
+        })
+        .catch(() => showError('#login-error', MSG_REQUEST_FAILED))
+        .then(() => $button.prop('disabled', false));
 };
 
 const onLogout = () => {
-    server.request({
-        action: 'logout'
-    }).then(reload).catch(() => undefined);
-};
-
-const onKeydown = ev => {
-    if (ev.which === 13) {
-        onLogin();
-    }
+    const $button = dom('#logout');
+    $button.prop('disabled', true);
+    server.request({action: 'logout'})
+        .then(reload)
+        .catch(() => {
+            showError('#logout-error', MSG_REQUEST_FAILED);
+            $button.prop('disabled', false);
+        });
 };
 
 const addLogin = () => {
-    dom(loginTpl).appTo('#content');
-
     if (setup.AS_ADMIN) {
-        dom('#pass').rm();
-        dom('#login').rm();
+        dom(logoutTpl).appTo('#content');
         dom('#logout').on('click', onLogout);
+    } else if (config.options && config.options.hasCustomPasshash) {
+        dom(loginTpl).appTo('#content');
+        dom('#login').on('submit', onLogin);
+        dom('#pass')[0].focus();
     } else {
-        dom('#pass').on('keydown', onKeydown)[0].focus();
-        dom('#login').on('click', onLogin);
-        dom('#logout').rm();
-    }
-    if (config.options.hasCustomPasshash) {
-        dom('#hint').rm();
+        dom(disabledTpl).appTo('#content').html(MSG_LOGIN_DISABLED);
     }
 };
 
 const init = () => {
     addLogin();
-    addTests();
+    addChecks();
+    addMetrics();
 };
 
 
