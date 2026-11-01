@@ -63,6 +63,7 @@ require('./tests/unit/main/info');
 require('./tests/unit/ext/custom');
 require('./tests/unit/ext/piwikAnalytics');
 require('./tests/unit/ext/autorefresh');
+require('./tests/unit/ext/previewControls');
 require('./tests/unit/ext/tasksProgress');
 require('./tests/unit/ext/select');
 require('./tests/unit/packageName');
