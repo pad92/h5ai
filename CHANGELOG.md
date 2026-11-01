@@ -2,90 +2,79 @@
 
 ## v1.4.0 - *2026-11-01*
 
-### Upgrade notes
+v1.3.7 was prepared but never tagged or published. Its changes ship in this release and are listed below.
 
-* **Administrator login** is now limited per client (see Security below). Behind a reverse proxy, pass the real client address (`REAL_IP_FROM` in the Docker image); otherwise every visitor shares the proxy's address, and failed attempts by anyone can lock out the administrator.
-* **`foldersize.timeout` has no effect any more**: no request computes folder sizes now. The option is still accepted, so existing configurations stay valid.
-* **Cache warmer options** are renamed `cache.warmAtStartup` and `cache.warmInterval`, like every other option. The old `warm_at_startup` and `warm_interval` names are still read when the new ones are absent.
-* **Thumbnails are generated again once**: a thumbnail now carries the modification time of its source, and thumbnails made by earlier releases do not. Each one is regenerated on its next request or cache warmer pass.
-* **Docker image**: Ghostscript is now installed, which adds about 19 MiB to the download (66 MiB on disk).
-* **Task indicator**: the shipped `options.json` enables it. An existing `options.json` without a `tasks` block leaves it off; copy the block from the new file to get it.
-* **PHP tests**: `npm run test:php` and `make test` now run PHPUnit, which the Makefile downloads once (checksum verified), so the first run needs network access.
+* **Upgrade notes**:
+    * **Docker admin password**: the container no longer generates a random administrator password when `H5AI_ADMIN_PASSWORD` is unset or empty, and no longer prints one in the logs. It keeps the `passhash` already in `options.json`. With the shipped `options.json`, that hash is empty and administrator login is disabled, so set `H5AI_ADMIN_PASSWORD` to keep it. A set password is now stored as a PHP `password_hash()` value instead of an unsalted SHA-512 digest.
+    * **Administrator login** is now limited per client (see Security below). Behind a reverse proxy, pass the real client address (`REAL_IP_FROM` in the Docker image); otherwise every visitor shares the proxy's address, and failed attempts by anyone can lock out the administrator.
+    * **`foldersize.timeout` has no effect any more**: no request computes folder sizes now. The option is still accepted, so existing configurations stay valid.
+    * **Cache warmer options** are renamed `cache.warmAtStartup` and `cache.warmInterval`, like every other option. The old `warm_at_startup` and `warm_interval` names are still read when the new ones are absent.
+    * **Thumbnails are generated again once**: a thumbnail now carries the modification time of its source, and thumbnails made by earlier releases do not. Each one is regenerated on its next request or cache warmer pass.
+    * **TIFF preview**: an existing `options.json` needs `img-tiff` added to `preview-img.types`.
+    * **Task indicator**: the shipped `options.json` enables it. An existing `options.json` without a `tasks` block leaves it off; copy the block from the new file to get it.
+    * **Docker image**: Ghostscript is now installed, which adds about 20 MiB to the download (67 MiB on disk).
+    * **PHP tests**: `npm run test:php` and `make test` now run PHPUnit, which the Makefile downloads once (checksum verified), so the first run needs network access.
 
-### Security
+* **Security**:
+    * **Administrator login**: after 5 failed attempts within 15 minutes, h5ai refuses the client until its oldest failure is 15 minutes old, even with the right password. Clients are stored as hashes. A legacy unsalted SHA-512 `passhash` still works but logs a deprecation warning at each login.
+    * **Info page**: only a logged-in administrator can force a new probe of the host's command-line tools; an anonymous `?refresh=1` no longer runs the shell probes.
+    * **Thumbnail cache size**: a thumbnail requested at an explicit size, such as an image preview sample, keeps its aspect ratio and has its width rounded up to a multiple of 256 pixels. A client can no longer fill the disk with one cached file per pixel width.
+    * **Custom files**: header and footer files follow the same filesystem rules as downloads. Hidden custom files still work, while symlinks leading outside the share or into h5ai's own files are rejected.
+    * **Served root**: a path that only shares the root's name prefix (`/srv/data2` for a root at `/srv/data`) is no longer treated as inside it.
 
-* **Administrator login**: after 5 failed attempts within 15 minutes, h5ai refuses the client until its oldest failure is 15 minutes old, even with the right password. Clients are stored as hashes. A legacy unsalted SHA-512 `passhash` still works but logs a deprecation warning at each login.
-* **Info page**: only a logged-in administrator can force a new probe of the host's command-line tools; an anonymous `?refresh=1` no longer runs the shell probes.
-* **Thumbnail cache size**: a thumbnail requested at an explicit size, such as an image preview sample, keeps its aspect ratio and has its width rounded up to a multiple of 256 pixels. A client can no longer fill the disk with one cached file per pixel width.
-* **Served root**: a path that only shares the root's name prefix (`/srv/data2` for a root at `/srv/data`) is no longer treated as inside it.
+* **Interface**:
+    * **Task indicator**: a spinning gear appears in the toolbar while the cache warmer, the folder size worker or the thumbnails of the page are running. Hovering over it shows each task with its progress and the estimated time left, based on the previous run for server tasks. See `tasks` in the configuration guide.
+    * **TIFF preview**: clicking a TIFF image opens the image preview instead of downloading the file. Browsers other than Safari cannot decode TIFF, so the preview shows a WebP sample made by the server.
+    * **Audio player**: clicking a track in the play queue plays it; the click used to fail with a script error. A cover that arrives after playback has moved to another track now stays with the track it belongs to.
 
-### Interface
+* **Thumbnails**:
+    * **PDF and PostScript**: document thumbnails work again. The capture check expected JPEG, while ImageMagick and GraphicsMagick write WebP. They now run `magick`, since ImageMagick 7 warns on every call to the deprecated `convert`, which remains the fallback on ImageMagick 6 hosts.
+    * **Undecodable images**: an image GD cannot decode (a TIFF without ImageMagick support, a corrupt file, an empty capture) no longer fails the whole request with an HTTP 500; only that file gets no thumbnail.
+    * **Broken cache database**: an unopenable, corrupt or table-less `thumbs_cache.db` is bypassed or rebuilt instead of failing the request.
+    * **Each tool runs once**: a failing PDF used to run the capture tool four times. When the tool for the declared type fails, the file is identified again by name, then by content, so a video saved with a wrong extension gets a video thumbnail.
+    * **Changed files**: a modified file gets a new thumbnail. Before, its old thumbnail stayed when GD made it (videos, audio, documents). A file replaced by an older one, as `cp -p`, `rsync -a` or a restored backup do, no longer keeps the thumbnail of the file it replaced. The cached failures of a file follow the same rule, and are pruned with it when it is deleted.
+    * **Audio covers**: an MP3 or M4A file with a cover no longer fails the whole thumbnail request with an HTTP 500; the cover becomes its thumbnail.
+    * **Videos**: `ffprobe` and `avprobe` are detected. Without them, the thumbnail shows the frame at 0.1 seconds instead of failing.
+    * **Deleted files**: the cache warmer deletes the thumbnails and cache entries of files that no longer exist. They used to stay on disk, still reachable by their URL. Nothing is deleted while the share's root folder is empty or unreadable.
+    * **Cache warmer**: it no longer stops with a type error on the first file, and it generates exactly the thumbnails listings ask for (same size, configured types minus the blocklist, archives included).
 
-* **Task indicator**: a spinning gear appears in the toolbar while the cache warmer, the folder size worker or the thumbnails of the page are running. Hovering over it shows each task with its progress and the estimated time left, based on the previous run for server tasks. See `tasks` in the configuration guide.
+* **Downloads**:
+    * **Browser form downloads**: archive downloads submitted by a browser form now use PHP's parsed form fields, so several selected files download together. A JSON API request with malformed JSON is still rejected.
+    * **Errors**: an empty or invalid selection, or an archiver that fails before writing anything, gets a JSON error instead of an attachment named like the archive. An archiver that fails after writing ends the download early rather than appending JSON to the archive.
+    * **PHP TAR archives**: PAX headers keep long paths, non-ASCII names and values beyond the ustar numeric limits, and whole-folder archives use relative paths. Each entry is written at the size announced in its header: a file that shrinks, grows or becomes unreadable during the download is padded or cut. The announced `Content-Length` counts the extended headers and their padding, so it matches the archive.
 
-### Thumbnails
+* **Folder sizes and caches**:
+    * **Requests never wait on `du`**: the initial HTML page, API listings, fallback listings and search read folder sizes from the cache and hand missing or expired ones to the background refresh. Regular file sizes are still read directly, for display and sorting.
+    * **Expiry**: cached folder sizes expire after five minutes, so a change to an existing file shows up even when no directory modification time changes.
+    * **`foldersizes.json`** keeps one entry per folder with its direct subfolders, so it grows with the number of folders rather than with their depth (about 12 times smaller for a chain of 41 nested folders). Expired entries are dropped when the file is written, a `du` pass caches every folder it measured, and entries in the previous format are recomputed.
+    * **Cache warmer**: it measures the share with one `du` pass instead of one per folder. The request that starts it releases its lock before launching it, so the worker no longer risks giving up, and a second worker started while one runs leaves the running one's start marker alone.
+    * **Large trees**: folders already visited during a download, search or cache warming are tracked in an indexed set instead of a list scanned for each folder.
 
-* **PDF and PostScript**: document thumbnails work again. The capture check expected JPEG, while ImageMagick and GraphicsMagick write WebP. They now run `magick`, since ImageMagick 7 warns on every call to the deprecated `convert`, which remains the fallback on ImageMagick 6 hosts.
-* **Failures stay contained**: an image GD cannot decode (a TIFF without ImageMagick support, a corrupt file, an empty capture) no longer fails the whole request with an HTTP 500; only that file gets no thumbnail. An unopenable, corrupt or table-less `thumbs_cache.db` is now bypassed or rebuilt instead of failing the request.
-* **Each tool runs once**: a failing PDF used to run the capture tool four times. When the tool for the declared type fails, the file is identified again by name, then by content, so a video saved with a wrong extension gets a video thumbnail.
-* **Changed files**: a modified file gets a new thumbnail. Before, its old thumbnail stayed when GD made it (videos, audio, documents). A file replaced by an older one, as `cp -p`, `rsync -a` or a restored backup do, no longer keeps the thumbnail of the file it replaced. The cached failures of a file follow the same rule, and are pruned with it when it is deleted.
-* **Audio covers**: an MP3 or M4A file with a cover no longer fails the whole thumbnail request with an HTTP 500; the cover becomes its thumbnail.
-* **Videos**: `ffprobe` and `avprobe` are detected. Without them, the thumbnail shows the frame at 0.1 seconds instead of failing.
-* **Deleted files**: the cache warmer deletes the thumbnails and cache entries of files that no longer exist. They used to stay on disk, still reachable by their URL. Nothing is deleted while the share's root folder is empty or unreadable.
-* **Cache warmer**: it no longer stops with a type error on the first file, and it generates exactly the thumbnails listings ask for (same size, configured types minus the blocklist, archives included).
+* **Other fixes**:
+    * **Configuration**: a comment after a JSON string ending in an escaped backslash (such as `"C:\\"`) is now stripped, instead of making `options.json` fall back to defaults. An outdated `cmds.json` is rebuilt, and a missing setup key raises an error instead of producing a blank page.
+    * **Disabled process functions**: on a host listing `exec` or `proc_open` in `disable_functions`, a listing that queued a folder size refresh, a setup probe or a download through `tar`/`zip` stopped with a fatal error. These now fail like a command that cannot run: no refresh, no detected tools, an error instead of the archive.
+    * **File sizes**: non-finite values such as `Infinity` are rejected instead of being shown as a size.
+    * **Fallback listings**: sizes use the browser's units (`KB`, `MB`… or `KiB`, `MiB`… with `view.binaryPrefix`) instead of a truncated `KB` count.
 
-### Downloads
+* **Docker and CI**:
+    * **Base images**: Angie 1.12.4 on Alpine 3.24, and the pinned PHP 8.4.27 build image on Alpine 3.24. The minimum PHP version check stays in place.
+    * **Docker image**: Ghostscript renders PDF and PostScript thumbnails, and brings ImageMagick's TIFF and JPEG 2000 modules. `make docker-test` checks PDF and TIFF thumbnails in the running container.
+    * **Command-line tools after an upgrade**: the container deletes `_h5ai/private/cache/cmds.json` at startup. With the private cache on a volume, h5ai used to keep the tools found by the previous image, so a tool added by a new image stayed unused and a removed one was still called. `make docker-test` checks that a restart probes the tools again.
+    * **s6 startup**: the `user` bundle moved to the supported `user-bundles.d` layout.
+    * **Faster pipelines on the single runner**: node jobs reuse a cached `node_modules` and only install on a lockfile change; the PHP test environment is a small image (`ci/php-test.Dockerfile`) kept by the runner's Docker cache instead of compiling GD and Xdebug in every job; the branch image is built by a persistent BuildKit builder, without QEMU, and stays in the runner's Docker for `test:docker` instead of a `docker save` artifact; Grype keeps its database in a Docker volume.
+    * **Development builds**: an image built from a branch shows the branch name in the h5ai version label; tagged releases keep the package version. Characters such as the `/` of `fix/...` are replaced in the release archive file name, so the archive no longer lands in a subfolder and `build:image` works.
+    * **Image publication**: stable aliases only move for the newest stable release, and the GitLab and Docker Hub promotions share a CI lock so two jobs cannot update the aliases at the same time.
+    * **CI**: the PHP test job builds GD with JPEG and WebP, so image tests run instead of being skipped. An open merge request runs one pipeline instead of a branch pipeline and a merge request pipeline.
 
-* **Errors**: an empty or invalid selection, or an archiver that fails before writing anything, gets a JSON error instead of an attachment named like the archive. An archiver that fails after writing ends the download early rather than appending JSON to the archive.
-* **PHP TAR archives**: each entry is written at the size announced in its header. A file that shrinks, grows or becomes unreadable during the download is padded or cut, so the archive and its `Content-Length` stay consistent.
-
-### Folder sizes and caches
-
-* **Search** reads folder sizes from the cache and queues missing ones for the background refresh, like listings, instead of running `du` while answering.
-* **`foldersizes.json`** keeps one entry per folder with its direct subfolders, so it grows with the number of folders rather than with their depth (139 KB down to 12 KB for a 41-level chain). Expired entries are dropped when the file is written, a `du` pass caches every folder it measured, and entries in the previous format are recomputed.
-* **Cache warmer**: it measures the share with one `du` pass instead of one per folder. The request that starts it releases its lock before launching it, so the worker no longer risks giving up, and a second worker started while one runs leaves the running one's start marker alone.
-* **Large trees**: folders already visited during a download, search or cache warming are tracked in an indexed set instead of a list scanned for each folder.
-
-### Other fixes
-
-* **Configuration**: a comment after a JSON string ending in an escaped backslash (such as `"C:\\"`) is now stripped, instead of making `options.json` fall back to defaults. An outdated `cmds.json` is rebuilt, and a missing setup key raises an error instead of producing a blank page.
-* **TIFF preview**: clicking a TIFF image opens the image preview instead of downloading the file. Browsers other than Safari cannot decode TIFF, so the preview shows a WebP sample made by the server. An existing `options.json` needs `img-tiff` added to `preview-img.types`.
-* **Disabled process functions**: on a host listing `exec` or `proc_open` in `disable_functions`, a listing that queued a folder size refresh, a setup probe or a download through `tar`/`zip` stopped with a fatal error. These now fail like a command that cannot run: no refresh, no detected tools, an error instead of the archive.
-* **Fallback listings**: sizes use the browser's units (`KB`, `MB`… or `KiB`, `MiB`… with `view.binaryPrefix`) instead of a truncated `KB` count.
-* **Audio player**: clicking a track in the play queue plays it; the click used to fail with a script error. A cover that arrives after playback has moved to another track now stays with the track it belongs to.
-
-### Docker and CI
-
-* **Faster pipelines on the single runner**: node jobs reuse a cached `node_modules` and only install on a lockfile change; the PHP test environment is a small image (`ci/php-test.Dockerfile`) kept by the runner's Docker cache instead of compiling GD and Xdebug in every job; the branch image is built by a persistent BuildKit builder, without QEMU, and stays in the runner's Docker for `test:docker` instead of a `docker save` artifact; Grype keeps its database in a Docker volume.
-* **Docker image**: Ghostscript renders PDF and PostScript thumbnails, and brings ImageMagick's TIFF and JPEG 2000 modules. `make docker-test` checks PDF and TIFF thumbnails in the running container.
-* **Branch image builds**: fixed a regression from v1.3.7's branch-name version labels. A branch such as `fix/...` put the release archive in a subfolder and broke `build:image`; the archive file name now replaces such characters, while h5ai still shows the branch name.
-* **CI**: the PHP test job builds GD with JPEG and WebP, so image tests run instead of being skipped.
-* **Command-line tools after an upgrade**: the container deletes `_h5ai/private/cache/cmds.json` at startup. With the private cache on a volume, h5ai used to keep the tools found by the previous image, so a tool added by a new image stayed unused and a removed one was still called. `make docker-test` checks that a restart probes the tools again.
-
-### Tests, documentation and internals
-
-* **Tests**: the PHP suite runs with PHPUnit (`phpunit.xml.dist`) as isolated tests, each in its own temporary folder, instead of one script counted as a single assertion. Tests needing GD or SQLite are reported as skipped when the extension is missing. The HTML sanitizer used for custom headers, footers and Markdown has its own tests.
-* **Media fixtures**: `test/docker/generate-fixtures.sh` regenerates small images, videos, audio files, archives and texts under `test/docker/fixtures`, identical from one run to the next. `docker-compose.dev.yml` serves them with the README, the changelog and `doc/`.
-* **PHP coverage**: the requests served by the `php -S` server of the API tests now count, through an `auto_prepend_file` that hands each request's Xdebug data back to PHPUnit. `make coverage` runs the tests as the invoking user in Docker, so permission tests run and the reports are no longer owned by root. Tests of the CLI workers and of `Bootstrap::run()` run a copy of the application, mapped back to the sources. 18 of 25 classes are fully covered, up from 3; the others keep defensive branches for system errors (a failing blocking `flock`, an interrupted `stream_select`, a client gone mid-download) or need Imagick and RAR.
-* **JavaScript coverage**: tests now cover the info page, custom headers and footers, Piwik, auto-refresh, location loading and history, the preview keyboard and touch controls, the image preview EXIF panel and the audio player. Combined line coverage rises from 83% to 92.7%, and the `test:coverage` CI job now fails below 90% (`COVERAGE_MIN` changes the floor).
-* **Documentation**: documented `H5AI_ROOT_PATH`, Ghostscript for PDF thumbnails and the probe tools for video thumbnails, and corrected `preview-img.size`, which only switches the server-side sample on or off.
-* **Dead code**: the API dispatches actions with an explicit `match` instead of building method names, the cache warmer drops a loop guard that could never trigger, `Setup` no longer considers `where`, which is never probed, `Context`, `Filesize` and `Archive` lose guards their callers already ensure, and task statuses are written next to their target instead of possibly in the system temporary folder.
-* **Internals**: file type matching lives in one class; version constants live in `private/php/version.php`; both CLI workers start through `Bootstrap::cli_context()`; `Context::paths()` replaces eight delegating methods; archive limits and search patterns are read once per request; API listing depths have named constants; method names follow snake_case; unused methods are removed. The `ERR_ILLIGAL_PARAM` constant is spelt `ERR_ILLEGAL_PARAM`, and the value sent to clients is unchanged.
-
-## v1.3.7 - *2026-10-31*
-
-* **File sizes**: non-finite values such as `Infinity` are rejected instead of being shown as a size.
-* **Docker startup**: moved the `user` s6 bundle to the supported `user-bundles.d` layout.
-* **Docker development builds**: display the branch name in the h5ai version label; tagged releases retain the package version.
-* **CI coverage**: JavaScript and PHP tests now generate Cobertura reports. The GitLab coverage badge uses combined line counts, including untested source files. PHP coverage excludes the separate HTTP server processes.
-
-* **Docker base images**: updated Angie to 1.12.4 on Alpine 3.24 and refreshed the pinned PHP 8.4.27 build image to Alpine 3.24. The minimum runtime version check remains in place. Open merge requests run one pipeline instead of duplicate branch and MR pipelines.
-* **Archive downloads**: browser form submissions now use PHP's parsed form fields. Multiple selected files work, while malformed JSON API requests remain rejected.
-* **PHP TAR archives**: PAX headers preserve long paths, non-ASCII names and values outside ustar numeric limits. Whole-folder archives use relative paths. The reported `Content-Length` includes extended headers and their padding.
-* **Custom files**: header/footer content shares the filesystem policy used by downloads, preserving hidden custom files while rejecting symlinks outside the share and into h5ai internals.
-* **Docker administration**: startup preserves the configured admin hash when `H5AI_ADMIN_PASSWORD` is unset or empty. Explicit overrides use PHP `password_hash()`, and generated passwords are no longer logged.
-* **Folder sizes**: cached totals expire after five minutes, so changes to existing files are eventually picked up even when their directory modification times stay unchanged. Initial HTML and API listings refresh missing or expired folder sizes in the background. Regular file sizes remain available for display and sorting.
-* **Docker publication**: stable aliases advance only for the newest stable release. GitLab and Docker Hub promotions share a CI lock, preventing concurrent jobs from racing alias updates.
+* **Tests, documentation and internals**:
+    * **Tests**: the PHP suite runs with PHPUnit (`phpunit.xml.dist`) as isolated tests, each in its own temporary folder, instead of one script counted as a single assertion. Tests needing GD or SQLite are reported as skipped when the extension is missing. The HTML sanitizer used for custom headers, footers and Markdown has its own tests.
+    * **Media fixtures**: `test/docker/generate-fixtures.sh` regenerates small images, videos, audio files, archives and texts under `test/docker/fixtures`, identical from one run to the next. `docker-compose.dev.yml` serves them with the README, the changelog and `doc/`.
+    * **PHP coverage**: the requests served by the `php -S` server of the API tests now count, through an `auto_prepend_file` that hands each request's Xdebug data back to PHPUnit. `make coverage` runs the tests as the invoking user in Docker, so permission tests run and the reports are no longer owned by root. Tests of the CLI workers and of `Bootstrap::run()` run a copy of the application, mapped back to the sources. 18 of 25 classes are fully covered, up from 3; the others keep defensive branches for system errors (a failing blocking `flock`, an interrupted `stream_select`, a client gone mid-download) or need Imagick and RAR.
+    * **JavaScript coverage**: tests now cover the info page, custom headers and footers, Piwik, auto-refresh, location loading and history, the preview keyboard and touch controls, the image preview EXIF panel and the audio player.
+    * **Coverage gate**: JavaScript and PHP tests write Cobertura reports, and the GitLab coverage badge shows combined line counts, untested source files included. Combined line coverage rises from 83% to 92.7%, and the `test:coverage` CI job now fails below 90% (`COVERAGE_MIN` changes the floor).
+    * **Documentation**: documented `H5AI_ROOT_PATH`, Ghostscript for PDF thumbnails and the probe tools for video thumbnails, and corrected `preview-img.size`, which only switches the server-side sample on or off.
+    * **Dead code**: the API dispatches actions with an explicit `match` instead of building method names, the cache warmer drops a loop guard that could never trigger, `Setup` no longer considers `where`, which is never probed, `Context`, `Filesize` and `Archive` lose guards their callers already ensure, and task statuses are written next to their target instead of possibly in the system temporary folder.
+    * **Internals**: file type matching lives in one class; version constants live in `private/php/version.php`; both CLI workers start through `Bootstrap::cli_context()`; `Context::paths()` replaces eight delegating methods; archive limits and search patterns are read once per request; API listing depths have named constants; method names follow snake_case; unused methods are removed. The `ERR_ILLIGAL_PARAM` constant is spelt `ERR_ILLEGAL_PARAM`, and the value sent to clients is unchanged.
 
 ## v1.3.6 - *2026-10-30*
 
