@@ -2,12 +2,15 @@
 
 declare(strict_types=1);
 
+use PHPUnit\Framework\Attributes\DataProvider;
+
 // The API behind a real HTTP server (php -S with fixtures/api.php), with
 // downloaded archives checked by an independent reader (tar).
 final class HttpApiTest extends H5aiTestCase {
     private $server = null;
     private string $url;
     private array $lastHeaders = [];
+    private SubprocessCoverage $coverage;
 
     protected function setUp(): void {
         parent::setUp();
@@ -31,12 +34,13 @@ final class HttpApiTest extends H5aiTestCase {
         $log = $this->tmp . '/server.log';
         // Buffered like the Docker image (custom.ini), and with $tmp/bin first
         // on PATH so tests can replace tar.
+        $this->coverage = new SubprocessCoverage($this->tmp . '/coverage');
         $this->server = proc_open(
-            [PHP_BINARY, '-d', 'output_buffering=4096', '-S', $address, __DIR__ . '/fixtures/api.php'],
+            [PHP_BINARY, ...$this->coverage->php_arguments(), '-d', 'output_buffering=4096', '-S', $address, __DIR__ . '/fixtures/api.php'],
             [0 => ['pipe', 'r'], 1 => ['file', $log, 'a'], 2 => ['file', $log, 'a']],
             $pipes,
             null,
-            ['H5AI_TEST_ROOT' => $this->root(), 'PATH' => $this->tmp . '/bin:' . getenv('PATH')],
+            ['H5AI_TEST_ROOT' => $this->root(), 'PATH' => $this->tmp . '/bin:' . getenv('PATH'), ...$this->coverage->env()],
         );
         self::assertIsResource($this->server, 'cannot start the HTTP test server');
         fclose($pipes[0]);
@@ -56,6 +60,7 @@ final class HttpApiTest extends H5aiTestCase {
         if (is_resource($this->server)) {
             proc_terminate($this->server);
             proc_close($this->server);
+            $this->coverage->collect();
         }
         parent::tearDown();
     }
@@ -230,5 +235,81 @@ final class HttpApiTest extends H5aiTestCase {
         $data = $this->postJson(['action' => 'get', 'custom' => '/child/']);
         self::assertSame('inside', $data['custom']['header']['content'], 'symlinks inside the share must work');
         self::assertSame('inherited footer', $data['custom']['footer']['content'], 'custom content must inherit from parents');
+    }
+
+    // Rewrites options.json; every request reads it again.
+    private function writeOptions(array $options): void {
+        $this->write($this->root('_h5ai/private/conf/options.json'), json_encode(
+            $options + ['view' => ['hidden' => ['^_h5ai'], 'unmanaged' => []]],
+        ));
+    }
+
+    // Setup values beyond the fixture's, read by every request.
+    private function writeSetup(array $overrides): void {
+        $this->write($this->root('_h5ai/private/conf/test-setup.json'), json_encode($overrides + $this->setupValues([
+            'ROOT_PATH' => $this->root(), 'CONF_PATH' => $this->root('_h5ai/private/conf'),
+            'PUBLIC_PATH' => $this->root('_h5ai/public'), 'PRIVATE_PATH' => $this->root('_h5ai/private'),
+            'CACHE_PRV_PATH' => $this->tmp . '/cache', 'VERSION' => 'test',
+        ])));
+    }
+
+    public function testAnUnknownActionIsUnsupported(): void {
+        self::assertSame(Util::ERR_UNSUPPORTED, $this->postJson(['action' => 'nope'])['err'] ?? null);
+    }
+
+    public function testAWrongPasswordLeavesTheVisitorAnonymous(): void {
+        self::assertSame(['asAdmin' => false], $this->postJson(['action' => 'login', 'pass' => 'wrong']));
+        self::assertSame(['asAdmin' => false], $this->postJson(['action' => 'logout']));
+    }
+
+    public function testOneGetAnswersEveryRequestedPart(): void {
+        $this->writeOptions([
+            'custom' => ['enabled' => true], 'l10n' => ['enabled' => true], 'search' => ['enabled' => true],
+            'tasks' => ['enabled' => true], 'thumbnails' => ['enabled' => true],
+        ]);
+        $this->writeSetup(['HAS_PHP_WEBP' => true]);
+        $this->write($this->root('_h5ai/private/conf/l10n/fr.json'), '{"lang": "français"}');
+        $data = $this->postJson([
+            'action' => 'get', 'setup' => true, 'theme' => true, 'tasks' => true,
+            'items' => ['href' => '/', 'what' => 1], 'custom' => '/', 'l10n' => ['fr', 7],
+            'search' => ['href' => '/', 'pattern' => 'first', 'ignorecase' => true],
+            'thumbs' => [['type' => 'file', 'href' => '/first.txt']],
+        ]);
+        self::assertSame(['AS_ADMIN' => false, 'PUBLIC_HREF' => '/_h5ai/public/', 'ROOT_HREF' => '/', 'VERSION' => 'test'], $data['setup']);
+        self::assertSame([], $data['theme']);
+        self::assertSame([], $data['tasks']);
+        self::assertContains('/first.txt', array_column($data['items'], 'href'));
+        self::assertSame(['fr' => ['lang' => 'français', 'isoCode' => 'fr']], $data['l10n'], 'non-string language codes are dropped');
+        self::assertSame(['/first.txt'], array_column($data['search'], 'href'));
+        self::assertSame([null], $data['thumbs']);
+    }
+
+    public static function disabledParts(): array {
+        return [
+            'tasks' => [['tasks' => true]],
+            'custom' => [['custom' => '/']],
+            'l10n' => [['l10n' => ['en']]],
+            'search' => [['search' => ['href' => '/', 'pattern' => 'x']]],
+            'thumbs' => [['thumbs' => [['type' => 'file', 'href' => '/first.txt']]]],
+        ];
+    }
+
+    #[DataProvider('disabledParts')]
+    public function testADisabledPartIsRefused(array $part): void {
+        $this->writeOptions([]);
+        self::assertSame(Util::ERR_DISABLED, $this->postJson(['action' => 'get'] + $part)['err'] ?? null);
+    }
+
+    public function testThumbnailsNeedWebpAndABoundedBatch(): void {
+        $this->writeOptions(['thumbnails' => ['enabled' => true, 'maxBatchSize' => 1]]);
+        $thumbs = ['action' => 'get', 'thumbs' => [['type' => 'file', 'href' => '/first.txt'], ['type' => 'file', 'href' => '/second.txt']]];
+        self::assertSame(Util::ERR_UNSUPPORTED, $this->postJson($thumbs)['err'] ?? null);
+        $this->writeSetup(['HAS_PHP_WEBP' => true]);
+        self::assertSame(Util::ERR_ILLEGAL_PARAM, $this->postJson($thumbs)['err'] ?? null);
+    }
+
+    public function testParametersOfTheWrongKindAreRejected(): void {
+        self::assertStringContainsString(Util::ERR_ILLEGAL_PARAM, $this->post('action=get', 'text/plain'));
+        self::assertSame(Util::ERR_ILLEGAL_PARAM, $this->postJson(['action' => 'get', 'items' => ['href' => '/', 'what' => 'all']])['err'] ?? null);
     }
 }

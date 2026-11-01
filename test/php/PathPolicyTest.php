@@ -108,4 +108,43 @@ final class PathPolicyTest extends H5aiTestCase {
         self::assertSame([], $search->get_paths($this->root(), 'way-too-long'), 'an oversized pattern finds nothing');
         self::assertSame([], $search->get_paths($this->root(), ''), 'an empty pattern finds nothing');
     }
+
+    public function testOnlyExistingFilesAndFoldersInsideTheRootAreManaged(): void {
+        self::assertFalse($this->context->paths()->is_managed_file($this->root()), 'a folder is not a managed file');
+        self::assertFalse($this->context->paths()->is_managed_path($this->root('missing')));
+        self::assertFalse($this->context->paths()->is_managed_path($this->tmp), 'a folder outside the root');
+    }
+
+    public function testUnmanagedMarkersAndNestedInstallsLeaveFoldersUnmanaged(): void {
+        $this->write($this->root('skipped/.nomedia'), '');
+        mkdir($this->root('nested/_h5ai/private/conf'), 0700, true);
+        mkdir($this->root('nested/sub'));
+        $paths = $this->context(['view' => ['hidden' => [], 'unmanaged' => ['.nomedia']]])->paths();
+        self::assertFalse($paths->is_managed_path($this->root('skipped')));
+        self::assertFalse($paths->is_managed_path($this->root('nested/sub')), 'a folder below another h5ai installation');
+        self::assertTrue($paths->is_managed_path($this->root()), 'the root itself stays managed');
+    }
+
+    // Paths are compared as written: one reaching the root through another
+    // name never meets ROOT_PATH on its way up, and is refused.
+    public function testAPathSpellingTheRootDifferentlyIsRefused(): void {
+        symlink($this->root(), $this->tmp . '/root-link');
+        mkdir($this->root('sub'));
+        self::assertFalse($this->context->paths()->is_managed_path($this->tmp . '/root-link/sub'));
+    }
+
+    public function testUnreadableEntriesAreListedUnlessHiddenOn403(): void {
+        if (function_exists('posix_geteuid') && posix_geteuid() === 0) {
+            self::markTestSkipped('root reads every file');
+        }
+        $this->write($this->root('locked.txt'), 'x');
+        chmod($this->root('locked.txt'), 0);
+        try {
+            self::assertContains('locked.txt', $this->context->paths()->read_dir($this->root()));
+            $hiding = $this->context(['view' => ['hidden' => [], 'unmanaged' => [], 'hideIf403' => true]])->paths();
+            self::assertNotContains('locked.txt', $hiding->read_dir($this->root()));
+        } finally {
+            chmod($this->root('locked.txt'), 0600);
+        }
+    }
 }

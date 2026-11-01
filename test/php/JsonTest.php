@@ -19,4 +19,14 @@ final class JsonTest extends H5aiTestCase {
             Json::load($path),
         );
     }
+
+    public function testAMalformedFileFallsBackToDefaults(): void {
+        $path = $this->write($this->tmp . '/broken.json', '{"open": ');
+        self::assertSame([], Json::load($path));
+    }
+
+    public function testALineCommentEndsAtAWindowsLineBreak(): void {
+        $path = $this->write($this->tmp . '/crlf.json', "{// comment\r\n\"a\": 1}");
+        self::assertSame(['a' => 1], Json::load($path));
+    }
 }

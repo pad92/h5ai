@@ -91,4 +91,70 @@ final class TaskStatusTest extends H5aiTestCase {
         $last = json_decode((string) file_get_contents($this->cache() . '/task-warmer.last.json'), true);
         self::assertSame(3, $last['files']['done']);
     }
+
+    private function running(): array {
+        return TaskStatus::running($this->cache(), self::NOW);
+    }
+
+    public function testAFreeLockOrAnIncompleteStatusShowsNothing(): void {
+        touch($this->cache() . '/warmer.lock');
+        $this->writeJson('task-warmer.json', $this->workerStatus('files', 5, null, 10, 10));
+        self::assertSame([], $this->running(), 'a lock file nobody holds');
+
+        $lock = $this->holdLock('warmer');
+        $this->writeJson('task-warmer.json', ['phase' => 'files']);
+        self::assertSame([], $this->running(), 'a status without its start times');
+        fclose($lock);
+    }
+
+    public function testAnUnknownPhaseHasNoEstimate(): void {
+        $lock = $this->holdLock('refresh');
+        $this->writeJson('task-refresh.json', $this->workerStatus('files', 1, 4, 3, 3));
+        self::assertSame([['id' => 'refresh', 'percent' => null, 'remaining' => null]], $this->running());
+        fclose($lock);
+    }
+
+    // Without the duration of every phase, only the first one is estimated.
+    public function testAPartialPreviousRunEstimatesTheFirstPhaseOnly(): void {
+        $lock = $this->holdLock('warmer');
+        $this->writeJson('task-warmer.last.json', ['files' => ['done' => 100, 'seconds' => 10]]);
+        $this->writeJson('task-warmer.json', $this->workerStatus('files', 50, null, 10, 10));
+        self::assertSame([['id' => 'warmer', 'percent' => 50, 'remaining' => 10]], $this->running());
+        $this->writeJson('task-warmer.json', $this->workerStatus('sizes', 0, null, 30, 5));
+        self::assertSame([['id' => 'warmer', 'percent' => null, 'remaining' => null]], $this->running());
+
+        // A later phase known alone cannot be placed in the whole run.
+        $this->writeJson('task-warmer.last.json', ['sizes' => ['done' => 0, 'seconds' => 10]]);
+        self::assertSame([['id' => 'warmer', 'percent' => null, 'remaining' => null]], $this->running());
+        fclose($lock);
+    }
+
+    public function testATaskJustStartedShowsZeroWithoutATime(): void {
+        $lock = $this->holdLock('refresh');
+        $this->writeJson('task-refresh.json', $this->workerStatus('sizes', 0, 1000, 1, 1));
+        $this->writeJson('task-refresh.last.json', ['sizes' => ['done' => 0, 'seconds' => 1000]]);
+        self::assertSame([['id' => 'refresh', 'percent' => 0, 'remaining' => null]], $this->running());
+        fclose($lock);
+    }
+
+    // Counting writes at most once per second.
+    public function testCountingWritesOnceTheIntervalHasPassed(): void {
+        $status = new TaskStatus($this->cache(), TaskStatus::REFRESH);
+        $status->phase('sizes', 10);
+        $status->advance();
+        $file = $this->cache() . '/task-refresh.json';
+        self::assertSame(0, json_decode((string) file_get_contents($file), true)['done'], 'too soon to write');
+        (new ReflectionProperty(TaskStatus::class, 'last_write'))->setValue($status, 0.0);
+        $status->advance();
+        self::assertSame(2, json_decode((string) file_get_contents($file), true)['done']);
+    }
+
+    public function testAnUnwritableStatusIsSkipped(): void {
+        (new TaskStatus($this->tmp . '/missing', TaskStatus::REFRESH))->phase('sizes');
+        self::assertDirectoryDoesNotExist($this->tmp . '/missing');
+
+        mkdir($this->cache() . '/task-refresh.json');
+        (new TaskStatus($this->cache(), TaskStatus::REFRESH))->phase('sizes');
+        self::assertSame(['task-refresh.json'], array_values(array_diff(scandir($this->cache()), ['.', '..'])), 'no temporary file is left');
+    }
 }
