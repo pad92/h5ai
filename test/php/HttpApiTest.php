@@ -95,7 +95,16 @@ final class HttpApiTest extends H5aiTestCase {
         return $directory;
     }
 
-    private const DOWNLOAD = ['action' => 'download', 'as' => 'package.tar', 'type' => 'php-tar', 'baseHref' => '/', 'hrefs' => ''];
+    // The first request of the client page: without its answer nothing is
+    // displayed.
+    public function testTheInitialGetAnswersOptionsTypesAndLangs(): void {
+        $response = $this->postJson(['action' => 'get', 'options' => true, 'types' => true, 'langs' => true]);
+        self::assertSame(['view', 'custom', 'download', 'hasCustomPasshash'], array_keys($response['options'] ?? []));
+        self::assertIsArray($response['types'] ?? null);
+        self::assertIsArray($response['langs'] ?? null);
+    }
+
+    private const DOWNLOAD =['action' => 'download', 'as' => 'package.tar', 'type' => 'php-tar', 'baseHref' => '/', 'hrefs' => ''];
 
     public function testUrlEncodedFormDownloadsIncludeEverySelectedFile(): void {
         $body = http_build_query(self::DOWNLOAD);

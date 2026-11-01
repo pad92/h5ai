@@ -66,11 +66,16 @@ class Api {
     private function on_get(): never {
         $response = [];
 
-        foreach (['langs', 'options', 'types'] as $name) {
-            if ($this->request->query_boolean($name, false)) {
-                $methodname = 'get_' . $name;
-                $response[$name] = $this->context->$methodname();
-            }
+        if ($this->request->query_boolean('langs', false)) {
+            $response['langs'] = $this->context->get_langs();
+        }
+
+        if ($this->request->query_boolean('options', false)) {
+            $response['options'] = $this->context->get_options();
+        }
+
+        if ($this->request->query_boolean('types', false)) {
+            $response['types'] = $this->context->get_types();
         }
 
         if ($this->request->query_boolean('setup', false)) {

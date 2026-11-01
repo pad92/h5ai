@@ -44,6 +44,10 @@ class Context {
         return $this->setup;
     }
 
+    public function get_options(): array {
+        return $this->options;
+    }
+
     public function query_option(string $keypath = '', mixed $default = null): mixed {
         return Util::array_query($this->options, $keypath, $default);
     }
