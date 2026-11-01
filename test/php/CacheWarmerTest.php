@@ -48,6 +48,50 @@ final class CacheWarmerTest extends H5aiTestCase {
         self::assertSame(array_values($seeded), $served, 'listings must be served the thumbnails the warmer produced');
     }
 
+    // Warms a.jpg and b.jpg from seeded thumbnails and returns their paths.
+    private function warmTwoImages(): array {
+        $thumbs = [];
+        foreach (['a.jpg', 'sub/b.jpg'] as $name) {
+            $this->write($this->root($name), 'x');
+            $thumbs[$name] = $this->write($this->tmp . '/cache-pub/thumbs/thumb-' . sha1($this->root($name)) . '-266x200.webp', 'webp');
+        }
+        self::assertSame(0, $this->imageWarmer()->warm());
+        return $thumbs;
+    }
+
+    private function imageWarmer(): CacheWarmer {
+        return new CacheWarmer($this->context(
+            ['thumbnails' => ['enabled' => true, 'size' => 200, 'img' => ['img-jpg']]],
+            ['HAS_PHP_WEBP' => true],
+            ['img-jpg' => ['glob' => ['*.jpg']]],
+        ));
+    }
+
+    public function testTheThumbnailsOfDeletedFilesArePruned(): void {
+        if (!extension_loaded('sqlite3')) {
+            self::markTestSkipped('sources are recorded in SQLite');
+        }
+        $thumbs = $this->warmTwoImages();
+        unlink($this->root('sub/b.jpg'));
+        self::assertSame(1, $this->imageWarmer()->warm());
+        self::assertFileExists($thumbs['a.jpg']);
+        self::assertFileDoesNotExist($thumbs['sub/b.jpg']);
+        self::assertSame(0, $this->imageWarmer()->warm(), 'a pruned source is forgotten');
+    }
+
+    // An unmounted share looks like an empty folder: that proves nothing.
+    public function testAnEmptiedShareKeepsTheThumbnails(): void {
+        if (!extension_loaded('sqlite3')) {
+            self::markTestSkipped('sources are recorded in SQLite');
+        }
+        $thumbs = $this->warmTwoImages();
+        self::removeTree($this->root());
+        mkdir($this->root());
+        self::assertSame(0, $this->imageWarmer()->warm());
+        self::assertFileExists($thumbs['a.jpg']);
+        self::assertFileExists($thumbs['sub/b.jpg']);
+    }
+
     private function launchContext(array $cache = ['warmAtStartup' => true, 'warmInterval' => 3600]): Context {
         return $this->context(['cache' => $cache]);
     }
