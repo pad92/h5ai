@@ -9,25 +9,31 @@
     #content {
         padding: 0 16px 48px;
 
+        // max-width must include the padding and border of the cards.
+        &, * {
+            box-sizing: border-box;
+        }
+
         > * {
             max-width: 640px;
             margin: 16px auto 0;
         }
     }
 
-    // Only holds the theme toggle.
+    // Only holds the theme toggle: a row of its own above the scrolling
+    // content, so it never covers the page or its scrollbar.
     #toolbar {
-        position: absolute;
-        top: 0;
-        right: 0;
-        z-index: 1;
+        align-self: flex-end;
     }
 
     #header {
+        margin-top: 0;
         text-align: center;
+        white-space: nowrap;
 
         a {
-            font-size: 4em;
+            // Stays on one line on a phone.
+            font-size: min(4em, 15vw);
             font-weight: 300;
             color: inherit;
             text-decoration: none;
@@ -134,11 +140,12 @@
         display: none;
     }
 
-    #checks-summary {
-        margin-top: 24px;
-        text-align: center;
-        font-size: 1.2em;
-        font-weight: 700;
+    #checks, #metrics {
+        margin-top: 32px;
+
+        h2 {
+            margin: 0;
+        }
     }
 
     .group {
@@ -188,6 +195,10 @@
     .result {
         text-align: right;
         overflow-wrap: anywhere;
+    }
+
+    .desc:empty {
+        display: none;
     }
 
     .desc {

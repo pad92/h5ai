@@ -104,7 +104,7 @@ test('info page: an admin sees grouped checks with a summary and can only log ou
     try {
         assert.equal(results().length, 20);
         assert.deepEqual([...document.querySelectorAll('#checks h2')].map(el => el.textContent),
-            ['h5ai', 'Server and PHP', 'Commands']);
+            ['Setup checks', 'h5ai', 'Server and PHP', 'Commands']);
         const rows = byLabel();
         assert.deepEqual(rows.Version, {label: 'Version', result: '1.4.0', outcome: 'passed'});
         assert.deepEqual(rows['Index file'],

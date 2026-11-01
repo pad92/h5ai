@@ -36,7 +36,10 @@ const disabledTpl =
     '<p id="login-disabled" class="card"></p>';
 const checksTpl =
     `<div id="checks">
-        <p id="checks-summary" role="status"></p>
+        <div class="row">
+            <h2 class="grow">Setup checks</h2>
+            <strong id="checks-summary" role="status"></strong>
+        </div>
     </div>`;
 // A <details> section: folded with the native toggle, no script needed.
 const groupTpl =

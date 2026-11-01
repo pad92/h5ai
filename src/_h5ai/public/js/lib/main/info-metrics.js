@@ -104,11 +104,12 @@ const coverageRows = (coverage, now) => {
     if (!categories.length) {
         return [['Thumbnail coverage', 'No thumbnail type is configured.', '–']];
     }
-    return categories.map(category => {
+    // The date of the count is given once, on the first row.
+    return categories.map((category, index) => {
         const {files, thumbnails} = coverage.categories[category];
         return [
             CATEGORY_LABELS[category] || category,
-            `Files with a thumbnail, counted by the warm run of ${formatTime(coverage.at, now)}.`,
+            index === 0 ? `Files with a thumbnail, counted by the warm run of ${formatTime(coverage.at, now)}.` : '',
             `${thumbnails.toLocaleString('en')} of ${files.toLocaleString('en')} (${percentOf(thumbnails, files)})`
         ];
     });

@@ -51,6 +51,7 @@ test('info metrics: coverage is given per kind of file with its share', () => {
     assert.equal(rows.Videos.value, '0 of 0 (–)');
     assert.equal(rows.x.value, '1 of 1 (100 %)', 'an unknown category keeps its key');
     assert.ok((/10 min ago/).test(rows.Images.info));
+    assert.equal(rows.Videos.info, '', 'the date of the count is given once');
     assert.ok((/5 files for 4 source files, 1 KB on average/).test(rows['Thumbnail files'].info));
 });
 
