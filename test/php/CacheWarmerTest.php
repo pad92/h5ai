@@ -179,4 +179,15 @@ final class CacheWarmerTest extends H5aiTestCase {
         self::assertTrue(CacheWarmer::launch_if_due($this->launchContext($legacy), $launch), 'the legacy interval must apply');
         self::assertFalse(CacheWarmer::launch_if_due($this->launchContext(['warm_at_startup' => false]), $this->launcher()));
     }
+
+    public function testUnmanagedFoldersAreNotWalked(): void {
+        $this->write($this->root('kept/a.txt'), 'x');
+        $this->write($this->root('skipped/.nomedia'), '');
+        $this->write($this->root('skipped/b.txt'), 'x');
+        $status = new TaskStatus($this->tmp . '/cache', TaskStatus::WARMER);
+        (new CacheWarmer($this->context(['view' => ['hidden' => [], 'unmanaged' => ['.nomedia']]])))->warm($status);
+        $status->finish();
+        $last = json_decode((string) file_get_contents($this->tmp . '/cache/task-warmer.last.json'), true);
+        self::assertSame(1, $last['files']['done'], 'only kept/a.txt is walked');
+    }
 }

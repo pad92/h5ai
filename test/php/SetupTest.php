@@ -76,4 +76,23 @@ final class SetupTest extends H5aiTestCase {
         self::assertArrayHasKey('HAS_CMD_AVPROBE', $info);
         self::assertArrayHasKey('HAS_CMD_MAGICK', $info);
     }
+
+    // lighttpd may hand a script name with a doubled slash: everything up to
+    // it is dropped.
+    public function testLighttpdScriptNamesAreNormalized(): void {
+        $setup = $this->class->newInstanceWithoutConstructor();
+        $this->class->getProperty('refresh')->setValue($setup, false);
+        $this->set($setup, 'SCRIPT_NAME', '/ignored//share/_h5ai/public/index.php');
+        $this->set($setup, 'SERVER_NAME', 'lighttpd');
+        $this->class->getMethod('add_paths')->invoke($setup);
+        self::assertSame('/share/_h5ai/', $setup->get('H5AI_HREF'));
+        self::assertSame('/share/', $setup->get('ROOT_HREF'));
+    }
+
+    public function testToolsAreLookedUpWithCommandThenWhich(): void {
+        $lookup = $this->class->getMethod('lookup_command');
+        self::assertSame('command -v', $lookup->invoke(null, ['command' => true, 'which' => true]));
+        self::assertSame('which', $lookup->invoke(null, ['command' => false, 'which' => true]));
+        self::assertFalse($lookup->invoke(null, ['command' => false, 'which' => false]));
+    }
 }

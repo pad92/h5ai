@@ -121,4 +121,10 @@ final class ListingTest extends H5aiTestCase {
         $album = array_column($context->get_items('/', Context::LIST_FOLDER), null, 'href')['/album/'];
         self::assertSame('/_h5ai/public/cache/thumbs/' . $thumb, $album['thumbSquare'] ?? null);
     }
+
+    public function testASubfolderFallbackListingLinksToItsParent(): void {
+        $html = (new Fallback($this->context()))->get_html($this->root('match-dir'));
+        self::assertStringContainsString('<a href="..">Parent Directory</a>', $html);
+        self::assertStringNotContainsString('Parent Directory', (new Fallback($this->context()))->get_html($this->root()));
+    }
 }
