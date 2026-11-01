@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.4.0 - *2026-11-01*
 
 ### Upgrade notes
 
