@@ -36,8 +36,7 @@ final class ImageTest extends H5aiTestCase {
     public function testAnUndecodableImageDoesNotFailTheWholeRequest(): void {
         $this->write($this->root('broken.png'), 'not an image');
         $this->write($this->root('cached.png'), 'x');
-        $cached = 'thumb-' . sha1($this->root('cached.png')) . '-320x240.webp';
-        $this->write($this->tmp . '/cache-pub/thumbs/' . $cached, 'webp');
+        $cached = $this->seedThumbnail($this->root('cached.png'), '320x240');
 
         $context = $this->context(['thumbnails' => ['enabled' => true]], ['HAS_PHP_WEBP' => true]);
         [$hrefs] = $context->get_thumbs([['type' => 'img-png', 'href' => '/broken.png'], ['type' => 'img-png', 'href' => '/cached.png']]);

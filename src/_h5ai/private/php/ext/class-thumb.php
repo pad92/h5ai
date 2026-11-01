@@ -214,12 +214,17 @@ class Thumb {
         $this->thumb_path = $this->thumbs_path . '/' . $name;
         $this->thumb_href = $this->thumbs_href . '/' . $name;
 
-        if (file_exists($this->thumb_path) && $this->mtime <= filemtime($this->thumb_path)) {
-            $row = $this->db->select($this->source_hash);
-            if ($row) {
-                $this->type->name = $row['type'];
+        if (file_exists($this->thumb_path)) {
+            if (filemtime($this->thumb_path) === $this->mtime) {
+                $row = $this->db->select($this->source_hash);
+                if ($row) {
+                    $this->type->name = $row['type'];
+                }
+                return $this->thumb_href;
             }
-            return $this->thumb_href;
+            // Stale: the source changed, even into an older file (cp -p, a
+            // restored backup). Removed so that the capture writes a new one.
+            @unlink($this->thumb_path);
         }
 
         $row = $this->db->select($this->source_hash);
@@ -228,17 +233,33 @@ class Thumb {
         }
 
         if ($this->image !== null) {
-            return $this->thumb_href($width, $height);
+            return $this->stamp($this->thumb_href($width, $height));
         }
 
         if (!$this->capture_source()) {
             return null;
         }
-        $thumb_href = $this->thumb_href($width, $height);
+        $thumb_href = $this->stamp($this->thumb_href($width, $height));
         if ($thumb_href !== null && $this->type->was_wrong()) {
-            $this->db->insert($this->source_hash, $this->type->name);
+            $this->remember_outcome();
         }
         return $thumb_href;
+    }
+
+    // A new thumbnail takes the mtime of its source: thumb() serves it while
+    // both match. Its source is recorded for prune_orphans().
+    private function stamp(?string $thumb_href): ?string {
+        if ($thumb_href !== null) {
+            @touch($this->thumb_path, (int) $this->mtime);
+            $this->db->record_source($this->source_hash, $this->source_path);
+        }
+        return $thumb_href;
+    }
+
+    // Caches a corrected type or a capture error for this source.
+    private function remember_outcome(?int $error = null): void {
+        $this->db->insert($this->source_hash, $this->type->name, (int) $this->mtime, $error);
+        $this->db->record_source($this->source_hash, $this->source_path);
     }
 
     private function thumb_href(int $width, int $height): ?string {
@@ -252,7 +273,6 @@ class Thumb {
         $this->image->save_dest_webp($this->thumb_path, 80);
 
         if ($this->thumb_path !== null && file_exists($this->thumb_path)) {
-            $this->db->record_source($this->source_hash, $this->source_path);
             return $this->thumb_href;
         }
         unset($this->image);
@@ -402,7 +422,7 @@ class Thumb {
             return $this->do_capture_archive($this->source_path, $handler);
         } catch (UnhandledArchive $e) {
             Util::log("Unhandled {$this->source_path}: " . $e->getMessage());
-            $this->db->insert($this->source_hash, $this->type->name, $e->getCode());
+            $this->remember_outcome($e->getCode());
             return true;
         } catch (WrongType) {
             return false;
@@ -412,7 +432,10 @@ class Thumb {
         return false;
     }
 
+    // $source is a file path, or an open stream (an audio cover) that stays
+    // open: the caller owns it. Image only keeps a path, for EXIF reads.
     public function do_capture_img(mixed $source): bool {
+        $source_file = is_string($source) ? $source : null;
         $capture_data = fopen('php://temp/maxmemory:' . 2 * 1024 * 1024, 'r+');
 
         $et = false;
@@ -421,7 +444,7 @@ class Thumb {
             $et = @exif_thumbnail($source);
         }
         if ($et !== false) {
-            $image = new Image($source);
+            $image = new Image($source_file);
             rewind($capture_data);
             fwrite($capture_data, $et);
 
@@ -479,10 +502,9 @@ class Thumb {
             }
         }
 
-        $image = new Image($source);
+        $image = new Image($source_file);
         if (is_resource($source)) {
             $is_valid = $image->set_source_data($source);
-            fclose($source);
         } else {
             $input_file = fopen($source, 'r');
             stream_copy_to_stream($input_file, $capture_data);

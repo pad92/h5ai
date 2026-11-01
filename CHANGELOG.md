@@ -7,6 +7,7 @@
 * **Administrator login** is now limited per client (see Security below). Behind a reverse proxy, pass the real client address (`REAL_IP_FROM` in the Docker image); otherwise every visitor shares the proxy's address, and failed attempts by anyone can lock out the administrator.
 * **`foldersize.timeout` has no effect any more**: no request computes folder sizes now. The option is still accepted, so existing configurations stay valid.
 * **Cache warmer options** are renamed `cache.warmAtStartup` and `cache.warmInterval`, like every other option. The old `warm_at_startup` and `warm_interval` names are still read when the new ones are absent.
+* **Thumbnails are generated again once**: a thumbnail now carries the modification time of its source, and thumbnails made by earlier releases do not. Each one is regenerated on its next request or cache warmer pass.
 * **Docker image**: Ghostscript is now installed, which adds about 19 MiB to the download (66 MiB on disk).
 * **Task indicator**: the shipped `options.json` enables it. An existing `options.json` without a `tasks` block leaves it off; copy the block from the new file to get it.
 * **PHP tests**: `npm run test:php` and `make test` now run PHPUnit, which the Makefile downloads once (checksum verified), so the first run needs network access.
@@ -27,8 +28,10 @@
 * **PDF and PostScript**: document thumbnails work again. The capture check expected JPEG, while ImageMagick and GraphicsMagick write WebP. They now run `magick`, since ImageMagick 7 warns on every call to the deprecated `convert`, which remains the fallback on ImageMagick 6 hosts.
 * **Failures stay contained**: an image GD cannot decode (a TIFF without ImageMagick support, a corrupt file, an empty capture) no longer fails the whole request with an HTTP 500; only that file gets no thumbnail. An unopenable, corrupt or table-less `thumbs_cache.db` is now bypassed or rebuilt instead of failing the request.
 * **Each tool runs once**: a failing PDF used to run the capture tool four times. When the tool for the declared type fails, the file is identified again by name, then by content, so a video saved with a wrong extension gets a video thumbnail.
+* **Changed files**: a modified file gets a new thumbnail. Before, its old thumbnail stayed when GD made it (videos, audio, documents). A file replaced by an older one, as `cp -p`, `rsync -a` or a restored backup do, no longer keeps the thumbnail of the file it replaced. The cached failures of a file follow the same rule, and are pruned with it when it is deleted.
+* **Audio covers**: an MP3 or M4A file with a cover no longer fails the whole thumbnail request with an HTTP 500; the cover becomes its thumbnail.
 * **Videos**: `ffprobe` and `avprobe` are detected. Without them, the thumbnail shows the frame at 0.1 seconds instead of failing.
-* **Deleted files**: the cache warmer now deletes the thumbnails and cache entries of files that no longer exist. Before, they stayed on disk, reachable by their URL, forever. Nothing is deleted while the share's root folder is empty or unreadable.
+* **Deleted files**: the cache warmer deletes the thumbnails and cache entries of files that no longer exist. They used to stay on disk, still reachable by their URL. Nothing is deleted while the share's root folder is empty or unreadable.
 * **Cache warmer**: it no longer stops with a type error on the first file, and it generates exactly the thumbnails listings ask for (same size, configured types minus the blocklist, archives included).
 
 ### Downloads
@@ -46,6 +49,7 @@
 ### Other fixes
 
 * **Configuration**: a comment after a JSON string ending in an escaped backslash (such as `"C:\\"`) is now stripped, instead of making `options.json` fall back to defaults. An outdated `cmds.json` is rebuilt, and a missing setup key raises an error instead of producing a blank page.
+* **TIFF preview**: clicking a TIFF image opens the image preview instead of downloading the file. Browsers other than Safari cannot decode TIFF, so the preview shows a WebP sample made by the server. An existing `options.json` needs `img-tiff` added to `preview-img.types`.
 * **Fallback listings**: sizes use the browser's units (`KB`, `MB`… or `KiB`, `MiB`… with `view.binaryPrefix`) instead of a truncated `KB` count.
 
 ### Docker and CI
@@ -57,6 +61,7 @@
 ### Tests, documentation and internals
 
 * **Tests**: the PHP suite runs with PHPUnit (`phpunit.xml.dist`) as isolated tests, each in its own temporary folder, instead of one script counted as a single assertion. Tests needing GD or SQLite are reported as skipped when the extension is missing. The HTML sanitizer used for custom headers, footers and Markdown has its own tests.
+* **Media fixtures**: `test/docker/generate-fixtures.sh` regenerates small images, videos, audio files, archives and texts under `test/docker/fixtures`, identical from one run to the next. `docker-compose.dev.yml` serves them with the README, the changelog and `doc/`.
 * **Documentation**: documented `H5AI_ROOT_PATH`, Ghostscript for PDF thumbnails and the probe tools for video thumbnails, and corrected `preview-img.size`, which only switches the server-side sample on or off.
 * **Internals**: file type matching lives in one class; version constants live in `private/php/version.php`; both CLI workers start through `Bootstrap::cli_context()`; `Context::paths()` replaces eight delegating methods; archive limits and search patterns are read once per request; API listing depths have named constants; method names follow snake_case; unused methods are removed. The `ERR_ILLIGAL_PARAM` constant is spelt `ERR_ILLEGAL_PARAM`, and the value sent to clients is unchanged.
 

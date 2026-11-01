@@ -40,8 +40,7 @@ final class ThumbnailRequestTest extends H5aiTestCase {
 
     public function testAPreviewSampleIsServedFromItsSnappedVariant(): void {
         $this->write($this->root('photo.jpg'), 'x');
-        $name = 'thumb-' . sha1($this->root('photo.jpg')) . '-1024x0.webp';
-        $this->write($this->tmp . '/cache-pub/thumbs/' . $name, 'webp');
+        $name = $this->seedThumbnail($this->root('photo.jpg'), '1024x0');
         $context = $this->context(['thumbnails' => ['enabled' => true]]);
         [$hrefs] = $context->get_thumbs([['type' => 'img-jpg', 'href' => '/photo.jpg', 'width' => 1000, 'height' => 0]]);
         self::assertSame(['/_h5ai/public/cache/thumbs/' . $name], $hrefs);

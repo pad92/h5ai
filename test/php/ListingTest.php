@@ -115,8 +115,7 @@ final class ListingTest extends H5aiTestCase {
     // A folder with a _thumb image shows it in listings once generated.
     public function testFolderListingsCarryTheirCustomThumbnail(): void {
         $this->write($this->root('album/_thumb/cover.png'), 'png');
-        $thumb = 'thumb-' . sha1($this->root('album/_thumb/cover.png')) . '-320x240.webp';
-        $this->write($this->tmp . '/cache-pub/thumbs/' . $thumb, 'webp');
+        $thumb = $this->seedThumbnail($this->root('album/_thumb/cover.png'), '320x240');
         $context = $this->context(['foldersize' => ['enabled' => false], 'thumbnails' => ['enabled' => true]], ['HAS_PHP_WEBP' => true]);
         $album = array_column($context->get_items('/', Context::LIST_FOLDER), null, 'href')['/album/'];
         self::assertSame('/_h5ai/public/cache/thumbs/' . $thumb, $album['thumbSquare'] ?? null);
