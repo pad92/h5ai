@@ -13,6 +13,7 @@ const fresh = (name, settings = {}) => {
     const resolved = require.resolve(LIB + name);
     const saved = {};
     const subs = [];
+    const original = require.cache[resolved];
 
     Object.keys(settings).forEach(key => {
         saved[key] = allsettings[key];
@@ -36,7 +37,12 @@ const fresh = (name, settings = {}) => {
         Object.keys(saved).forEach(key => {
             allsettings[key] = saved[key];
         });
-        delete require.cache[resolved];
+        // Modules loaded earlier keep the instance they required.
+        if (original) {
+            require.cache[resolved] = original;
+        } else {
+            delete require.cache[resolved];
+        }
     };
 
     const emit = (topic, ...args) => subs

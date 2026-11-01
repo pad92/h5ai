@@ -46,6 +46,7 @@ require('./tests/premisses');
 require('./tests/unit/core/event');
 require('./tests/unit/core/format');
 require('./tests/unit/core/location');
+require('./tests/unit/core/locationNavigation');
 require('./tests/unit/core/store-resource');
 require('./tests/unit/model/item');
 require('./tests/unit/util/naturalCmp');
