@@ -7,8 +7,9 @@ services:
     ports:
       - 8888:80
     environment:
-      # Admin page password, read from .env; empty keeps login disabled.
-      - H5AI_ADMIN_PASSWORD=${H5AI_ADMIN_PASSWORD:-}
+      # Admin page password, read from .env; unset or empty falls back to
+      # "admin", for local development only.
+      - H5AI_ADMIN_PASSWORD=${H5AI_ADMIN_PASSWORD:-admin}
     # Thumbnail fixtures and the Markdown docs, to browse and preview.
     volumes:
       - ./test/docker/fixtures:/share/test:ro
