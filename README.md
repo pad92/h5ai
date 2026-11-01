@@ -1,6 +1,12 @@
 # h5ai (pad92 fork)
 
-[![license][license-img]][github] [![github][github-img]][github]
+[![Pipeline][pipeline-img]][pipelines]
+[![Coverage][coverage-img]][pipelines]
+[![Latest release][release-img]][releases]
+[![License][license-img]][license]
+[![Docker pulls][docker-pulls-img]][dockerhub]
+[![Docker stars][docker-stars-img]][dockerhub]
+[![Docker image size][docker-size-img]][dockerhub-tags]
 
 A modern HTTP web server index for Apache httpd, lighttpd, nginx, and Angie.
 
@@ -63,13 +69,14 @@ when it is missing. `make test` runs both suites.
 
 CI also measures line coverage. `npm run test:coverage` writes JavaScript
 reports to `coverage/js/`, including source files the tests never load. The PHP
-job uses PHPUnit and Xdebug to cover `src/_h5ai/private/php/`, including untested
-files, and writes its report to `coverage/php/`. PHP coverage measures the main
-test process; the separate HTTP server processes still run their checks but do
-not contribute coverage. Both jobs upload Cobertura reports for GitLab diff
-annotations. The `test:coverage` job combines covered and total line counts
-from both languages into the percentage shown by the project badge. A successful
-pipeline on the default branch updates that badge.
+job runs PHPUnit with Xdebug over `src/_h5ai/private/php/`, untested files
+included, and writes its report to `coverage/php/`. The PHP processes the tests
+start (the API server, `Bootstrap::run()` behind a server, the CLI workers)
+count too. `make coverage` produces both reports locally, in Docker when PHP has
+no Xdebug. Both jobs upload Cobertura reports for GitLab diff annotations. The
+`test:coverage` job combines covered and total line counts from both languages
+into the percentage shown by the coverage badge, which a successful pipeline on
+the default branch updates.
 
 
 ## Docker Image
@@ -78,8 +85,6 @@ A ready-to-use Docker image is published to Docker Hub as [`pad92/docker-h5ai`][
 It runs on Angie 1.11+ (Alpine) and PHP 8.4, with s6-overlay as the process supervisor.
 It includes the tools for every thumbnail type: ImageMagick with Ghostscript (PDF, PostScript, TIFF), ffmpeg (video, audio covers) and the PHP image extensions.
 Docker Hub protects tags matching `^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9]+)?$` from changes. Stable releases update `latest` and the major/minor aliases only when they are the newest stable Git tag. Prereleases keep their versioned tags and leave stable aliases unchanged. The `devel` tag follows `master`.
-
-[![Docker Pulls](https://img.shields.io/docker/pulls/pad92/docker-h5ai.svg)](https://hub.docker.com/r/pad92/docker-h5ai/)
 
 ```bash
 # Basic usage — mount the directory to share at /share
@@ -101,6 +106,7 @@ A `docker-compose.yml` example is included for convenience. See
 application and the Docker image.
 
 [dockerhub]: https://hub.docker.com/r/pad92/docker-h5ai
+[dockerhub-tags]: https://hub.docker.com/r/pad92/docker-h5ai/tags
 
 
 ## Configuration
@@ -142,12 +148,19 @@ and [movi-player][movi-player] (Apache-2.0), all self-hosted with no runtime
 dependency on fonts.googleapis.com or any other external host.
 
 
-[github]: https://github.com/pad92/h5ai
 [github-issues]: https://github.com/pad92/h5ai/issues
 [github-releases]: https://github.com/pad92/h5ai/releases
 [fontawesome]: https://fontawesome.com
 [fontsource-ubuntu]: https://fontsource.org/fonts/ubuntu
 [movi-player]: https://github.com/mrujjwalg/movi-player
 
-[license-img]: https://img.shields.io/badge/license-MIT-a0a060.svg?style=flat-square
-[github-img]: https://img.shields.io/badge/github-pad92/h5ai-a0a060.svg?style=flat-square
+[pipelines]: https://gitlab.com/pad92/h5ai/-/pipelines
+[releases]: https://gitlab.com/pad92/h5ai/-/releases
+[license]: https://gitlab.com/pad92/h5ai/-/blob/master/LICENSE
+[pipeline-img]: https://gitlab.com/pad92/h5ai/badges/master/pipeline.svg
+[coverage-img]: https://gitlab.com/pad92/h5ai/badges/master/coverage.svg
+[release-img]: https://gitlab.com/pad92/h5ai/-/badges/release.svg
+[license-img]: https://img.shields.io/badge/license-MIT-blue
+[docker-pulls-img]: https://img.shields.io/docker/pulls/pad92/docker-h5ai
+[docker-stars-img]: https://img.shields.io/docker/stars/pad92/docker-h5ai
+[docker-size-img]: https://img.shields.io/docker/image-size/pad92/docker-h5ai/latest
