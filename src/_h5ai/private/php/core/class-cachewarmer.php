@@ -15,6 +15,7 @@ class CacheWarmer {
     private int $thumb_width = 0;
     private int $thumb_height = 0;
     private ?TaskStatus $status = null;
+    private bool $is_stopped = false;
 
     // $thumb lets tests observe the generated thumbnails.
     public function __construct(private readonly Context $context, ?Thumb $thumb = null) {
@@ -46,6 +47,17 @@ class CacheWarmer {
         if (!self::cache_option($context, 'warmAtStartup', 'warm_at_startup', false)) {
             return false;
         }
+        return self::launch($context, false, $launch);
+    }
+
+    // Starts the warmer on the administrator's request, whatever
+    // cache.warmAtStartup and cache.warmInterval say. A running worker or a
+    // start in progress still prevents a second one.
+    public static function launch_now(Context $context, ?callable $launch = null): bool {
+        return self::launch($context, true, $launch);
+    }
+
+    private static function launch(Context $context, bool $is_forced, ?callable $launch): bool {
         $setup = $context->get_setup();
         $cache = $setup->get('CACHE_PRV_PATH');
         $lock = @fopen($cache . '/warmer.lock', 'c+');
@@ -63,7 +75,9 @@ class CacheWarmer {
             }
             $last_activity = max((int) @file_get_contents($cache . '/warmer.lastrun'), $laststart);
             $interval = (int) self::cache_option($context, 'warmInterval', 'warm_interval', 86400);
-            $is_due = $last_activity === 0 || $now - $last_activity > $interval;
+            $is_due = $is_forced
+                ? $laststart === 0
+                : $last_activity === 0 || $now - $last_activity > $interval;
             if ($is_due) {
                 @file_put_contents($cache . '/warmer.laststart', (string) $now, LOCK_EX);
             }
@@ -135,20 +149,35 @@ class CacheWarmer {
         }
     }
 
+    // True when the last warm() stopped early on request (TaskStatus).
+    public function was_stopped(): bool {
+        return $this->is_stopped;
+    }
+
     // Returns how many vanished thumbnail sources were pruned. $status, when
-    // given, follows the walk (one item per file) and the folder sizes.
+    // given, follows the walk (one item per file) and the folder sizes, and
+    // can stop the run between two files or before the sizes: then nothing
+    // is pruned and the coverage of the previous run stays.
     public function warm(?TaskStatus $status = null): int {
         $root = $this->setup->get('ROOT_PATH');
         $this->status = $status;
+        $this->is_stopped = false;
         $status?->phase('files');
         $this->coverage = array_fill_keys(array_unique(array_values($this->thumb_types)), ['files' => 0, 'thumbnails' => 0]);
         $this->warm_path($root);
+        if ($this->is_stopped) {
+            return 0;
+        }
         $pruned = $this->thumb_instance?->prune_orphans() ?? 0;
         if ($this->thumb_instance !== null) {
             $this->save_coverage();
         }
 
         [$with_foldersize, $with_du, $timeout] = $this->context->foldersize_mode();
+        if ($with_foldersize && $status?->stop_requested()) {
+            $this->is_stopped = true;
+            return $pruned;
+        }
         if ($with_foldersize) {
             $status?->phase('sizes');
             Filesize::refresh_tree($root, $with_du, $timeout);
@@ -165,6 +194,10 @@ class CacheWarmer {
         $files = $this->context->paths()->read_dir($path);
 
         foreach ($files as $file) {
+            if ($this->is_stopped || $this->status?->stop_requested()) {
+                $this->is_stopped = true;
+                return;
+            }
             $child_path = $path . '/' . $file;
             if (is_dir($child_path) && !is_link($child_path)) {
                 $this->warm_path($child_path);

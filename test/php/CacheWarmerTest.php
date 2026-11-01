@@ -195,6 +195,64 @@ final class CacheWarmerTest extends H5aiTestCase {
         self::assertSame([], $launch->scripts);
     }
 
+    public function testAForcedLaunchIgnoresTheScheduleButNotARunningWorker(): void {
+        $launch = $this->launcher();
+        $this->marker('lastrun', 60);
+        $context = $this->launchContext(['warmAtStartup' => false]);
+        self::assertTrue(CacheWarmer::launch_now($context, $launch), 'disabled and not due, but asked for');
+        self::assertFalse(CacheWarmer::launch_now($context, $launch), 'a start in progress');
+        self::assertCount(1, $launch->scripts);
+
+        @unlink($this->tmp . '/cache/warmer.laststart');
+        $held = fopen($this->tmp . '/cache/warmer.lock', 'c+');
+        flock($held, LOCK_EX);
+        try {
+            self::assertFalse(CacheWarmer::launch_now($context, $launch), 'a running worker');
+        } finally {
+            fclose($held);
+        }
+        self::assertCount(1, $launch->scripts);
+    }
+
+    public function testAStopRequestEndsTheWalkBetweenFilesWithoutRecordingTheRun(): void {
+        foreach (['a.jpg', 'b.jpg', 'c.jpg'] as $name) {
+            $this->write($this->root($name), 'x');
+        }
+        $this->write($this->tmp . '/cache/' . CacheWarmer::COVERAGE_FILE, '{"at":1,"categories":{}}');
+        $context = $this->context(
+            ['thumbnails' => ['enabled' => true, 'size' => 200, 'img' => ['img-jpg']]],
+            ['HAS_PHP_WEBP' => true],
+            ['img-jpg' => ['glob' => ['*.jpg']]],
+        );
+        $status = new TaskStatus($this->tmp . '/cache', TaskStatus::WARMER);
+        $cache = $this->tmp . '/cache';
+        // The first thumbnail asks to stop, as the admin page would.
+        $thumb = new class($context, $cache) extends Thumb {
+            public array $calls = [];
+
+            public function __construct(Context $context, private readonly string $stopCache) {
+                parent::__construct($context);
+            }
+
+            public function thumb_for(string $type, string $source_href, int $width, int $height): ?string {
+                $this->calls[] = $source_href;
+                touch($this->stopCache . '/task-warmer.stop');
+                return null;
+            }
+        };
+        $warmer = new CacheWarmer($context, $thumb);
+
+        $warmer->warm($status);
+
+        self::assertTrue($warmer->was_stopped());
+        self::assertCount(1, $thumb->calls, 'no file after the request');
+        self::assertSame('{"at":1,"categories":{}}', file_get_contents($cache . '/' . CacheWarmer::COVERAGE_FILE),
+            'a partial walk keeps the previous coverage');
+        $status->abandon();
+        self::assertFileDoesNotExist($cache . '/task-warmer.stop');
+        self::assertFileDoesNotExist($cache . '/task-warmer.last.json', 'a stopped run is not recorded');
+    }
+
     public function testARefusedLaunchClearsItsStartMarker(): void {
         self::assertFalse(CacheWarmer::launch_if_due($this->launchContext(), $this->launcher(false)));
         self::assertFileDoesNotExist($this->tmp . '/cache/warmer.laststart');

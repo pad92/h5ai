@@ -39,6 +39,8 @@ This release includes v1.3.7, which was prepared but never published.
     * The login is a real form with a labelled field and buttons, so it works with the keyboard and password managers.
     * A "Background tasks and cache" section shows the cache warmer state and schedule, its last run, the thumbnail cache size, how many images, videos, documents, archives and audio files have a thumbnail, and the folder size cache. Only an admin session can read these figures (`get` with `metrics`).
     * The theme toggle is available on this page too.
+    * Start and Stop buttons launch the cache warmer or a folder size refresh of the whole share, or stop a running one at its next file or folder, without leaving a half-written thumbnail.
+    * Purge buttons empty the thumbnail cache (files, database and coverage together) or the folder size cache, including files left by interrupted writes. A purge takes a confirming second click and is refused while a background task runs.
     * Checks are grouped with a pass count, show which video and document tool is used, and stay readable on narrow screens. A group whose checks all pass is folded.
 
 * **Other fixes**:

@@ -41,6 +41,34 @@ class CacheDB {
         return $stats;
     }
 
+    // Empties the database and gives the space back. With SQLite the file
+    // stays and is emptied in place: requests may hold it open, and an
+    // unlinked SQLite file would keep their writes. Without SQLite nothing can
+    // use it, so the files go. Returns how many sources were forgotten.
+    public static function purge(string $path): int {
+        if (!extension_loaded('sqlite3')) {
+            foreach (['', '-wal', '-shm', '-journal'] as $suffix) {
+                @unlink($path . $suffix);
+            }
+            return 0;
+        }
+        if (!is_file($path)) {
+            return 0;
+        }
+        $db = new SQLite3($path);
+        $db->enableExceptions(true);
+        $db->busyTimeout(5000);
+        try {
+            $sources = (int) $db->querySingle('SELECT COUNT(*) FROM sources;');
+            $db->exec('DELETE FROM archives; DELETE FROM sources;');
+            $db->exec('VACUUM;');
+            $db->exec('PRAGMA wal_checkpoint(TRUNCATE);');
+            return $sources;
+        } finally {
+            $db->close();
+        }
+    }
+
     public function create(string $path): void {
         if (!extension_loaded('sqlite3')) {
             return;

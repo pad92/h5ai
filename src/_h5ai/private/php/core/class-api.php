@@ -16,6 +16,9 @@ class Api {
             'get' => $this->on_get(),
             'login' => $this->on_login(),
             'logout' => $this->on_logout(),
+            'purge' => $this->on_purge(),
+            'start' => $this->on_start(),
+            'stop' => $this->on_stop(),
             default => Util::json_error(Util::ERR_UNSUPPORTED, 'unsupported action'),
         };
     }
@@ -144,6 +147,58 @@ class Api {
     private function on_login(): never {
         $pass = $this->request->query_string('pass');
         Util::json_exit(['asAdmin' => $this->context->login_admin($pass)]);
+    }
+
+    // Admin only. Refused while a background task runs: it would refill the
+    // cache halfway or read it while it is emptied.
+    private function on_purge(): never {
+        Util::json_fail(Util::ERR_DISABLED, 'purge needs an admin session', !$this->context->is_admin());
+        $cache = $this->request->query_string('cache');
+        Util::json_fail(Util::ERR_ILLEGAL_PARAM, 'unknown cache', !in_array($cache, CachePurge::CACHES, true));
+        $purge = new CachePurge($this->context);
+        $task = $purge->blocking_task();
+        Util::json_fail(Util::ERR_FAILED, 'a background task is running: ' . $task, $task !== null);
+        try {
+            $removed = $purge->purge($cache);
+        } catch (Exception $exception) {
+            Util::log('purge of ' . $cache . ' failed: ' . $exception->getMessage());
+            Util::json_error(Util::ERR_FAILED, 'purge failed');
+        }
+        Util::log('admin purged the ' . $cache . ' cache: ' . json_encode($removed));
+        Util::json_exit(['purged' => $cache, 'removed' => $removed]);
+    }
+
+    // Admin only: starts a background task now, unless it already runs.
+    private function on_start(): never {
+        $task = $this->admin_task('start');
+        $cache = $this->setup->get('CACHE_PRV_PATH');
+        Util::json_fail(Util::ERR_FAILED, $task . ' is already running', in_array($task, array_column(TaskStatus::running($cache), 'id'), true));
+        if ($task === TaskStatus::REFRESH) {
+            [$with_foldersize] = $this->context->foldersize_mode();
+            Util::json_fail(Util::ERR_DISABLED, 'folder sizes are disabled', !$with_foldersize);
+            $started = $this->context->trigger_folder_refresh([$this->setup->get('ROOT_PATH')]);
+        } else {
+            $started = CacheWarmer::launch_now($this->context);
+        }
+        Util::json_fail(Util::ERR_FAILED, $task . ' could not start (already starting, or commands disabled)', !$started);
+        Util::log('admin started the ' . $task . ' task');
+        Util::json_exit(['started' => $task]);
+    }
+
+    // Admin only: asks a running task to stop at its next consistent point.
+    private function on_stop(): never {
+        $task = $this->admin_task('stop');
+        Util::json_fail(Util::ERR_FAILED, $task . ' is not running', !TaskStatus::request_stop($this->setup->get('CACHE_PRV_PATH'), $task));
+        Util::log('admin asked the ' . $task . ' task to stop');
+        Util::json_exit(['stopping' => $task]);
+    }
+
+    // The `task` parameter of an admin-only task action, checked.
+    private function admin_task(string $verb): string {
+        Util::json_fail(Util::ERR_DISABLED, $verb . ' needs an admin session', !$this->context->is_admin());
+        $task = $this->request->query_string('task');
+        Util::json_fail(Util::ERR_ILLEGAL_PARAM, 'unknown task', !in_array($task, TaskStatus::names(), true));
+        return $task;
     }
 
     private function on_logout(): never {

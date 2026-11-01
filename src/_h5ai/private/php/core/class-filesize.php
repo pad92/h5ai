@@ -92,6 +92,37 @@ class Filesize {
         self::$persistent_cache_dirty = true;
     }
 
+    // Deletes the folder size cache file and the temporary files an
+    // interrupted save_persistent_cache() left next to it, under the lock that
+    // save takes, so no save can interleave. Returns how many entries the
+    // file held. Requests running meanwhile may still save the sizes they
+    // computed.
+    public static function purge_cache(string $file): int {
+        $lock = @fopen($file . '.lock', 'c+');
+        if ($lock === false || !flock($lock, LOCK_EX)) {
+            throw new RuntimeException('cannot lock the folder size cache');
+        }
+        try {
+            $entries = json_decode((string) @file_get_contents($file), true);
+            if (file_exists($file) && !@unlink($file)) {
+                throw new RuntimeException('cannot delete the folder size cache');
+            }
+            // tempnam($dir, 'foldersizes.') names: six random characters.
+            foreach (glob(dirname($file) . '/foldersizes.??????', GLOB_NOSORT) ?: [] as $leftover) {
+                if (is_file($leftover)) {
+                    @unlink($leftover);
+                }
+            }
+            self::$persistent_cache = null;
+            self::$dirty_entries = [];
+            self::$persistent_cache_dirty = false;
+            return is_array($entries) ? count($entries) : 0;
+        } finally {
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
+    }
+
     // Entries of the folder size cache file and how many are still served
     // (younger than CACHE_TTL). Counts only: paths never leave the server.
     public static function cache_stats(string $file): array {

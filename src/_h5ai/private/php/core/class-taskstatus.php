@@ -32,10 +32,44 @@ class TaskStatus {
     private int $done = 0;
     private ?int $total = null;
     private float $last_write = 0.0;
+    private bool $is_stop_requested = false;
 
+    // Created by the worker once it holds <name>.lock: a stop request left
+    // by an earlier run does not apply to this one.
     public function __construct(private readonly string $cache_path, private readonly string $name) {
         $this->started = time();
         $this->last = self::read_json($this->last_file());
+        @unlink(self::stop_path($cache_path, $name));
+    }
+
+    // True once the administrator asked this run to stop (request_stop()).
+    // The worker polls it between items and stops at a consistent point, so
+    // no file is left half written. One stat per call, cheap next to an item.
+    public function stop_requested(): bool {
+        if (!$this->is_stop_requested) {
+            clearstatcache(true, self::stop_path($this->cache_path, $this->name));
+            $this->is_stop_requested = is_file(self::stop_path($this->cache_path, $this->name));
+        }
+        return $this->is_stop_requested;
+    }
+
+    // Asks the running worker $name to stop. False when none runs.
+    public static function request_stop(string $cache_path, string $name): bool {
+        if (!in_array($name, array_column(self::running($cache_path), 'id'), true)) {
+            return false;
+        }
+        return @touch(self::stop_path($cache_path, $name));
+    }
+
+    public static function is_stopping(string $cache_path, string $name): bool {
+        return is_file(self::stop_path($cache_path, $name));
+    }
+
+    // Drops the status of a run stopped before its end, without recording
+    // it: a partial run would skew the next estimate and the last duration.
+    public function abandon(): void {
+        @unlink($this->status_file());
+        @unlink(self::stop_path($this->cache_path, $this->name));
     }
 
     // Starts $phase. $total is the number of items it will count with
@@ -61,6 +95,7 @@ class TaskStatus {
         $this->close_phase();
         self::write_json($this->last_file(), $this->phases);
         @unlink($this->status_file());
+        @unlink(self::stop_path($this->cache_path, $this->name));
     }
 
     private function close_phase(): void {
@@ -86,6 +121,10 @@ class TaskStatus {
 
     private function last_file(): string {
         return $this->cache_path . '/task-' . $this->name . '.last.json';
+    }
+
+    private static function stop_path(string $cache_path, string $name): string {
+        return $cache_path . '/task-' . $name . '.stop';
     }
 
     private static function status_path(string $cache_path, string $name): string {

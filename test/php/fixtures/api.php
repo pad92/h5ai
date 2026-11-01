@@ -2,7 +2,8 @@
 
 // Router for `php -S` in HttpApiTest: serves the API over the share in
 // H5AI_TEST_ROOT, configured by its _h5ai/private/conf/options.json. A test
-// can override setup values in _h5ai/private/conf/test-setup.json.
+// can override setup values in _h5ai/private/conf/test-setup.json, and give
+// the request a session in its "TEST_SESSION" key.
 
 require __DIR__ . '/../../../src/_h5ai/private/php/class-bootstrap.php';
 spl_autoload_register(Bootstrap::autoload(...));
@@ -20,5 +21,5 @@ $setup = new TestSetup((is_array($overrides) ? $overrides : []) + [
     'HAS_CMD_DU' => false,
     'HAS_PHP_WEBP' => false,
 ]);
-$store = [];
+$store = is_array($overrides['TEST_SESSION'] ?? null) ? $overrides['TEST_SESSION'] : [];
 new Api(new Context(new Session($store), Request::from_globals(), $setup))->apply();
