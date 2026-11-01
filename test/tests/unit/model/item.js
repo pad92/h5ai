@@ -19,7 +19,6 @@ reqlib('ext/title');
 reqlib('ext/theme');
 reqlib('ext/info');
 reqlib('ext/tree');
-reqlib('ext/contextmenu');
 
 class FakeAudio {
     constructor() {
@@ -217,18 +216,6 @@ test('tree extension renders hierarchy, expands fetched folders, and toggles vis
     assert.ok(folder._$tree[0].classList.contains('open'));
     document.querySelector('#view-tree').click();
     assert.equal(document.querySelector('#view-tree').classList.contains('active'), false);
-});
-
-test('context menu builds entries and positions its panel within the overlay', () => {
-    const event = new window.MouseEvent('contextmenu', {bubbles: true, cancelable: true, clientX: 15, clientY: 20});
-    document.querySelector('#view').dispatchEvent(event);
-    const overlay = document.querySelector('#cm-overlay');
-    assert.ok(overlay);
-    assert.equal(overlay.querySelectorAll('.cm-entry').length, 5);
-    assert.equal(overlay.querySelectorAll('.cm-sep').length, 1);
-    assert.equal(overlay.querySelector('.cm-entry .cm-text').textContent, 'testing context menus');
-    assert.equal(overlay.querySelector('.cm-entry .cm-icon').classList.contains('no-icon'), true);
-    overlay.remove();
 });
 
 test('audio player queues tracks and responds to transport, seek, volume, and close controls', async () => {
