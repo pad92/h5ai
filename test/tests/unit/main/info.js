@@ -151,8 +151,8 @@ test('info page: an admin sees task and cache metrics and can refresh them', asy
             ['Background tasks', 'Cache']);
         assert.equal(results().length, 20, 'metrics are not counted as checks');
         const rows = metricRows();
-        assert.equal(rows['Cache warmer'], 'running · 42 % · ~ 2 min');
-        assert.equal(rows['Last warm run'], '42 s');
+        assert.equal(rows['Cache warmer'], 'running · 42 % · ~ 2 min · last run 42 s');
+        assert.equal(rows['Last warm run'], '17 min ago');
         assert.equal(rows['Folder size refresh'], 'idle');
         assert.equal(rows['Thumbnail files'], '3.0 MB');
         assert.equal(rows.Images, '3 of 4 (75 %)');

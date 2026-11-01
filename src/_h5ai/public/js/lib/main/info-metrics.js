@@ -43,7 +43,12 @@ const formatTime = (time, now) => `${formatDate(time * 1000)} (${formatRelative(
 
 const percentOf = (part, total) => total > 0 ? `${Math.floor(part / total * 100)} %` : '–';
 
-const runningState = task => task ? `running · ${formatFigures(task.percent, task.remaining)}` : 'idle';
+// "idle" or "running · 42 % · ~ 2 min", followed by how long the previous
+// finished run took, the best guess of how long the next one will.
+const taskState = (running, last) => {
+    const state = running ? `running · ${formatFigures(running.percent, running.remaining)}` : 'idle';
+    return last ? `${state} · last run ${formatDuration(last.seconds)}` : state;
+};
 
 const lastRunText = (last, now) => {
     if (!last) {
@@ -62,7 +67,7 @@ const warmerRows = (warmer, now) => {
     } else {
         scheduleText = `Runs every ${formatDuration(schedule.interval)}; next run ${formatRelative(schedule.nextRun, now)}.`;
     }
-    const rows = [['Cache warmer', scheduleText, runningState(running)]];
+    const rows = [['Cache warmer', scheduleText, taskState(running, last)]];
 
     if (last) {
         const files = last.phases.files;
@@ -74,8 +79,9 @@ const warmerRows = (warmer, now) => {
         if (sizes) {
             parts.push(`folder sizes in ${formatDuration(sizes.seconds)}`);
         }
-        rows.push(['Last warm run', `Ended ${formatTime(last.finished, now)}. ${parts.join(', ')}.`,
-            formatDuration(last.seconds)]);
+        rows.push(['Last warm run',
+            `Ended ${formatTime(last.finished, now)}, took ${formatDuration(last.seconds)}: ${parts.join(', ')}.`,
+            formatRelative(last.finished, now)]);
     } else {
         rows.push(['Last warm run', 'No finished run yet.', 'never']);
     }
@@ -85,7 +91,7 @@ const warmerRows = (warmer, now) => {
 const taskRows = (tasks, now) => [
     ...warmerRows(tasks.warmer, now),
     ['Folder size refresh', `Recomputes expired folder sizes after a listing. ${lastRunText(tasks.refresh.last, now)}`,
-        runningState(tasks.refresh.running)]
+        taskState(tasks.refresh.running, tasks.refresh.last)]
 ];
 
 const coverageRows = (coverage, now) => {

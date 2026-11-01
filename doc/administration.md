@@ -154,13 +154,15 @@ Below the checks, the page shows figures read from the caches. **Refresh**
 reads them again without reloading the page. They contain counts, sizes and
 dates only, never a path of the share, and only an admin session gets them.
 
-* **Cache warmer**: whether it is running (with its progress), how often it
-  runs (`cache.warmInterval`) and when the next run is due. Disabled while
+* **Cache warmer**: whether it is running (with its progress), how long its
+  previous finished run took, how often it runs (`cache.warmInterval`) and
+  when the next run is due. Disabled while
   `cache.warmAtStartup` is off.
 * **Last warm run**: when the last run ended, how long it took, how many files
   it walked and how long the folder sizes took.
 * **Folder size refresh**: the background worker that recomputes expired
-  folder sizes after a listing, and its last run.
+  folder sizes after a listing: whether it is running, and how long its
+  previous finished run took.
 * **Thumbnail files**: the space used by `_h5ai/public/cache/thumbs`, the
   number of files and of source files (one source can have several sizes).
 * **Images, Videos, Documents, Archives, Audio**: how many files of each kind

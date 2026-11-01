@@ -66,5 +66,17 @@ test('info metrics: a scheduled warmer and an unreadable database are explained'
     metrics.tasks.refresh.running = {id: 'refresh', percent: null, remaining: null};
     rows = rowsOf(metrics);
     assert.ok((/next run in 58 min/).test(rows['Cache warmer'].info));
-    assert.equal(rows['Folder size refresh'].value, 'running · …');
+    assert.equal(rows['Folder size refresh'].value, 'running · …', 'no previous run, no duration');
+});
+
+test('info metrics: each task shows how long its previous finished run took', () => {
+    const metrics = JSON.parse(JSON.stringify(EMPTY));
+    metrics.tasks.warmer.last = {finished: 400, seconds: 125, phases: {files: {done: 30, seconds: 100}, sizes: {done: 0, seconds: 25}}};
+    metrics.tasks.refresh.last = {finished: 990, seconds: 3, phases: {sizes: {done: 2, seconds: 3}}};
+    metrics.tasks.refresh.running = {id: 'refresh', percent: 40, remaining: 5};
+    const rows = rowsOf(metrics);
+    assert.equal(rows['Cache warmer'].value, 'idle · last run 2 min');
+    assert.equal(rows['Folder size refresh'].value, 'running · 40 % · ~ 5 s · last run 3 s');
+    assert.equal(rows['Last warm run'].value, '10 min ago');
+    assert.ok((/took 2 min: 30 files walked in 2 min, folder sizes in 25 s/).test(rows['Last warm run'].info));
 });
