@@ -134,16 +134,16 @@ final class HttpApiTest extends H5aiTestCase {
             'action=download&as=bad.tar&type=php-tar&baseHref=%2F&hrefs%5B0%5D=%2Ffirst.txt&hrefs%5B1%5D%5Bx%5D=invalid',
             'application/x-www-form-urlencoded',
         );
-        self::assertStringContainsString(Util::ERR_ILLIGAL_PARAM, $form);
-        self::assertSame(Util::ERR_ILLIGAL_PARAM, $this->postJson(['hrefs' => [['nested' => 'invalid']]] + self::DOWNLOAD)['err'] ?? null);
+        self::assertStringContainsString(Util::ERR_ILLEGAL_PARAM, $form);
+        self::assertSame(Util::ERR_ILLEGAL_PARAM, $this->postJson(['hrefs' => [['nested' => 'invalid']]] + self::DOWNLOAD)['err'] ?? null);
     }
 
     public function testInvalidJsonBodiesAreRejected(): void {
         foreach (['[]', 'null', '{broken'] as $invalid) {
-            self::assertSame(Util::ERR_ILLIGAL_PARAM, $this->postJson($invalid)['err'] ?? null, "body {$invalid} must be rejected");
+            self::assertSame(Util::ERR_ILLEGAL_PARAM, $this->postJson($invalid)['err'] ?? null, "body {$invalid} must be rejected");
         }
         $response = $this->post('{"action":', 'application/json', '?action=download');
-        self::assertStringContainsString(Util::ERR_ILLIGAL_PARAM, $response, 'malformed JSON must not fall back to query parameters');
+        self::assertStringContainsString(Util::ERR_ILLEGAL_PARAM, $response, 'malformed JSON must not fall back to query parameters');
     }
 
     private function sentAttachment(): bool {

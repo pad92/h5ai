@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use PHPUnit\Framework\Attributes\DataProvider;
+
 // Each TAR entry is exactly as long as its header (and Content-Length)
 // announces, whatever happened to the file since.
 final class ArchiveStreamTest extends H5aiTestCase {
@@ -50,5 +52,25 @@ final class ArchiveStreamTest extends H5aiTestCase {
         [$ok, $output] = self::captureOutput(fn(): bool => $this->archive->stream());
         self::assertFalse($ok);
         self::assertSame('', $output);
+    }
+
+    public static function shellArchivers(): array {
+        return ['shell-tar' => ['shell-tar', 'tar', 'tar -tf'], 'shell-zip' => ['shell-zip', 'zip', 'unzip -Z1']];
+    }
+
+    #[DataProvider('shellArchivers')]
+    public function testShellArchivesStreamTheSelection(string $type, string $tool, string $lister): void {
+        foreach ([$tool, strtok($lister, ' ')] as $command) {
+            if (trim((string) shell_exec('command -v ' . escapeshellarg($command))) === '') {
+                self::markTestSkipped("{$command} is not installed");
+            }
+        }
+        $archive = new Archive($this->context());
+        self::assertTrue($archive->prepare($type, '/', ['/entry.bin']));
+        [$ok, $bytes] = self::captureOutput(fn(): bool => $archive->stream());
+        self::assertTrue($ok);
+        $path = $this->write($this->tmp . '/out', $bytes);
+        exec($lister . ' ' . escapeshellarg($path) . ' 2>&1', $listing, $status);
+        self::assertSame([0, ['entry.bin']], [$status, $listing]);
     }
 }

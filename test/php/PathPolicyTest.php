@@ -24,11 +24,11 @@ final class PathPolicyTest extends H5aiTestCase {
     }
 
     public function testFilesInsideTheRootAreManaged(): void {
-        self::assertTrue($this->context->is_managed_file($this->root('inside.txt')), 'regular files inside root must be managed');
+        self::assertTrue($this->context->paths()->is_managed_file($this->root('inside.txt')), 'regular files inside root must be managed');
     }
 
     public function testFileSymlinksEscapingTheRootAreRejected(): void {
-        self::assertFalse($this->context->is_managed_file($this->root('outside-link.txt')), 'file symlinks escaping root must be rejected');
+        self::assertFalse($this->context->paths()->is_managed_file($this->root('outside-link.txt')), 'file symlinks escaping root must be rejected');
     }
 
     public function testCustomFilesSkipSymlinksOutsideOrIntoInternals(): void {
@@ -83,5 +83,29 @@ final class PathPolicyTest extends H5aiTestCase {
         $archive = new Archive($context);
         (new ReflectionMethod($archive, 'add_dir'))->invoke($archive, $this->root(), '.');
         self::assertTrue((new ReflectionProperty($archive, 'limit_exceeded'))->getValue($archive));
+    }
+
+    // A sibling whose name starts like the root is outside it.
+    public function testItemsOutsideTheRootAreRefused(): void {
+        $this->write($this->tmp . '/root2/file.txt', 'x');
+        $cache = [];
+        self::assertNull(Item::get($this->context, $this->tmp . '/root2/file.txt', $cache));
+        self::assertNotNull(Item::get($this->context, $this->root('inside.txt'), $cache));
+        self::assertNotNull(Item::get($this->context, $this->root(), $cache));
+    }
+
+    public function testSearchRespectsItsDepthAndRejectsBadPatterns(): void {
+        $this->write($this->root('d1/d2/match-deep.txt'), 'x');
+        $context = $this->context(
+            ['search' => ['maxResults' => 100, 'maxDepth' => 1, 'maxPatternLength' => 8]],
+            ['PUBLIC_PATH' => $this->root('_h5ai/public'), 'PRIVATE_PATH' => $this->root('_h5ai/private')],
+        );
+        $search = new Search($context);
+        $found = $search->get_paths($this->root(), 'match');
+        self::assertCount(5, $found, 'files two levels down must stay out of reach');
+        self::assertNotContains($this->root('d1/d2/match-deep.txt'), $found);
+        self::assertSame([], $search->get_paths($this->root(), '(unclosed'), 'an invalid pattern finds nothing');
+        self::assertSame([], $search->get_paths($this->root(), 'way-too-long'), 'an oversized pattern finds nothing');
+        self::assertSame([], $search->get_paths($this->root(), ''), 'an empty pattern finds nothing');
     }
 }

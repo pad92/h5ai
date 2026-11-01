@@ -53,7 +53,7 @@ final class FolderSizeCacheTest extends H5aiTestCase {
     }
 
     public function testStorageGrowsWithTheNumberOfFoldersNotTheirDepth(): void {
-        self::assertSame(self::treeSize($this->root()), Filesize::getSize($this->root(), true, false));
+        self::assertSame(self::treeSize($this->root()), Filesize::get_size($this->root(), true, false));
         $entries = self::folderSizeEntries();
         self::assertCount(self::FOLDER_COUNT, $entries, 'a PHP walk must cache every folder');
         self::assertSame(
@@ -67,20 +67,20 @@ final class FolderSizeCacheTest extends H5aiTestCase {
     }
 
     public function testAChangeDeepBelowInvalidatesTheRootEntry(): void {
-        Filesize::getSize($this->root(), true, false);
+        Filesize::get_size($this->root(), true, false);
         $entries = new ReflectionProperty(Filesize::class, 'persistent_cache');
         $requestCache = new ReflectionProperty(Filesize::class, 'cache');
         $cached = $entries->getValue();
         $entries->setValue(null, [$this->root() => ['size' => 12345] + $cached[$this->root()]] + $cached);
         $requestCache->setValue(null, []);
-        self::assertSame(12345, Filesize::getCachedSize($this->root(), true, false), 'an unchanged tree must be served from cache');
+        self::assertSame(12345, Filesize::get_cached_size($this->root(), true, false), 'an unchanged tree must be served from cache');
 
         // Let the one-second resolution of filemtime() see the change.
         sleep(1);
         $this->write($this->deepest . '/new.bin', str_repeat('n', 50));
         clearstatcache();
         $requestCache->setValue(null, []);
-        self::assertSame(self::treeSize($this->root()), Filesize::getCachedSize($this->root(), true, false));
+        self::assertSame(self::treeSize($this->root()), Filesize::get_cached_size($this->root(), true, false));
     }
 
     public function testADuPassCachesEveryFolderItMeasured(): void {
@@ -94,8 +94,8 @@ final class FolderSizeCacheTest extends H5aiTestCase {
 
     public function testADuSizeRequestMeasuresTheFolderAndItsSubfolders(): void {
         $du = $this->useRealDu();
-        self::assertSame(100, Filesize::getSize($this->root('a/y/data.bin'), true, true), 'a file size is its own size');
-        self::assertSame(self::duSize($du, $this->root('a')), Filesize::getSize($this->root('a'), true, true));
+        self::assertSame(100, Filesize::get_size($this->root('a/y/data.bin'), true, true), 'a file size is its own size');
+        self::assertSame(self::duSize($du, $this->root('a')), Filesize::get_size($this->root('a'), true, true));
         self::assertArrayHasKey($this->root('a/x'), self::folderSizeEntries());
     }
 

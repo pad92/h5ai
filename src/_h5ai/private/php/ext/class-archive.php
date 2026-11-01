@@ -3,9 +3,9 @@
 class Archive {
     const NULL_BYTE = "\0";
 
-    private static int $SEGMENT_SIZE = 65536;
-    private static string $TAR_PASSTHRU_CMD = 'cd [ROOTDIR] && tar --no-recursion -c -- [DIRS] [FILES]';
-    private static string $ZIP_PASSTHRU_CMD = 'cd [ROOTDIR] && zip - -- [FILES]';
+    private const SEGMENT_SIZE = 65536;
+    private const TAR_PASSTHRU_CMD = 'cd [ROOTDIR] && tar --no-recursion -c -- [DIRS] [FILES]';
+    private const ZIP_PASSTHRU_CMD = 'cd [ROOTDIR] && zip - -- [FILES]';
 
     private const TYPES = ['php-tar', 'shell-tar', 'shell-zip'];
 
@@ -15,16 +15,21 @@ class Archive {
     private array $files = [];
     private int $total_bytes = 0;
     private bool $limit_exceeded = false;
+    private readonly int $max_entries;
+    private readonly int $max_bytes;
 
-    public function __construct(private readonly Context $context) {}
+    public function __construct(private readonly Context $context) {
+        $this->max_entries = max(1, (int) $context->query_option('download.maxEntries', 10000));
+        $this->max_bytes = max(1, (int) $context->query_option('download.maxBytes', 10737418240));
+    }
 
     // Collects the selection without writing anything, so the caller can
     // still answer with an error. False for an unknown type, an unmanaged
     // base folder, an empty selection or one over the download limits.
     public function prepare(string $type, string $base_href, string|array $hrefs): bool {
         $this->type = $type;
-        $this->base_path = $this->context->to_path($base_href);
-        if (!in_array($type, self::TYPES, true) || !$this->context->is_managed_path($this->base_path)) {
+        $this->base_path = $this->context->paths()->to_path($base_href);
+        if (!in_array($type, self::TYPES, true) || !$this->context->paths()->is_managed_path($this->base_path)) {
             return false;
         }
 
@@ -55,8 +60,8 @@ class Archive {
     public function stream(): bool {
         return match ($this->type) {
             'php-tar' => $this->php_tar($this->dirs, $this->files),
-            'shell-tar' => $this->shell_cmd(self::$TAR_PASSTHRU_CMD),
-            'shell-zip' => $this->shell_cmd(self::$ZIP_PASSTHRU_CMD),
+            'shell-tar' => $this->shell_cmd(self::TAR_PASSTHRU_CMD),
+            'shell-zip' => $this->shell_cmd(self::ZIP_PASSTHRU_CMD),
             default => false,
         };
     }
@@ -148,7 +153,7 @@ class Archive {
                     fclose($fd);
                     return false;
                 }
-                $chunk = fread($fd, min(self::$SEGMENT_SIZE, $remaining));
+                $chunk = fread($fd, min(self::SEGMENT_SIZE, $remaining));
                 if ($chunk === false) {
                     break;
                 }
@@ -165,7 +170,7 @@ class Archive {
 
         // Pad in segments so a large missing file never builds one huge string.
         while ($remaining > 0) {
-            $pad = min(self::$SEGMENT_SIZE, $remaining);
+            $pad = min(self::SEGMENT_SIZE, $remaining);
             echo str_repeat(self::NULL_BYTE, $pad);
             $remaining -= $pad;
         }
@@ -186,8 +191,8 @@ class Archive {
             $d = dirname($href);
             $n = basename($href);
 
-            if ($this->context->is_managed_href($d) && !$this->context->is_hidden($n)) {
-                $real_file = $this->context->to_path($href);
+            if ($this->context->paths()->is_managed_href($d) && !$this->context->paths()->is_hidden($n)) {
+                $real_file = $this->context->paths()->to_path($href);
                 $archived_file = preg_replace('!^' . preg_quote(Util::normalize_path($this->base_path, true)) . '!', '', $real_file);
 
                 if (is_dir($real_file) && !is_link($real_file)) {
@@ -200,7 +205,7 @@ class Archive {
     }
 
     private function add_file(string $real_file, string $archived_file): void {
-        if (!$this->context->is_managed_file($real_file) || !is_readable($real_file)) {
+        if (!$this->context->paths()->is_managed_file($real_file) || !is_readable($real_file)) {
             return;
         }
         if (isset($this->files[$real_file])) {
@@ -210,10 +215,8 @@ class Archive {
         if ($size === false) {
             return;
         }
-        $max_entries = max(1, (int) $this->context->query_option('download.maxEntries', 10000));
-        $max_bytes = max(1, (int) $this->context->query_option('download.maxBytes', 10737418240));
-        if ((count($this->dirs) + count($this->files) + 1) > $max_entries
-            || ($this->total_bytes + $size) > $max_bytes) {
+        if ((count($this->dirs) + count($this->files) + 1) > $this->max_entries
+            || ($this->total_bytes + $size) > $this->max_bytes) {
             $this->limit_exceeded = true;
             return;
         }
@@ -229,22 +232,21 @@ class Archive {
         }
         $visited[$real_path] = true;
 
-        if (!$this->context->is_managed_path($real_dir)) {
+        if (!$this->context->paths()->is_managed_path($real_dir)) {
             return;
         }
         if (isset($this->dirs[$real_dir])) {
             return;
         }
 
-        $max_entries = max(1, (int) $this->context->query_option('download.maxEntries', 10000));
-        if ((count($this->dirs) + count($this->files) + 1) > $max_entries) {
+        if ((count($this->dirs) + count($this->files) + 1) > $this->max_entries) {
             $this->limit_exceeded = true;
             return;
         }
 
         $this->dirs[$real_dir] = $archived_dir;
 
-        foreach ($this->context->read_dir($real_dir) as $file) {
+        foreach ($this->context->paths()->read_dir($real_dir) as $file) {
             if ($this->limit_exceeded || connection_aborted()) {
                 return;
             }

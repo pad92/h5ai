@@ -57,8 +57,10 @@ Configure automatic background cache warming (for pre-generating thumbnails and 
 
 | Key | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `warm_at_startup` | `boolean` | `false` | If `true`, triggers the cache warmer script in the background on request if it has not run recently. Keep disabled on large trees unless cache warming is scheduled deliberately. |
-| `warm_interval` | `number` | `86400` | The execution interval in seconds for the background cache warmer (default is 24 hours). |
+| `warmAtStartup` | `boolean` | `false` | If `true`, triggers the cache warmer script in the background on request if it has not run recently. Keep disabled on large trees unless cache warming is scheduled deliberately. |
+| `warmInterval` | `number` | `86400` | The execution interval in seconds for the background cache warmer (default is 24 hours). |
+
+Older releases named these options `warm_at_startup` and `warm_interval`; those names are still read when the new ones are absent.
 
 > [!TIP]
 > **Manual execution and low priority (`nice`)**

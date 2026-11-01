@@ -131,7 +131,7 @@ class Thumb {
     // Retargets this instance at another source before generating its
     // thumbnail, so a tree walk can reuse one instance and its CacheDB.
     public function thumb_for(string $type, string $source_href, int $width, int $height): ?string {
-        $this->source_path = $this->context->to_path($source_href);
+        $this->source_path = $this->context->paths()->to_path($source_href);
         $this->source_hash = sha1($this->source_path);
         $this->mtime = @filemtime($this->source_path);
         $this->type = new FileType($type);
@@ -150,14 +150,14 @@ class Thumb {
         }
 
         $is_directory = is_dir($this->source_path);
-        if (($is_directory && !$this->context->is_managed_path($this->source_path))
-            || (!$is_directory && !$this->context->is_managed_file($this->source_path))) {
+        if (($is_directory && !$this->context->paths()->is_managed_path($this->source_path))
+            || (!$is_directory && !$this->context->paths()->is_managed_file($this->source_path))) {
             return null;
         }
         $custom_thumb_source_path = self::check_custom_thumb($this->source_path);
 
         if ($custom_thumb_source_path) {
-            if (!$this->context->is_managed_file($custom_thumb_source_path)) {
+            if (!$this->context->paths()->is_managed_file($custom_thumb_source_path)) {
                 return null;
             }
             $this->source_path = $custom_thumb_source_path;

@@ -91,8 +91,8 @@ final class ListingTest extends H5aiTestCase {
 
         $entries->setValue(null, $expired(5));
         Filesize::begin_async_mode();
-        self::assertSame(5, Filesize::getCachedSize($file, true, false, Filesize::DEFAULT_TIMEOUT, false), 'listings must keep regular file sizes while folder sizes refresh');
-        self::assertNull(Filesize::getCachedSize($dir, true, false, Filesize::DEFAULT_TIMEOUT, true), 'listings must leave an expired folder size unknown');
+        self::assertSame(5, Filesize::get_cached_size($file, true, false, Filesize::DEFAULT_TIMEOUT, false), 'listings must keep regular file sizes while folder sizes refresh');
+        self::assertNull(Filesize::get_cached_size($dir, true, false, Filesize::DEFAULT_TIMEOUT, true), 'listings must leave an expired folder size unknown');
         self::assertSame([$dir], Filesize::end_async_mode(), 'expired listing sizes must be queued for refresh');
 
         foreach (['a much larger existing file', 'x'] as $content) {
@@ -101,7 +101,24 @@ final class ListingTest extends H5aiTestCase {
             file_put_contents($file, $content);
             clearstatcache(true, $dir);
             self::assertSame($dirMtime, filemtime($dir), 'rewriting a file must not change the folder mtime');
-            self::assertSame(filesize($dir) + filesize($file), Filesize::getCachedSize($dir, true, false), 'an expired entry must be recomputed');
+            self::assertSame(filesize($dir) + filesize($file), Filesize::get_cached_size($dir, true, false), 'an expired entry must be recomputed');
         }
+    }
+
+    public function testTheCurrentPathIsTheRequestedFolder(): void {
+        mkdir($this->root('sub'));
+        foreach (['/sub/' => $this->root('sub'), '/sub/inside.txt' => $this->root('sub'), '/' => $this->root()] as $href => $expected) {
+            self::assertSame($expected, $this->context(setup: ['REQUEST_HREF' => $href])->get_current_path(), $href);
+        }
+    }
+
+    // A folder with a _thumb image shows it in listings once generated.
+    public function testFolderListingsCarryTheirCustomThumbnail(): void {
+        $this->write($this->root('album/_thumb/cover.png'), 'png');
+        $thumb = 'thumb-' . sha1($this->root('album/_thumb/cover.png')) . '-320x240.webp';
+        $this->write($this->tmp . '/cache-pub/thumbs/' . $thumb, 'webp');
+        $context = $this->context(['foldersize' => ['enabled' => false], 'thumbnails' => ['enabled' => true]], ['HAS_PHP_WEBP' => true]);
+        $album = array_column($context->get_items('/', Context::LIST_FOLDER), null, 'href')['/album/'];
+        self::assertSame('/_h5ai/public/cache/thumbs/' . $thumb, $album['thumbSquare'] ?? null);
     }
 }

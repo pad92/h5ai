@@ -3,7 +3,7 @@
 // API request parameters: PHP's parsed form fields, or the JSON object body.
 // The query_* accessors read a dot-separated key path ("items.href"). A
 // missing parameter without default, or one of the wrong type, ends the
-// request with an ERR_MISSING_PARAM / ERR_ILLIGAL_PARAM JSON answer.
+// request with an ERR_MISSING_PARAM / ERR_ILLEGAL_PARAM JSON answer.
 class Request {
     private readonly array $params;
 
@@ -13,7 +13,7 @@ class Request {
     }
 
     // A non-form body must be a JSON object (application/json or +json);
-    // anything else is rejected with ERR_ILLIGAL_PARAM.
+    // anything else is rejected with ERR_ILLEGAL_PARAM.
     public function __construct(
         array $params,
         string $body,
@@ -29,16 +29,12 @@ class Request {
 
         if ($content_type !== 'application/json'
             && !(str_starts_with($content_type, 'application/') && str_ends_with($content_type, '+json'))) {
-            Util::json_fail(Util::ERR_ILLIGAL_PARAM, 'unsupported request body content type');
-            $this->params = [];
-            return;
+            Util::json_error(Util::ERR_ILLEGAL_PARAM, 'unsupported request body content type');
         }
 
         $data = json_decode($body, true);
         if (!is_array($data) || !str_starts_with(ltrim($body), '{')) {
-            Util::json_fail(Util::ERR_ILLIGAL_PARAM, 'request body must be a JSON object');
-            $this->params = [];
-            return;
+            Util::json_error(Util::ERR_ILLEGAL_PARAM, 'request body must be a JSON object');
         }
 
         $this->params = $data;
@@ -66,19 +62,19 @@ class Request {
 
     public function query_string(string $keypath = '', mixed $default = Util::NO_DEFAULT): string {
         $value = $this->query($keypath, $default);
-        Util::json_fail(Util::ERR_ILLIGAL_PARAM, "parameter '{$keypath}' is not a string", !is_string($value));
+        Util::json_fail(Util::ERR_ILLEGAL_PARAM, "parameter '{$keypath}' is not a string", !is_string($value));
         return $value;
     }
 
     public function query_numeric(string $keypath = '', mixed $default = Util::NO_DEFAULT): int {
         $value = $this->query($keypath, $default);
-        Util::json_fail(Util::ERR_ILLIGAL_PARAM, "parameter '{$keypath}' is not numeric", !is_numeric($value));
+        Util::json_fail(Util::ERR_ILLEGAL_PARAM, "parameter '{$keypath}' is not numeric", !is_numeric($value));
         return intval($value, 10);
     }
 
     public function query_array(string $keypath = '', mixed $default = Util::NO_DEFAULT): array {
         $value = $this->query($keypath, $default);
-        Util::json_fail(Util::ERR_ILLIGAL_PARAM, "parameter '{$keypath}' is no array", !is_array($value));
+        Util::json_fail(Util::ERR_ILLEGAL_PARAM, "parameter '{$keypath}' is no array", !is_array($value));
         return $value;
     }
 }

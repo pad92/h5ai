@@ -28,14 +28,14 @@ class CacheWarmer {
     // warmer.lastrun: it no longer blocks a new start.
     public const START_TIMEOUT = 300;
 
-    // Starts warm-cache.php in the background when cache.warm_at_startup is
+    // Starts warm-cache.php in the background when cache.warmAtStartup is
     // on and both the last run and any start in progress are older than
-    // cache.warm_interval. warmer.laststart marks a start so concurrent
+    // cache.warmInterval. warmer.laststart marks a start so concurrent
     // requests launch one worker; warmer.lock only guards that decision and
     // is released before launching, since the worker holds it while running.
     // $launch (script path => accepted) replaces Util::launch_background().
     public static function launch_if_due(Context $context, ?callable $launch = null): bool {
-        if (!$context->query_option('cache.warm_at_startup', false)) {
+        if (!self::cache_option($context, 'warmAtStartup', 'warm_at_startup', false)) {
             return false;
         }
         $setup = $context->get_setup();
@@ -54,7 +54,7 @@ class CacheWarmer {
                 $laststart = 0;
             }
             $last_activity = max((int) @file_get_contents($cache . '/warmer.lastrun'), $laststart);
-            $interval = (int) $context->query_option('cache.warm_interval', 86400);
+            $interval = (int) self::cache_option($context, 'warmInterval', 'warm_interval', 86400);
             $is_due = $last_activity === 0 || $now - $last_activity > $interval;
             if ($is_due) {
                 @file_put_contents($cache . '/warmer.laststart', (string) $now, LOCK_EX);
@@ -74,6 +74,11 @@ class CacheWarmer {
         return true;
     }
 
+    // cache.$name, falling back to the name older releases used ($legacy_name).
+    private static function cache_option(Context $context, string $name, string $legacy_name, mixed $default): mixed {
+        return $context->query_option('cache.' . $name, $context->query_option('cache.' . $legacy_name, $default));
+    }
+
     // Mirrors thumbnails.js: the configured categories minus the blocklist.
     // The browser sends the item type itself, so the warmer does too.
     private static function requested_thumb_types(Context $context): array {
@@ -89,9 +94,9 @@ class CacheWarmer {
         $this->warm_path($root);
 
         // Runs from warm-cache.php on the CLI: use the background timeout.
-        [$withFoldersize, $withDu, , $timeout] = $this->context->foldersize_mode();
-        if ($withFoldersize) {
-            Filesize::refresh_tree($root, $withDu, $timeout);
+        [$with_foldersize, $with_du, , $timeout] = $this->context->foldersize_mode();
+        if ($with_foldersize) {
+            Filesize::refresh_tree($root, $with_du, $timeout);
         }
     }
 
@@ -102,11 +107,11 @@ class CacheWarmer {
         }
         $visited[$real_path] = true;
 
-        if (!is_dir($path) || !$this->context->is_managed_path($path)) {
+        if (!is_dir($path) || !$this->context->paths()->is_managed_path($path)) {
             return;
         }
 
-        $files = $this->context->read_dir($path);
+        $files = $this->context->paths()->read_dir($path);
 
         foreach ($files as $file) {
             $child_path = $path . '/' . $file;
@@ -114,10 +119,10 @@ class CacheWarmer {
                 $this->warm_path($child_path, $visited);
             } elseif (!is_dir($child_path)
                 && $this->thumb_instance !== null
-                && $this->context->is_managed_file($child_path)) {
+                && $this->context->paths()->is_managed_file($child_path)) {
                 $type = $this->types->type_of_name($file);
                 if (in_array($type, $this->thumb_types, true)) {
-                    $href = $this->context->to_href($child_path, false);
+                    $href = $this->context->paths()->to_href($child_path, false);
                     $this->thumb_instance->thumb_for($type, $href, $this->thumb_width, $this->thumb_height);
                 }
             }

@@ -12,6 +12,7 @@ class Fallback {
     private function render_html(?string $path): string {
         $path ??= $this->context->get_current_path();
         $fallback_images_href = $this->context->get_setup()->get('PUBLIC_HREF') . 'images/fallback/';
+        $binary_prefix = (bool) $this->context->query_option('view.binaryPrefix', false);
 
         $cache = [];
         $folder = Item::get($this->context, $path, $cache);
@@ -43,7 +44,7 @@ class Fallback {
             $html .= '<td class="fb-i"><img src="' . htmlspecialchars($fallback_images_href . $type . '.png', ENT_QUOTES, 'UTF-8') . '" alt="' . $type . '"/></td>';
             $html .= '<td class="fb-n"><a href="' . htmlspecialchars($item->href, ENT_QUOTES, 'UTF-8') . '">' . htmlspecialchars(basename($item->path), ENT_QUOTES, 'UTF-8') . '</a></td>';
             $html .= '<td class="fb-d">' . date('Y-m-d H:i', $item->date) . '</td>';
-            $html .= '<td class="fb-s">' . ($item->size !== null ? intval($item->size / 1000) . ' KB' : '') . '</td>';
+            $html .= '<td class="fb-s">' . Util::format_size($item->size, $binary_prefix) . '</td>';
             $html .= '</tr>';
         }
 

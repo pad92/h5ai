@@ -36,10 +36,6 @@ class Context {
         $this->paths = new PathPolicy($this->setup, $this->options);
     }
 
-    public function get_session(): Session {
-        return $this->session;
-    }
-
     public function get_request(): Request {
         return $this->request;
     }
@@ -48,15 +44,11 @@ class Context {
         return $this->setup;
     }
 
-    public function get_options(): array {
-        return $this->options;
-    }
-
     public function query_option(string $keypath = '', mixed $default = null): mixed {
         return Util::array_query($this->options, $keypath, $default);
     }
 
-    // [$withFoldersize, $withDu, $timeout, $background_timeout] for the current
+    // [$with_foldersize, $with_du, $timeout, $background_timeout] for the current
     // request. The two timeouts differ because a request must answer inside the
     // pool's request_terminate_timeout while a CLI worker has no such limit;
     // callers pick the one matching their context. Constant per request, so it
@@ -178,42 +170,14 @@ class Context {
         return $this->query_option('view.fallbackMode', false) || $this->is_text_browser();
     }
 
-    // Path <-> URL mapping and access checks, delegated to PathPolicy.
-    public function to_href(string $path, bool $trailing_slash = true): string {
-        return $this->paths->to_href($path, $trailing_slash);
-    }
-
-    public function to_path(string $href): string {
-        return $this->paths->to_path($href);
-    }
-
-    public function is_hidden(string $name): bool {
-        return $this->paths->is_hidden($name);
-    }
-
-    public function read_dir(string $path): array {
-        return $this->paths->read_dir($path);
-    }
-
-    public function is_managed_href(string $href): bool {
-        return $this->paths->is_managed_href($href);
-    }
-
-    public function is_managed_file(string $path): bool {
-        return $this->paths->is_managed_file($path);
-    }
-
-    public function is_managed_path(string $path): bool {
-        return $this->paths->is_managed_path($path);
-    }
-
-    public function is_custom_file(string $path): bool {
-        return $this->paths->is_custom_file($path);
+    // Path <-> URL mapping and access checks for the served tree.
+    public function paths(): PathPolicy {
+        return $this->paths;
     }
 
     public function get_current_path(): string {
         $current_href = Util::normalize_path($this->setup->get('REQUEST_HREF'), true);
-        $current_path = $this->to_path($current_href);
+        $current_path = $this->paths->to_path($current_href);
 
         if (!is_dir($current_path)) {
             $current_path = Util::normalize_path(dirname($current_path), false);
@@ -226,13 +190,13 @@ class Context {
     // arrays. $what is one of the LIST_* depths; an unmanaged $href yields [].
     // Folder sizes come from the cache only (see with_cached_folder_sizes()).
     public function get_items(string $href, int $what): array {
-        if (!$this->is_managed_href($href)) {
+        if (!$this->paths->is_managed_href($href)) {
             return [];
         }
 
         $cache = $this->with_cached_folder_sizes(function () use ($href, $what): array {
             $cache = [];
-            $folder = Item::get($this, $this->to_path($href), $cache);
+            $folder = Item::get($this, $this->paths->to_path($href), $cache);
 
             if ($what >= self::LIST_WITH_SUBFOLDERS && $folder !== null) {
                 foreach ($folder->get_content($cache) as $item) {
@@ -266,8 +230,8 @@ class Context {
                 if (!isset($item_obj['managed'])) {
                     continue;
                 }
-                $custom_thumb = Thumb::check_custom_thumb($this->to_path($item_obj['href']));
-                if ($custom_thumb === null || !$this->is_managed_file($custom_thumb)) {
+                $custom_thumb = Thumb::check_custom_thumb($this->paths->to_path($item_obj['href']));
+                if ($custom_thumb === null || !$this->paths->is_managed_file($custom_thumb)) {
                     continue;
                 }
 
@@ -373,8 +337,8 @@ class Context {
                 $filetypes[] = null;
                 continue;
             }
-            $path = $this->to_path($req['href']);
-            if (!$this->is_managed_file($path)) {
+            $path = $this->paths->to_path($req['href']);
+            if (!$this->paths->is_managed_file($path)) {
                 $hrefs[] = null;
                 $filetypes[] = null;
                 continue;

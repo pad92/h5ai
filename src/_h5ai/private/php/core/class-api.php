@@ -27,7 +27,7 @@ class Api {
         $base_href = $this->request->query_string('baseHref');
         $hrefs = $this->request->query('hrefs', '');
         Util::json_fail(
-            Util::ERR_ILLIGAL_PARAM,
+            Util::ERR_ILLEGAL_PARAM,
             'hrefs must be a string or an array of strings',
             !is_string($hrefs) && (!is_array($hrefs) || !array_all(
                 $hrefs,
@@ -56,7 +56,7 @@ class Api {
                     ob_end_clean();
                 }
                 header_remove('Content-Disposition');
-                Util::json_fail(Util::ERR_FAILED, 'packaging failed');
+                Util::json_error(Util::ERR_FAILED, 'packaging failed');
             }
             Util::log('archive: download of ' . $as . ' failed after it started');
         }
@@ -115,7 +115,7 @@ class Api {
             Util::json_fail(Util::ERR_UNSUPPORTED, 'thumbnails not supported', !$this->setup->get('HAS_PHP_WEBP'));
             $thumbs = $this->request->query_array('thumbs');
             $max_batch = max(1, (int) $this->context->query_option('thumbnails.maxBatchSize', 40));
-            Util::json_fail(Util::ERR_ILLIGAL_PARAM, 'too many thumbnail requests', count($thumbs) > $max_batch);
+            Util::json_fail(Util::ERR_ILLEGAL_PARAM, 'too many thumbnail requests', count($thumbs) > $max_batch);
             [$response['thumbs'], $response['filetypes']] = $this->context->get_thumbs($thumbs);
         }
 

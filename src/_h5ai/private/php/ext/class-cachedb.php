@@ -44,6 +44,9 @@ class CacheDB {
                 }
             }
 
+            // Despite its name, `archives` records thumbnail outcomes for any
+            // type: archive errors and corrected types. Renaming it would
+            // only throw away every cached outcome.
             $db->exec('CREATE TABLE IF NOT EXISTS archives
  (hashedp TEXT NOT NULL UNIQUE PRIMARY KEY,
  typeid INTEGER, error INTEGER, ver INTEGER, tstamp INTEGER,

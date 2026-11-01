@@ -122,12 +122,8 @@ class Filesize {
         return array_all($entry['children'], static fn(mixed $child): bool => is_string($child) && self::is_cache_entry_valid($child));
     }
 
-    public static function getSize(string $path, bool $withFoldersize, bool $withDu, int $timeout = self::DEFAULT_TIMEOUT): ?int {
-        return new self($timeout)->size($path, $withFoldersize, $withDu);
-    }
-
-    public static function set_async_mode(bool $enabled): void {
-        self::$async_mode = $enabled;
+    public static function get_size(string $path, bool $with_foldersize, bool $with_du, int $timeout = self::DEFAULT_TIMEOUT): ?int {
+        return new self($timeout)->size($path, $with_foldersize, $with_du);
     }
 
     public static function begin_async_mode(): void {
@@ -142,32 +138,28 @@ class Filesize {
         return $stale_paths;
     }
 
-    public static function get_stale_paths(): array {
-        return array_unique(self::$stale_paths);
-    }
-
-    public static function getCachedSize(
+    public static function get_cached_size(
         string $path,
-        bool $withFoldersize,
-        bool $withDu,
+        bool $with_foldersize,
+        bool $with_du,
         int $timeout = self::DEFAULT_TIMEOUT,
-        ?bool $isFolder = null,
+        ?bool $is_folder = null,
     ): ?int {
         if (array_key_exists($path, self::$cache)) {
             return self::$cache[$path];
         }
 
         if (self::$async_mode) {
-            if ($isFolder === false) {
+            if ($is_folder === false) {
                 // Item has just read this path's type and mtime, so PHP can
                 // reuse the same cached stat result for the regular file size.
                 $size = @filesize($path);
                 return self::$cache[$path] = $size === false ? null : $size;
             }
-            if ($isFolder === null) {
+            if ($is_folder === null) {
                 return self::$cache[$path] = null;
             }
-            if ($isFolder && $withFoldersize) {
+            if ($is_folder && $with_foldersize) {
                 self::init_persistent_cache();
                 if (array_key_exists($path, self::$persistent_cache)) {
                     $entry = self::$persistent_cache[$path];
@@ -181,14 +173,14 @@ class Filesize {
             return self::$cache[$path] = null;
         }
 
-        if (is_dir($path) && $withFoldersize) {
+        if (is_dir($path) && $with_foldersize) {
             self::init_persistent_cache();
             if (self::is_cache_entry_valid($path)) {
                 return self::$cache[$path] = self::$persistent_cache[$path]['size'];
             }
         }
 
-        return self::$cache[$path] = self::getSize($path, $withFoldersize, $withDu, $timeout);
+        return self::$cache[$path] = self::get_size($path, $with_foldersize, $with_du, $timeout);
     }
 
     private function __construct(private readonly int $timeout) {}
@@ -308,10 +300,10 @@ class Filesize {
     // each folder once: a single du over the whole tree, or a PHP walk that
     // reuses still-valid subfolder entries. A du pass cut short by the
     // timeout caches nothing, as a partial tree would understate sizes.
-    public static function refresh_tree(string $root, bool $withDu, int $timeout = self::DEFAULT_BACKGROUND_TIMEOUT): ?int {
+    public static function refresh_tree(string $root, bool $with_du, int $timeout = self::DEFAULT_BACKGROUND_TIMEOUT): ?int {
         self::init_persistent_cache();
         $sizer = new self($timeout);
-        if ($withDu) {
+        if ($with_du) {
             $tree = $sizer->du_tree([$root]);
             self::persist_tree($tree);
             return $tree[$root] ?? null;
@@ -320,7 +312,7 @@ class Filesize {
         return self::$cache[$root] = $sizer->php_folder_size($root, $visited);
     }
 
-    private function size(string $path, bool $withFoldersize = false, bool $withDu = false): ?int {
+    private function size(string $path, bool $with_foldersize = false, bool $with_du = false): ?int {
         if (is_file($path)) {
             // filesize() can fail (race with a deletion, permissions):
             // report "unknown" instead of fataling on the ?int return type.
@@ -328,9 +320,9 @@ class Filesize {
             return $size === false ? null : $size;
         }
 
-        if (is_dir($path) && $withFoldersize) {
+        if (is_dir($path) && $with_foldersize) {
             self::init_persistent_cache();
-            if ($withDu) {
+            if ($with_du) {
                 $tree = $this->du_tree([$path]);
                 self::persist_tree($tree);
                 return $tree[$path] ?? null;

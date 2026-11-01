@@ -2,7 +2,8 @@
 
 class Util {
     const ERR_MISSING_PARAM = 'ERR_MISSING_PARAM';
-    const ERR_ILLIGAL_PARAM = 'ERR_ILLIGAL_PARAM';
+    // The misspelt value is what API clients have always received: keep it.
+    const ERR_ILLEGAL_PARAM = 'ERR_ILLIGAL_PARAM';
     const ERR_FAILED = 'ERR_FAILED';
     const ERR_DISABLED = 'ERR_DISABLED';
     const ERR_UNSUPPORTED = 'ERR_UNSUPPORTED';
@@ -20,9 +21,15 @@ class Util {
         exit;
     }
 
+    // Ends the request with an {err, msg} JSON answer.
+    public static function json_error(string $err, string $msg = ''): never {
+        Util::json_exit(['err' => $err, 'msg' => $msg]);
+    }
+
+    // json_error() when $cond holds, otherwise nothing.
     public static function json_fail(string $err, string $msg = '', bool $cond = true): void {
         if ($cond) {
-            Util::json_exit(['err' => $err, 'msg' => $msg]);
+            Util::json_error($err, $msg);
         }
     }
 
@@ -137,14 +144,11 @@ class Util {
         return $abort !== null ? 124 : ($exit_code ?? $close_code);
     }
 
+    // Whether $cmd exits with status 0 (false when it cannot run at all).
     public static function exec_0(string $cmd): bool {
         $lines = [];
         $rc = null;
-        try {
-            @exec($cmd, $lines, $rc);
-            return $rc === 0;
-        } catch (\Exception) {}
-        return false;
+        return @exec($cmd, $lines, $rc) !== false && $rc === 0;
     }
 
     public static function proc_open_cmdv(array $cmdv, mixed &$output, mixed &$error, int $timeout = 30): int {
@@ -217,8 +221,28 @@ class Util {
     }
 
     public static function filesize(Context $context, string $path, ?bool $is_folder = null): ?int {
-        [$withFoldersize, $withDu, $timeout] = $context->foldersize_mode();
-        return Filesize::getCachedSize($path, $withFoldersize, $withDu, $timeout, $is_folder);
+        [$with_foldersize, $with_du, $timeout] = $context->foldersize_mode();
+        return Filesize::get_cached_size($path, $with_foldersize, $with_du, $timeout, $is_folder);
+    }
+
+    // A file size as the browser shows it (core/format.js formatSize): SI
+    // units by 1000, or IEC units by 1024 with view.binaryPrefix. Whole
+    // numbers up to kilobytes, one decimal above.
+    public static function format_size(?int $size, bool $binary = false): string {
+        if ($size === null || $size < 0) {
+            return '';
+        }
+        $step = $binary ? 1024 : 1000;
+        $units = $binary
+            ? ['B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB', 'EiB', 'ZiB', 'YiB']
+            : ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+        $value = (float) $size;
+        $unit = 0;
+        while ($value >= $step && $unit < count($units) - 1) {
+            $value /= $step;
+            $unit++;
+        }
+        return ($unit <= 1 ? (string) (int) round($value) : number_format($value, 1, '.', '')) . ' ' . $units[$unit];
     }
 
     public static function get_mimetype(string $source_path): string {

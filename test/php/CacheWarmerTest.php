@@ -48,7 +48,7 @@ final class CacheWarmerTest extends H5aiTestCase {
         self::assertSame(array_values($seeded), $served, 'listings must be served the thumbnails the warmer produced');
     }
 
-    private function launchContext(array $cache = ['warm_at_startup' => true, 'warm_interval' => 3600]): Context {
+    private function launchContext(array $cache = ['warmAtStartup' => true, 'warmInterval' => 3600]): Context {
         return $this->context(['cache' => $cache]);
     }
 
@@ -78,7 +78,7 @@ final class CacheWarmerTest extends H5aiTestCase {
 
     public function testNothingIsLaunchedUnlessEnabled(): void {
         $launch = $this->launcher();
-        self::assertFalse(CacheWarmer::launch_if_due($this->launchContext(['warm_at_startup' => false]), $launch));
+        self::assertFalse(CacheWarmer::launch_if_due($this->launchContext(['warmAtStartup' => false]), $launch));
         self::assertSame([], $launch->scripts);
     }
 
@@ -122,8 +122,17 @@ final class CacheWarmerTest extends H5aiTestCase {
 
     public function testAnUnwritableCacheFolderLaunchesNothing(): void {
         $launch = $this->launcher();
-        $context = $this->context(['cache' => ['warm_at_startup' => true]], ['CACHE_PRV_PATH' => $this->tmp . '/missing']);
+        $context = $this->context(['cache' => ['warmAtStartup' => true]], ['CACHE_PRV_PATH' => $this->tmp . '/missing']);
         self::assertFalse(CacheWarmer::launch_if_due($context, $launch));
         self::assertSame([], $launch->scripts);
+    }
+
+    // Names used by older releases keep working in existing options.json files.
+    public function testLegacySnakeCaseCacheOptionsStillApply(): void {
+        $launch = $this->launcher();
+        $this->marker('lastrun', 120);
+        $legacy = ['warm_at_startup' => true, 'warm_interval' => 60];
+        self::assertTrue(CacheWarmer::launch_if_due($this->launchContext($legacy), $launch), 'the legacy interval must apply');
+        self::assertFalse(CacheWarmer::launch_if_due($this->launchContext(['warm_at_startup' => false]), $this->launcher()));
     }
 }
