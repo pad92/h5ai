@@ -114,12 +114,19 @@ class Util {
         }
     }
 
+    // Hosts may list exec or proc_open in disable_functions: PHP then removes
+    // them, and calling one is a fatal error. Without them, a command fails
+    // like one that cannot start.
+    private static function can_run(string $function): bool {
+        return function_exists($function);
+    }
+
     public static function passthru_cmd(string $cmd, int $timeout = 300): int {
-        $process = proc_open($cmd, [
+        $process = self::can_run('proc_open') ? proc_open($cmd, [
             0 => ['pipe', 'r'],
             1 => ['pipe', 'w'],
             2 => ['pipe', 'w'],
-        ], $pipes);
+        ], $pipes) : false;
         if (!is_resource($process)) {
             return -1;
         }
@@ -148,7 +155,7 @@ class Util {
     public static function exec_0(string $cmd): bool {
         $lines = [];
         $rc = null;
-        return @exec($cmd, $lines, $rc) !== false && $rc === 0;
+        return self::can_run('exec') && @exec($cmd, $lines, $rc) !== false && $rc === 0;
     }
 
     public static function proc_open_cmdv(array $cmdv, mixed &$output, mixed &$error, int $timeout = 30): int {
@@ -157,7 +164,7 @@ class Util {
             1 => ['pipe', 'w'],
             2 => ['pipe', 'w'],
         ];
-        $process = proc_open($cmdv, $descriptorspec, $pipes);
+        $process = self::can_run('proc_open') ? proc_open($cmdv, $descriptorspec, $pipes) : false;
 
         if (is_resource($process)) {
             $output_is_stream = is_resource($output);
@@ -217,7 +224,7 @@ class Util {
         }
         $cmd .= ' > /dev/null 2>&1 &';
         $rc = null;
-        return @exec($cmd, $unused, $rc) !== false && $rc === 0;
+        return self::can_run('exec') && @exec($cmd, $unused, $rc) !== false && $rc === 0;
     }
 
     public static function filesize(Context $context, string $path, ?bool $is_folder = null): ?int {

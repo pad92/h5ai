@@ -255,10 +255,8 @@ class Filesize {
     // cumulative apparent size of every directory it visits, so one process
     // yields the sizes of the whole subtree of every path at once.
     // Returns a map [dir_path => size].
+    // $paths is never empty: every caller passes at least one folder.
     private function du_tree(array $paths): array {
-        if (empty($paths)) {
-            return [];
-        }
         $lines = $this->exec(['du', '-b', ...$paths]);
 
         $sizes = [];

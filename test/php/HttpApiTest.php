@@ -7,10 +7,9 @@ use PHPUnit\Framework\Attributes\DataProvider;
 // The API behind a real HTTP server (php -S with fixtures/api.php), with
 // downloaded archives checked by an independent reader (tar).
 final class HttpApiTest extends H5aiTestCase {
-    private $server = null;
+    private ?PhpServer $server = null;
     private string $url;
     private array $lastHeaders = [];
-    private SubprocessCoverage $coverage;
 
     protected function setUp(): void {
         parent::setUp();
@@ -27,41 +26,18 @@ final class HttpApiTest extends H5aiTestCase {
         $this->write($this->root('first.txt'), 'first');
         $this->write($this->root('second.txt'), 'second');
 
-        $socket = stream_socket_server('tcp://127.0.0.1:0', $errno, $error);
-        self::assertNotFalse($socket, 'cannot reserve an HTTP test port: ' . $error);
-        $address = stream_socket_get_name($socket, false);
-        fclose($socket);
-        $log = $this->tmp . '/server.log';
-        // Buffered like the Docker image (custom.ini), and with $tmp/bin first
-        // on PATH so tests can replace tar.
-        $this->coverage = new SubprocessCoverage($this->tmp . '/coverage');
-        $this->server = proc_open(
-            [PHP_BINARY, ...$this->coverage->php_arguments(), '-d', 'output_buffering=4096', '-S', $address, __DIR__ . '/fixtures/api.php'],
-            [0 => ['pipe', 'r'], 1 => ['file', $log, 'a'], 2 => ['file', $log, 'a']],
-            $pipes,
-            null,
-            ['H5AI_TEST_ROOT' => $this->root(), 'PATH' => $this->tmp . '/bin:' . getenv('PATH'), ...$this->coverage->env()],
+        // $tmp/bin comes first on PATH so tests can replace tar.
+        $this->server = new PhpServer(
+            __DIR__ . '/fixtures/api.php',
+            ['H5AI_TEST_ROOT' => $this->root(), 'PATH' => $this->tmp . '/bin:' . getenv('PATH')],
+            $this->tmp . '/server.log',
+            new SubprocessCoverage($this->tmp . '/coverage'),
         );
-        self::assertIsResource($this->server, 'cannot start the HTTP test server');
-        fclose($pipes[0]);
-        for ($attempt = 0; $attempt < 100; $attempt++) {
-            $connection = @stream_socket_client('tcp://' . $address, $errno, $error, 0.05);
-            if ($connection !== false) {
-                fclose($connection);
-                $this->url = 'http://' . $address . '/';
-                return;
-            }
-            usleep(20000);
-        }
-        self::fail('the HTTP test server did not start: ' . @file_get_contents($log));
+        $this->url = $this->server->url;
     }
 
     protected function tearDown(): void {
-        if (is_resource($this->server)) {
-            proc_terminate($this->server);
-            proc_close($this->server);
-            $this->coverage->collect();
-        }
+        $this->server?->stop();
         parent::tearDown();
     }
 

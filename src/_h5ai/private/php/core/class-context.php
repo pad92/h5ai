@@ -75,10 +75,8 @@ class Context {
         if (!is_numeric($value)) {
             $value = $default;
         }
+        // A numeric string or JSON number is never NaN once cast.
         $value = (float) $value;
-        if (is_nan($value)) {
-            $value = (float) $default;
-        }
         // Clamp as a float, then cast. Casting first would turn an overflowing
         // literal such as 1e9999 into INF, then into 0, landing on the floor
         // instead of the ceiling (and warning about it).
@@ -117,11 +115,9 @@ class Context {
         return $this->session->get(self::AS_ADMIN_SESSION_KEY);
     }
 
+    // Only called by login_admin(), once a passhash is known to be set.
     private function verify_pass(string $pass): bool {
         $stored = $this->passhash;
-        if ($stored === '') {
-            return false;
-        }
 
         // Legacy unsalted SHA-512 hex digests (includes the default empty-password
         // hash). Still accepted so existing installations keep working.

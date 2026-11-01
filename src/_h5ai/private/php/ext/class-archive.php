@@ -76,18 +76,8 @@ class Archive {
             ],
             $cmd,
         );
-        try {
-            $rc = Util::passthru_cmd(
-                $cmd,
-                max(1, (int) $this->context->query_option('download.timeout', 300)),
-            );
-            if ($rc !== 0) {
-                return false;
-            }
-        } catch (\Exception) {
-            return false;
-        }
-        return true;
+        $rc = Util::passthru_cmd($cmd, max(1, (int) $this->context->query_option('download.timeout', 300)));
+        return $rc === 0;
     }
 
     private function php_tar(array $dirs, array $files): bool {
