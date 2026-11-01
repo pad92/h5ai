@@ -22,7 +22,6 @@ config.options = {
     crumb: {enabled: true},
     info: {enabled: true, show: false, qrcode: false},
     tree: {enabled: true, show: true, maxSubfolders: 50, naturalSort: true, ignorecase: true},
-    contextmenu: {enabled: true},
     'preview-aud': {enabled: true, autoplay: true, types: ['aud']},
     'preview-img': {enabled: true, size: 1000, types: ['img']},
     tasks: {enabled: true, interval: 3000, idleInterval: 30000},
