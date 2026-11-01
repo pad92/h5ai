@@ -17,16 +17,30 @@ class LoginThrottle {
             >= self::MAX_FAILURES;
     }
 
-    // A success forgets the client's failures.
-    public function record(string $client, bool $succeeded): void {
+    // Reserves one password check for the client and returns whether it may
+    // run. The reservation counts as a failure until forget() clears it, and
+    // the check and the reservation share one lock: concurrent requests
+    // cannot all pass a separate is_blocked() before any failure is stored.
+    public function try_attempt(string $client): bool {
         $key = $this->key($client);
         $now = $this->now ?? time();
-        $this->update(static function (array $failures) use ($key, $now, $succeeded): array {
-            if ($succeeded) {
-                unset($failures[$key]);
-            } else {
-                $failures[$key][] = $now;
+        $allowed = false;
+        $this->update(static function (array $failures) use ($key, $now, &$allowed): array {
+            if (count($failures[$key] ?? []) >= self::MAX_FAILURES) {
+                return $failures;
             }
+            $allowed = true;
+            $failures[$key][] = $now;
+            return $failures;
+        });
+        return $allowed;
+    }
+
+    // A success forgets the client's failures.
+    public function forget(string $client): void {
+        $key = $this->key($client);
+        $this->update(static function (array $failures) use ($key): array {
+            unset($failures[$key]);
             return $failures;
         });
     }
@@ -37,15 +51,18 @@ class LoginThrottle {
 
     // Applies $change to the stored failures (expired ones dropped) under an
     // exclusive lock and returns the result. Without a usable file, nothing
-    // is remembered: logins are never refused because the cache is broken.
+    // is remembered and $change runs on an empty set, so logins are never
+    // refused because the cache is broken.
     private function update(callable $change): array {
         $handle = @fopen($this->path, 'c+');
         if ($handle === false) {
             Util::log('login throttle disabled, cannot open ' . $this->path);
+            $change([]);
             return [];
         }
         try {
             if (!flock($handle, LOCK_EX)) {
+                $change([]);
                 return [];
             }
             $stored = json_decode((string) stream_get_contents($handle), true);

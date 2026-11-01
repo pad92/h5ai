@@ -16,7 +16,7 @@ v1.3.7 was prepared but never tagged or published. Its changes ship in this rele
     * **PHP tests**: `npm run test:php` and `make test` now run PHPUnit, which the Makefile downloads once (checksum verified), so the first run needs network access.
 
 * **Security**:
-    * **Administrator login**: after 5 failed attempts within 15 minutes, h5ai refuses the client until its oldest failure is 15 minutes old, even with the right password. Clients are stored as hashes. A legacy unsalted SHA-512 `passhash` still works but logs a deprecation warning at each login.
+    * **Administrator login**: after 5 failed attempts within 15 minutes, h5ai refuses the client until its oldest failure is 15 minutes old, even with the right password. A password check still running counts as a failure, so parallel requests cannot get past the limit. Clients are stored as hashes. A legacy unsalted SHA-512 `passhash` still works but logs a deprecation warning at each login.
     * **Info page**: only a logged-in administrator can force a new probe of the host's command-line tools; an anonymous `?refresh=1` no longer runs the shell probes.
     * **Thumbnail cache size**: a thumbnail requested at an explicit size, such as an image preview sample, keeps its aspect ratio and has its width rounded up to a multiple of 256 pixels. A client can no longer fill the disk with one cached file per pixel width.
     * **Custom files**: header and footer files follow the same filesystem rules as downloads. Hidden custom files still work, while symlinks leading outside the share or into h5ai's own files are rejected.

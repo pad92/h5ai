@@ -100,14 +100,14 @@ class Context {
         }
         $client = $this->request->client_address();
         $throttle = new LoginThrottle($this->setup->get('CACHE_PRV_PATH') . '/login-failures.json');
-        if ($throttle->is_blocked($client)) {
+        if (!$throttle->try_attempt($client)) {
             Util::log('admin login refused: too many failed attempts from this client');
             $this->session->set(self::AS_ADMIN_SESSION_KEY, false);
             return false;
         }
         $ok = $this->verify_pass($pass);
-        $throttle->record($client, $ok);
         if ($ok) {
+            $throttle->forget($client);
             // Prevent session fixation when elevating privileges.
             $this->session->regenerate();
         }

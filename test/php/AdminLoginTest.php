@@ -54,10 +54,44 @@ final class AdminLoginTest extends H5aiTestCase {
         $path = $this->tmp . '/cache/failures.json';
         $start = 1_000_000;
         for ($attempt = 0; $attempt < LoginThrottle::MAX_FAILURES; $attempt++) {
-            (new LoginThrottle($path, $start + $attempt))->record('client', false);
+            self::assertTrue((new LoginThrottle($path, $start + $attempt))->try_attempt('client'));
         }
         self::assertTrue((new LoginThrottle($path, $start + LoginThrottle::WINDOW - 1))->is_blocked('client'));
         self::assertFalse((new LoginThrottle($path, $start + LoginThrottle::WINDOW))->is_blocked('client'), 'the oldest failure has expired');
+    }
+
+    public function testPasswordChecksStillRunningCountAgainstTheClient(): void {
+        $throttle = new LoginThrottle($this->tmp . '/cache/failures.json');
+        $allowed = 0;
+        for ($attempt = 0; $attempt < 2 * LoginThrottle::MAX_FAILURES; $attempt++) {
+            $allowed += (int) $throttle->try_attempt('client');
+        }
+        self::assertSame(LoginThrottle::MAX_FAILURES, $allowed, 'attempts without an outcome yet must use up the budget');
+        $throttle->forget('client');
+        self::assertTrue($throttle->try_attempt('client'), 'a success clears the reservations');
+    }
+
+    // Each worker reserves an attempt and holds its outcome back, as a slow
+    // password_hash() check would, while every other worker reserves too.
+    public function testConcurrentRequestsCannotExceedTheBudget(): void {
+        $path = $this->tmp . '/cache/failures.json';
+        $code = 'require $argv[1] . "/class-util.php"; require $argv[1] . "/class-loginthrottle.php";'
+            . ' echo (new LoginThrottle($argv[2]))->try_attempt("client") ? "allowed" : "refused";';
+        $php_dir = dirname(__DIR__, 2) . '/src/_h5ai/private/php/core';
+        $workers = [];
+        for ($worker = 0; $worker < 4 * LoginThrottle::MAX_FAILURES; $worker++) {
+            $pipes = [];
+            $process = proc_open([PHP_BINARY, '-r', $code, $php_dir, $path], [1 => ['pipe', 'w']], $pipes);
+            self::assertIsResource($process);
+            $workers[] = [$process, $pipes[1]];
+        }
+        $allowed = 0;
+        foreach ($workers as [$process, $stdout]) {
+            $allowed += (int) (stream_get_contents($stdout) === 'allowed');
+            fclose($stdout);
+            proc_close($process);
+        }
+        self::assertSame(LoginThrottle::MAX_FAILURES, $allowed);
     }
 
     public function testClientsAreStoredHashed(): void {
@@ -70,7 +104,7 @@ final class AdminLoginTest extends H5aiTestCase {
     public function testAnUnusableStoreNeverBlocksLogins(): void {
         $throttle = new LoginThrottle($this->tmp . '/missing/failures.json');
         for ($attempt = 0; $attempt <= LoginThrottle::MAX_FAILURES; $attempt++) {
-            $throttle->record('client', false);
+            self::assertTrue($throttle->try_attempt('client'));
         }
         self::assertFalse($throttle->is_blocked('client'));
     }
