@@ -132,6 +132,7 @@
             "img-png",
             "img-raw",
             "img-svg",
+            "img-tiff",
             "img-webp"
         ]
     },

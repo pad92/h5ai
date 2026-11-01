@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="240" viewBox="0 0 320 240">
+  <rect width="320" height="240" fill="#42a5f5"/>
+  <circle cx="160" cy="120" r="80" fill="#fafafa"/>
+  <text x="160" y="132" font-family="sans-serif" font-size="32" text-anchor="middle" fill="#212121">h5ai</text>
+</svg>

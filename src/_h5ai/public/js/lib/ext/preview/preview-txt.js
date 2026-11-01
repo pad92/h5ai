@@ -1,9 +1,7 @@
-const lolight = require('lolight');
-const rawMarked = require('marked');
-const marked = typeof rawMarked === 'function' ? rawMarked : rawMarked.parse;
-const {keys, dom, sanitizeHtml} = require('../../util');
+const {keys, dom} = require('../../util');
 const allsettings = require('../../core/settings');
 const preview = require('./preview');
+const {render} = require('./text-content');
 
 const win = global.window;
 const XHR = win.XMLHttpRequest;
@@ -11,8 +9,6 @@ const settings = Object.assign({
     enabled: false,
     styles: {}
 }, allsettings['preview-txt']);
-const preTpl = '<pre id="pv-content-txt"></pre>';
-const divTpl = '<div id="pv-content-txt"></div>';
 
 const updateGui = () => {
     const el = dom('#pv-content-txt')[0];
@@ -61,23 +57,7 @@ const requestTextContent = href => {
 const load = item => {
     return requestTextContent(item.absHref)
         .catch(err => '[request failed] ' + err)
-        .then(content => {
-            const style = settings.styles[item.type];
-
-            if (style === 1) {
-                return dom(preTpl).text(content);
-            } else if (style === 2) {
-                return dom(divTpl).html(sanitizeHtml(marked.parse(content)));
-            } else if (style === 3) {
-                const $code = dom('<code></code>').text(content);
-                win.setTimeout(() => {
-                    lolight.el($code[0]);
-                }, content.length < 20000 ? 0 : 500);
-                return dom(preTpl).app($code);
-            }
-
-            return dom(divTpl).text(content);
-        });
+        .then(content => render(content, settings.styles[item.type], win));
 };
 
 const init = () => {

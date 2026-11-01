@@ -50,6 +50,75 @@ final class CapturePipelineTest extends H5aiTestCase {
         );
     }
 
+    // Fakes an ffmpeg that extracts a plain $color cover from any audio file.
+    private function fakeAudioCover(int $color): Context {
+        $cover = imagecreatetruecolor(32, 32);
+        imagefill($cover, 0, 0, $color);
+        ob_start();
+        imagepng($cover);
+        $png = $this->write($this->tmp . '/cover-' . $color . '.png', (string) ob_get_clean());
+        $this->fakeTools(['ffmpeg' => 'cat ' . escapeshellarg($png)]);
+        return $this->context(
+            ['thumbnails' => ['enabled' => true]],
+            ['HAS_CMD_FFMPEG' => true, 'HAS_PHP_WEBP' => function_exists('imagewebp')],
+            ['aud' => ['glob' => ['*.mp3']]],
+        );
+    }
+
+    // ffmpeg hands the cover of an audio file over as a stream.
+    #[RequiresPhpExtension('gd')]
+    public function testAnAudioCoverBecomesTheThumbnail(): void {
+        $song = $this->write($this->root('song.mp3'), 'ID3');
+        $href = (new Thumb($this->fakeAudioCover(0x000000), $song, 'aud'))->thumb(320, 240);
+        self::assertNotNull($href);
+        $thumb = $this->tmp . '/cache-pub/thumbs/' . basename($href);
+        self::assertFileExists($thumb);
+        self::assertSame(filemtime($song), filemtime($thumb), 'a thumbnail carries the mtime of its source');
+    }
+
+    #[RequiresPhpExtension('gd')]
+    public function testAChangedSourceGetsANewThumbnail(): void {
+        $song = $this->write($this->root('song.mp3'), 'ID3');
+        $href = (new Thumb($this->fakeAudioCover(0x000000), $song, 'aud'))->thumb(320, 240);
+        $thumb = $this->tmp . '/cache-pub/thumbs/' . basename((string) $href);
+        $before = (string) file_get_contents($thumb);
+
+        touch($song, filemtime($song) + 60);
+        clearstatcache();
+        (new Thumb($this->fakeAudioCover(0xffffff), $song, 'aud'))->thumb(320, 240);
+        clearstatcache();
+        self::assertNotSame($before, file_get_contents($thumb), 'the stale thumbnail must be rewritten');
+        self::assertSame(filemtime($song), filemtime($thumb));
+    }
+
+    // A file replaced by an older one (cp -p, a restored backup) must not
+    // keep the thumbnail of the file it replaced.
+    public function testAThumbnailIsDroppedWhenItsSourceGetsAnOlderMtime(): void {
+        $name = $this->seedThumbnail($this->root('doc.pdf'), '320x240');
+        touch($this->root('doc.pdf'), filemtime($this->root('doc.pdf')) - 3600);
+        clearstatcache();
+        self::assertNull($this->thumb('doc.pdf', 'x-pdf')->thumb(320, 240));
+        self::assertFileDoesNotExist($this->tmp . '/cache-pub/thumbs/' . $name);
+        self::assertSame(1, $this->toolRuns('convert'), 'the replaced source must be captured again');
+    }
+
+    // Outcomes without a thumbnail file are pruned with their source too.
+    #[RequiresPhpExtension('sqlite3')]
+    public function testAnUnhandledArchiveIsRecordedAsASource(): void {
+        $zip = $this->write($this->root('pack.zip'), 'PK');
+        $context = $this->context(['thumbnails' => ['enabled' => true]], [], ['ar-zip' => ['glob' => ['*.zip']]]);
+        $db = new CacheDB($context->get_setup());
+        set_error_handler(static fn(): bool => true, E_WARNING);
+        try {
+            (new Thumb($context, $zip, 'ar-zip', $db))->thumb(320, 240);
+        } finally {
+            restore_error_handler();
+        }
+        self::assertSame([sha1($zip) => $zip], $db->sources());
+        self::assertFalse($db->obsolete_entry($db->select(sha1($zip)), filemtime($zip)));
+        self::assertTrue($db->obsolete_entry($db->select(sha1($zip)), filemtime($zip) - 1), 'an older replacement is retried');
+    }
+
     public function testAFileSentWithAnUnknownTypeIsIdentifiedByName(): void {
         $this->thumb('doc.pdf', 'file')->thumb(320, 240);
         self::assertSame(1, $this->toolRuns('convert'));
@@ -87,8 +156,7 @@ final class CapturePipelineTest extends H5aiTestCase {
 
     public function testACustomThumbnailIsServedAsAnImage(): void {
         $this->write($this->root('_thumb/doc.png'), 'png');
-        $name = 'thumb-' . sha1($this->root('_thumb/doc.png')) . '-320x240.webp';
-        $this->write($this->tmp . '/cache-pub/thumbs/' . $name, 'webp');
+        $name = $this->seedThumbnail($this->root('_thumb/doc.png'), '320x240');
         $thumb = $this->thumb('doc.pdf', 'x-pdf');
         self::assertSame('/_h5ai/public/cache/thumbs/' . $name, $thumb->thumb(320, 240));
         self::assertSame('img', $thumb->get_type()->name);
