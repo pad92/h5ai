@@ -12,15 +12,10 @@ class LoginThrottle {
     // $now pins the clock for tests.
     public function __construct(private readonly string $path, private readonly ?int $now = null) {}
 
-    public function is_blocked(string $client): bool {
-        return count($this->update(static fn(array $failures): array => $failures)[$this->key($client)] ?? [])
-            >= self::MAX_FAILURES;
-    }
-
     // Reserves one password check for the client and returns whether it may
     // run. The reservation counts as a failure until forget() clears it, and
-    // the check and the reservation share one lock: concurrent requests
-    // cannot all pass a separate is_blocked() before any failure is stored.
+    // the check and the reservation share one lock, so concurrent requests
+    // cannot all pass the check before any failure is stored.
     public function try_attempt(string $client): bool {
         $key = $this->key($client);
         $now = $this->now ?? time();
@@ -50,20 +45,20 @@ class LoginThrottle {
     }
 
     // Applies $change to the stored failures (expired ones dropped) under an
-    // exclusive lock and returns the result. Without a usable file, nothing
-    // is remembered and $change runs on an empty set, so logins are never
-    // refused because the cache is broken.
-    private function update(callable $change): array {
+    // exclusive lock. Without a usable file, nothing is remembered and
+    // $change runs on an empty set, so logins are never refused because the
+    // cache is broken.
+    private function update(callable $change): void {
         $handle = @fopen($this->path, 'c+');
         if ($handle === false) {
             Util::log('login throttle disabled, cannot open ' . $this->path);
             $change([]);
-            return [];
+            return;
         }
         try {
             if (!flock($handle, LOCK_EX)) {
                 $change([]);
-                return [];
+                return;
             }
             $stored = json_decode((string) stream_get_contents($handle), true);
             $since = ($this->now ?? time()) - self::WINDOW;
@@ -78,7 +73,6 @@ class LoginThrottle {
             ftruncate($handle, 0);
             rewind($handle);
             fwrite($handle, json_encode((object) $failures));
-            return $failures;
         } finally {
             fclose($handle);
         }

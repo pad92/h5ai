@@ -56,8 +56,8 @@ final class AdminLoginTest extends H5aiTestCase {
         for ($attempt = 0; $attempt < LoginThrottle::MAX_FAILURES; $attempt++) {
             self::assertTrue((new LoginThrottle($path, $start + $attempt))->try_attempt('client'));
         }
-        self::assertTrue((new LoginThrottle($path, $start + LoginThrottle::WINDOW - 1))->is_blocked('client'));
-        self::assertFalse((new LoginThrottle($path, $start + LoginThrottle::WINDOW))->is_blocked('client'), 'the oldest failure has expired');
+        self::assertFalse((new LoginThrottle($path, $start + LoginThrottle::WINDOW - 1))->try_attempt('client'));
+        self::assertTrue((new LoginThrottle($path, $start + LoginThrottle::WINDOW))->try_attempt('client'), 'the oldest failure has expired');
     }
 
     public function testPasswordChecksStillRunningCountAgainstTheClient(): void {
@@ -106,7 +106,6 @@ final class AdminLoginTest extends H5aiTestCase {
         for ($attempt = 0; $attempt <= LoginThrottle::MAX_FAILURES; $attempt++) {
             self::assertTrue($throttle->try_attempt('client'));
         }
-        self::assertFalse($throttle->is_blocked('client'));
     }
 
     public function testDisabledLoginRecordsNothing(): void {
