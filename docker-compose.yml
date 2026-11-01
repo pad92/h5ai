@@ -10,9 +10,10 @@ services:
       # Basic authentication protecting the listing and file downloads
       - ENV_U=admin
       - ENV_P=mysecretpassword
-      # Explicit password for the h5ai administration page. If unset, the
-      # passhash in options.json is kept; an empty passhash disables login.
-      - H5AI_ADMIN_PASSWORD=myadminpassword
+      # Password for the h5ai administration page, read from a .env file next
+      # to this one (H5AI_ADMIN_PASSWORD=...). It is hashed at each start. If
+      # unset, the passhash in options.json is kept; an empty one disables login.
+      - H5AI_ADMIN_PASSWORD=${H5AI_ADMIN_PASSWORD:-}
       # Remap the runtime account to the owner of your shared files
       # - PUID=1000
       # - PGID=1000
