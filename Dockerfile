@@ -8,6 +8,7 @@ RUN npm ci
 COPY src/ ./src/
 COPY test/ ./test/
 COPY gulpfile.js eslint.config.js ./
+COPY scripts/package-name.js ./scripts/
 RUN H5AI_VERSION="${H5AI_VERSION}" npm run build
 
 # Stage 2: Fetch s6-overlay and compile the php-rar extension

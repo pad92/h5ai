@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+* **Docker builds on branches**: the release archive name replaces characters such as `/` from a branch-name version, so CI image builds of branches like `fix/...` find the archive again; the version shown in h5ai keeps the branch name.
 * **Document thumbnails**: PDF and PostScript thumbnails rendered by ImageMagick or GraphicsMagick are accepted again. The capture check expected JPEG, but these commands write WebP.
 * **ImageMagick 7**: document thumbnails run `magick` instead of the deprecated `convert`, which ImageMagick 7 flags with a warning on every call. `convert` remains the fallback on ImageMagick 6 hosts, and the info page accepts either.
 * **Docker image**: Ghostscript is installed, so PDF and PostScript thumbnails work in the image; it also brings ImageMagick's TIFF and JPEG 2000 modules. The image grows by about 19 MiB compressed (66 MiB on disk). `make docker-test` checks PDF and TIFF thumbnails in the running container.

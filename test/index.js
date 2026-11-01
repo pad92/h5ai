@@ -25,5 +25,6 @@ require('./tests/unit/preview-md');
 require('./tests/unit/types-md');
 require('./tests/unit/server');
 require('./tests/unit/main/infoChecks');
+require('./tests/unit/packageName');
 
 pin_html();
