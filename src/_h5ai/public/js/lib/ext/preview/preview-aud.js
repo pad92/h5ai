@@ -311,7 +311,7 @@ const renderQueue = () => {
         $li.find('.aq-item-folder').text(item.parent ? item.parent.label : 'Folder');
 
         $li.on('click', ev => {
-            if (dom(ev.target).closest('.aq-item-remove').length > 0) {
+            if (ev.target.closest('.aq-item-remove')) {
                 return;
             }
             currentIndex = idx;
@@ -458,10 +458,13 @@ const loadAndPlayCurrent = () => {
     if (currentTrack.embeddedCoverUrl) {
         updateCoverUI(currentTrack, currentTrack.embeddedCoverUrl);
     } else {
-        updateCoverUI(currentTrack, null);
-        getEmbeddedCover(currentTrack.absHref).then(url => {
-            currentTrack.embeddedCoverUrl = url || 'none';
-            updateCoverUI(currentTrack, currentTrack.embeddedCoverUrl);
+        // The lookup may finish after the user moved on: keep its result on
+        // the track that asked for it.
+        const track = currentTrack;
+        updateCoverUI(track, null);
+        getEmbeddedCover(track.absHref).then(url => {
+            track.embeddedCoverUrl = url || 'none';
+            updateCoverUI(track, track.embeddedCoverUrl);
             renderQueue();
         });
     }

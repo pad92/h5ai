@@ -76,7 +76,8 @@ count too. `make coverage` produces both reports locally, in Docker when PHP has
 no Xdebug. Both jobs upload Cobertura reports for GitLab diff annotations. The
 `test:coverage` job combines covered and total line counts from both languages
 into the percentage shown by the coverage badge, which a successful pipeline on
-the default branch updates.
+the default branch updates. That job, like `make coverage`, fails when the
+percentage drops below 90%; set `COVERAGE_MIN` to use another floor.
 
 
 ## Docker Image
