@@ -285,7 +285,6 @@ const init = () => {
 init();
 
 module.exports = {
-    $el: $view,
     setItems,
     changeItems,
     setLocation: onLocationChanged,

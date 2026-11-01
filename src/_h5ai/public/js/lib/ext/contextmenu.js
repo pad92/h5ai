@@ -148,7 +148,6 @@ const init = () => {
 
     dom('#view').on('contextmenu', ev => {
         ev.preventDefault();
-        // showMenuAt(ev.pageX, ev.pageY, menu, res => console.log('>> CB-RESULT >> ' + res));
         showMenuAt(ev.pageX, ev.pageY, menu);
     });
 };
