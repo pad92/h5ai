@@ -22,8 +22,8 @@ SCREENSHOT_PORT ?= 8891
 CHROME ?= $(firstword $(foreach b,google-chrome-stable google-chrome chromium chromium-browser,$(shell command -v $(b) 2>/dev/null)))
 
 # Scanners pinned by digest, kept in sync with .gitlab-ci.yml.
-GRYPE_IMAGE = anchore/grype:v0.116.0@sha256:fd4ab4d1042b522c896e73bdf09ab8bf384fa417df99d6dd0d6e1008c7e7c821
-SYFT_IMAGE = anchore/syft:v1.49.0@sha256:13b53ebabe3d215268c90cf8fb9b875f0183908245f376fd4b3a2cb69d21d484
+GRYPE_IMAGE = anchore/grype:v0.121.0@sha256:621d56d1d68106b787022c81546f7e0a36202a25d1239f0c20195fab8c16f7ea
+SYFT_IMAGE = anchore/syft:v1.55.0@sha256:4cc92b64ca74ffca4c94d4c8fcc01f217731375300be14d0b6eeb2e82eaa110a
 
 .PHONY: help all install build lint test test-php coverage screenshots clean clean-all scan docker-build docker-test docker-w3c docker-grype docker-clean test-docker-config
 
