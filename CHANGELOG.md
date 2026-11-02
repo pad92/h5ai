@@ -21,6 +21,7 @@
 * **Player memory and export**: the browser keeps the queue, the current entry and its position, the volume, shuffle and repeat, and brings them back paused on the next page or visit. The queue drawer's Export button downloads the queue as an `.m3u8` playlist with absolute URLs, for VLC, MPC-HC or mpv.
 * **Videos in the player queue**: video rows get the same Play now, Play folder from here, Play next and Add to queue buttons as audio rows, and videos share one queue with tracks. A queued video plays in the preview, with the bar hidden, then the queue moves on to the next track in the bar or the next video in the preview. A plain click on a video still opens the regular preview.
 * **Video preview**:
+    * The player offers casting in its own controls through browser Remote Playback or Safari AirPlay where available. Movi prefers native playback and falls back to its decoder for formats the browser cannot play.
     * Subtitles must match the video's name followed by a separator: `Episode 10.srt` is no longer attached to `Episode 1.mkv`. A subtitle without a language suffix no longer defaults to English, and the native player now gets the `.vtt` files.
     * After a video, the next preview of an image or a text gets its keys back: Space steps to the next item again instead of being left to a video player that is gone.
     * The enhanced player no longer waits 1.5 seconds before showing, and its size labels are updated once the video is known. A video the native player cannot decode no longer leaves the spinner on screen.

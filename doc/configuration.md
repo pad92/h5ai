@@ -209,6 +209,13 @@ The enhanced player is loaded only in a secure, cross-origin-isolated context.
 Otherwise h5ai immediately uses the native `<video>` element without downloading
 the enhanced-player bundle.
 
+When the browser exposes Remote Playback, the video player offers a cast button
+for devices such as Chromecast. Movi places it in its own controls and prefers
+native playback, with its decoder as a fallback for formats the browser cannot
+play. Safari's AirPlay picker is used when available. Device discovery and
+format support depend on the browser and receiver; a video the receiver cannot
+play may not cast successfully.
+
 Subtitle files next to the video are attached when their name is the video's
 name, optionally followed by a suffix after `.`, `_` or `-`: `movie.srt`,
 `movie.fr.srt` and `movie_en.forced.vtt` all belong to `movie.mkv`. A suffix

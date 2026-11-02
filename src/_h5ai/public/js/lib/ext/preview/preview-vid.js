@@ -1,7 +1,168 @@
 const {dom} = require('../../util');
 const allsettings = require('../../core/settings');
+const event = require('../../core/event');
 const {addUnloadFn} = require('../../util/media');
 const preview = require('./preview');
+
+const CAST_ICON = '<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><path d="M1 18v3h3c0-1.66-1.34-3-3-3zm0-4v2c2.76 0 5 2.24 5 5h2c0-3.87-3.13-7-7-7zm0-4v2c4.97 0 9 4.03 9 9h2c0-6.08-4.92-11-11-11zm21-7H2c-1.1 0-2 .9-2 2v3h2V5h20v14h-9v2h9c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg>';
+
+const CAST_LABEL = 'Cast to a device';
+const MOVI_CAST_ID = 'h5ai-cast';
+
+// The browser owns device discovery and casting; h5ai only shows a button
+// while the browser reports a reachable device. The Remote Playback API
+// (Chrome, Edge, Safari) is preferred. Safari without it only has the AirPlay
+// picker, which announces devices through its own event.
+// Returns null when the browser offers no route, else {prompt, stop}.
+const watchCastTargets = (media, onChange) => {
+    const remote = media.remote;
+    if (remote && typeof remote.prompt === 'function') {
+        let watchId = null;
+        let stopped = false;
+        if (typeof remote.watchAvailability === 'function') {
+            remote.watchAvailability(available => {
+                if (!stopped) {
+                    onChange(available);
+                }
+            }).then(id => {
+                watchId = id;
+                // The preview may have closed before the watch was registered.
+                if (stopped && remote.cancelWatchAvailability) {
+                    remote.cancelWatchAvailability(id).catch(() => {});
+                }
+            }).catch(() => {
+                // The spec's advice when availability cannot be monitored
+                // (Chrome on Android, data saver): show the button and let
+                // prompt() report whether a device is there.
+                if (!stopped) {
+                    onChange(true);
+                }
+            });
+        } else {
+            onChange(true);
+        }
+        return {
+            // prompt() rejects when the user dismisses the picker or no device
+            // answers; the browser has already told the user, nothing to add.
+            prompt: () => remote.prompt().catch(() => {}),
+            stop: () => {
+                stopped = true;
+                if (watchId !== null && remote.cancelWatchAvailability) {
+                    remote.cancelWatchAvailability(watchId).catch(() => {});
+                }
+            }
+        };
+    }
+
+    if (typeof media.webkitShowPlaybackTargetPicker === 'function') {
+        const onAvailability = ev => onChange(ev.availability === 'available');
+        media.addEventListener('webkitplaybacktargetavailabilitychanged', onAvailability);
+        return {
+            prompt: () => media.webkitShowPlaybackTargetPicker(),
+            stop: () => media.removeEventListener('webkitplaybacktargetavailabilitychanged', onAvailability)
+        };
+    }
+
+    return null;
+};
+
+const beforeUnload = (el, fn) => {
+    const originalUnload = el.unload;
+    el.unload = function unload() {
+        fn();
+        if (typeof originalUnload === 'function') {
+            originalUnload.call(this);
+        }
+    };
+};
+
+// Native <video>: a button in the preview bar, next to the other bar buttons.
+const addCastButton = el => {
+    const $button = dom(`<li id="pv-bar-cast" class="bar-right bar-button hidden" role="button" tabindex="0" aria-label="${CAST_LABEL}" title="${CAST_LABEL}"/>`)
+        .html(CAST_ICON);
+    const cast = watchCastTargets(el, available => {
+        if (available) {
+            $button.rmCls('hidden');
+        } else {
+            $button.addCls('hidden');
+        }
+    });
+    if (!cast) {
+        return;
+    }
+
+    dom('#pv-buttons').app($button);
+    $button.on('click', cast.prompt).on('keydown', ev => {
+        if (ev.key === 'Enter' || ev.key === ' ') {
+            // The preview reads Enter on the window as "next item".
+            ev.preventDefault();
+            ev.stopPropagation();
+            cast.prompt();
+        }
+    });
+    beforeUnload(el, () => {
+        cast.stop();
+        $button.rm();
+    });
+};
+
+// Movi: a control in its own bar, through its addControl() API. Only its
+// native engine plays through the <video> in its shadow root; the WASM engine
+// draws on a canvas and leaves that element without a source, so there is
+// nothing to cast. Movi sets and removes that source when it switches engine,
+// which the element announces with loadstart and emptied.
+const addMoviCastControl = player => {
+    const media = player.shadowRoot && player.shadowRoot.querySelector('video');
+    if (!media) {
+        return;
+    }
+
+    let deviceAvailable = false;
+    let shown = false;
+    let unloaded = false;
+    let cast = null;
+    const playsNatively = () => Boolean(media.currentSrc || media.getAttribute('src') || media.srcObject);
+    const refresh = () => {
+        const show = !unloaded && deviceAvailable && playsNatively();
+        if (show === shown) {
+            return;
+        }
+        shown = show;
+        if (show) {
+            player.addControl({
+                id: MOVI_CAST_ID,
+                label: CAST_LABEL,
+                icon: CAST_ICON,
+                // Movi's documented spot for a cast button: the top corner while
+                // watching, and a named row in the context menu.
+                placement: ['top', 'menu'],
+                media: 'video',
+                onSelect: () => cast.prompt()
+            });
+        } else {
+            player.removeControl(MOVI_CAST_ID);
+        }
+    };
+    cast = watchCastTargets(media, available => {
+        deviceAvailable = available;
+        refresh();
+    });
+    if (!cast) {
+        return;
+    }
+
+    media.addEventListener('loadstart', refresh);
+    media.addEventListener('emptied', refresh);
+    refresh();
+
+    beforeUnload(player, () => {
+        unloaded = true;
+        cast.stop();
+        media.removeEventListener('loadstart', refresh);
+        media.removeEventListener('emptied', refresh);
+        refresh();
+    });
+};
 
 const settings = Object.assign({
     enabled: false,
@@ -127,7 +288,10 @@ const loadNativeVideo = item => {
 // would only add a delay. The labels follow once the metadata is known.
 const loadMoviVideo = item => {
     const $el = dom('<movi-player id="pv-content-vid"/>')
-        .attr('controls', 'controls');
+        .attr('controls', 'controls')
+        // Native-compatible files can use the browser's remote playback; Movi
+        // remains the fallback for formats the browser cannot decode.
+        .attr('engine', 'native wasm');
     if (settings.autoplay) {
         $el.attr('autoplay', 'autoplay');
     }
@@ -160,9 +324,24 @@ const load = item => {
         });
 };
 
+// Cast is wired once the element is in the preview: preview.js unloads only
+// what it attached, so a video dropped while loading (the user moved on, or it
+// never got its metadata) must not leave a button or a device watch behind.
+const onContent = (item, el) => {
+    if (!el || el.id !== 'pv-content-vid') {
+        return;
+    }
+    if (el.tagName.toLowerCase() === 'movi-player') {
+        addMoviCastControl(el);
+    } else {
+        addCastButton(el);
+    }
+};
+
 const init = () => {
     if (settings.enabled) {
         preview.register(settings.types, load, updateGui);
+        event.sub('preview.content', onContent);
     }
 };
 

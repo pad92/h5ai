@@ -499,6 +499,23 @@ test('image preview loads the original image and closes its EXIF request cleanly
 
 test('video preview uses native and isolated-player paths with subtitle tracks', async () => {
     const originalCrossOrigin = Object.getOwnPropertyDescriptor(window, 'crossOriginIsolated');
+    const mediaProto = window.HTMLMediaElement.prototype;
+    const originalRemote = Object.getOwnPropertyDescriptor(mediaProto, 'remote');
+    let availability;
+    let prompted = 0;
+    let canceled = 0;
+    Object.defineProperty(mediaProto, 'remote', {configurable: true, get: () => ({
+        prompt: () => { prompted += 1; return Promise.resolve(); },
+        watchAvailability: callback => {
+            availability = callback;
+            return Promise.resolve(7);
+        },
+        cancelWatchAvailability: id => {
+            assert.equal(id, 7);
+            canceled += 1;
+            return Promise.resolve();
+        }
+    })});
     const imageProto = window.Element.prototype;
     const originalSetAttribute = imageProto.setAttribute;
     imageProto.setAttribute = function setAttribute(name, value) {
@@ -518,7 +535,14 @@ test('video preview uses native and isolated-player paths with subtitle tracks',
         await new Promise(resolve => setTimeout(resolve, 10));
         assert.equal(document.querySelector('#pv-content-vid').tagName, 'VIDEO');
         assert.equal(preview.controlsType, 'vid');
+        const cast = document.querySelector('#pv-bar-cast');
+        assert.ok(cast.classList.contains('hidden'), 'the cast control waits for an available device');
+        availability(true);
+        assert.equal(cast.classList.contains('hidden'), false);
+        cast.click();
+        assert.equal(prompted, 1);
         document.querySelector('#pv-bar-close').click();
+        assert.equal(canceled, 1, 'closing the preview stops device availability monitoring');
 
         const folder = Item.get('/movi-folder/');
         const movi = Item.get('/movi-folder/movie.mp4');
@@ -528,20 +552,229 @@ test('video preview uses native and isolated-player paths with subtitle tracks',
         folder.content[subtitles.absHref] = subtitles;
         movi.parent = folder;
         subtitles.parent = folder;
-        window.customElements.define('movi-player', class extends window.HTMLElement {});
+        window.customElements.define('movi-player', class extends window.HTMLElement {
+            constructor() {
+                super();
+                this.attachShadow({mode: 'open'});
+                this.shadowRoot.appendChild(document.createElement('video'));
+            }
+
+            addControl(control) {
+                // Movi 0.4.1 MoviControlSpec.placement: one surface, a list of
+                // surfaces, or "both".
+                const surfaces = ['bar', 'center', 'menu', 'top'];
+                const placement = control.placement;
+                assert.ok(placement === 'both' || surfaces.includes(placement) ||
+                    Array.isArray(placement) && placement.length > 0 && placement.every(p => surfaces.includes(p)),
+                'placement is one Movi knows');
+                assert.ok(['video', 'audio', 'both'].includes(control.media));
+                this.castControl = control;
+            }
+
+            removeControl(id) {
+                assert.equal(id, 'h5ai-cast');
+                this.castControl = null;
+            }
+        });
         Object.defineProperty(window, 'crossOriginIsolated', {configurable: true, value: true});
         view.setItems([movi]);
         movi.$view.find('a')[0].click();
         await new Promise(resolve => setTimeout(resolve, 10));
         const player = document.querySelector('#pv-content-vid');
         assert.equal(player.tagName.toLowerCase(), 'movi-player');
+        assert.equal(player.getAttribute('engine'), 'native wasm', 'native playback is preferred with Movi as fallback');
+        const engineVideo = player.shadowRoot.querySelector('video');
+        availability(true);
+        assert.equal(player.castControl, undefined, 'the WASM engine leaves the shadow <video> empty: nothing to cast');
+        engineVideo.setAttribute('src', movi.absHref);
+        engineVideo.dispatchEvent(new window.Event('loadstart'));
+        assert.equal(player.castControl.label, 'Cast to a device', 'Cast is placed in Movi controls once it plays natively');
+        player.castControl.onSelect();
+        assert.equal(prompted, 2);
+        engineVideo.removeAttribute('src');
+        engineVideo.dispatchEvent(new window.Event('emptied'));
+        assert.equal(player.castControl, null, 'switching back to WASM removes the control');
+        engineVideo.setAttribute('src', movi.absHref);
+        engineVideo.dispatchEvent(new window.Event('loadstart'));
+        assert.ok(player.castControl);
         assert.equal(player.querySelector('track').getAttribute('srclang'), 'fr');
         assert.equal(player.querySelector('track').getAttribute('label'), 'FR');
         document.querySelector('#pv-bar-close').click();
+        assert.equal(player.castControl, null, 'closing the preview removes the Movi control');
+        assert.equal(canceled, 2);
     } finally {
         imageProto.setAttribute = originalSetAttribute;
         if (originalCrossOrigin) Object.defineProperty(window, 'crossOriginIsolated', originalCrossOrigin);
         else delete window.crossOriginIsolated;
+        if (originalRemote) Object.defineProperty(mediaProto, 'remote', originalRemote);
+        else delete mediaProto.remote;
+    }
+});
+
+test('video cast button: keyboard, availability races, failures and AirPlay', async () => {
+    const originalCrossOrigin = Object.getOwnPropertyDescriptor(window, 'crossOriginIsolated');
+    const mediaProto = window.HTMLMediaElement.prototype;
+    const originalRemote = Object.getOwnPropertyDescriptor(mediaProto, 'remote');
+    const tick = () => new Promise(resolve => setTimeout(resolve, 10));
+    const castButton = () => document.querySelector('#pv-bar-cast');
+    const close = () => document.querySelector('#pv-bar-close').click();
+    const first = Item.get('/cast/first.mp4');
+    const second = Item.get('/cast/second.mp4');
+    first.type = 'vid';
+    second.type = 'vid';
+    let remote;
+    Object.defineProperty(mediaProto, 'remote', {configurable: true, get: () => remote});
+    const elementProto = window.Element.prototype;
+    const originalSetAttribute = elementProto.setAttribute;
+    let metadata = true;
+    elementProto.setAttribute = function setAttribute(name, value) {
+        originalSetAttribute.call(this, name, value);
+        if (this.id === 'pv-content-vid' && name === 'src' && metadata) {
+            const video = this;
+            window.setTimeout(() => video.dispatchEvent(new window.Event('loadedmetadata')), 0);
+        }
+    };
+
+    try {
+        Object.defineProperty(window, 'crossOriginIsolated', {configurable: true, value: false});
+        view.setItems([first, second]);
+
+        // Enter and Space on the button cast; they must not reach the
+        // preview's window handler, where Enter means "next item".
+        let availability;
+        let prompted = 0;
+        remote = {
+            prompt: () => { prompted += 1; return Promise.resolve(); },
+            watchAvailability: callback => { availability = callback; return Promise.resolve(1); },
+            cancelWatchAvailability: () => Promise.resolve()
+        };
+        first.$view.find('a')[0].click();
+        await tick();
+        availability(true);
+        castButton().dispatchEvent(new window.KeyboardEvent('keydown', {key: 'Enter', keyCode: 13, bubbles: true}));
+        castButton().dispatchEvent(new window.KeyboardEvent('keydown', {key: ' ', keyCode: 32, bubbles: true}));
+        assert.equal(prompted, 2);
+        assert.equal(preview.item, first, 'Enter on the cast button stays on the same video');
+        document.body.dispatchEvent(new window.KeyboardEvent('keydown', {key: 'Enter', keyCode: 13, bubbles: true}));
+        await tick();
+        assert.equal(preview.item, second, 'Enter elsewhere still steps to the next item');
+        close();
+        assert.equal(castButton(), null);
+
+        // The preview closes before the browser registers the watch: the
+        // late id is still canceled, and a late callback changes nothing.
+        let resolveWatch;
+        const canceled = [];
+        remote = {
+            prompt: () => Promise.resolve(),
+            watchAvailability: callback => {
+                availability = callback;
+                return new Promise(resolve => { resolveWatch = resolve; });
+            },
+            cancelWatchAvailability: id => { canceled.push(id); return Promise.resolve(); }
+        };
+        first.$view.find('a')[0].click();
+        await tick();
+        close();
+        assert.deepEqual(canceled, []);
+        resolveWatch(42);
+        await tick();
+        assert.deepEqual(canceled, [42], 'a watch registered after closing is canceled');
+
+        // Availability cannot be monitored (Chrome on Android): show the button.
+        remote = {
+            prompt: () => Promise.resolve(),
+            watchAvailability: () => Promise.reject(new window.DOMException('unsupported', 'NotSupportedError'))
+        };
+        first.$view.find('a')[0].click();
+        await tick();
+        assert.equal(castButton().classList.contains('hidden'), false);
+        close();
+
+        // A video dropped before it is attached never gets a button: nothing
+        // would unload it, and it would stay in the bar with a live watch.
+        metadata = false;
+        let watched = 0;
+        remote = {
+            prompt: () => Promise.resolve(),
+            watchAvailability: () => { watched += 1; return Promise.resolve(3); }
+        };
+        first.$view.find('a')[0].click();
+        await tick();
+        assert.equal(document.querySelector('#pv-container #pv-content-vid'), null, 'still loading');
+        close();
+        assert.equal(castButton(), null);
+        assert.equal(watched, 0);
+        metadata = true;
+
+        // No route at all (Firefox): no button.
+        remote = undefined;
+        first.$view.find('a')[0].click();
+        await tick();
+        assert.equal(castButton(), null);
+        close();
+
+        // Safari without Remote Playback: the AirPlay event drives the button.
+        let picked = 0;
+        const listeners = new Map();
+        const originalAdd = mediaProto.addEventListener;
+        const originalRemove = mediaProto.removeEventListener;
+        mediaProto.webkitShowPlaybackTargetPicker = () => { picked += 1; };
+        mediaProto.addEventListener = function addEventListener(type, fn, opts) {
+            if (type === 'webkitplaybacktargetavailabilitychanged') listeners.set(fn, this);
+            return originalAdd.call(this, type, fn, opts);
+        };
+        mediaProto.removeEventListener = function removeEventListener(type, fn, opts) {
+            if (type === 'webkitplaybacktargetavailabilitychanged') listeners.delete(fn);
+            return originalRemove.call(this, type, fn, opts);
+        };
+        try {
+            first.$view.find('a')[0].click();
+            await tick();
+            const video = document.querySelector('#pv-content-vid');
+            const airplay = availabilityState => {
+                const ev = new window.Event('webkitplaybacktargetavailabilitychanged');
+                ev.availability = availabilityState;
+                video.dispatchEvent(ev);
+            };
+            assert.ok(castButton().classList.contains('hidden'), 'hidden until AirPlay reports a device');
+            airplay('available');
+            assert.equal(castButton().classList.contains('hidden'), false);
+            castButton().click();
+            assert.equal(picked, 1);
+            airplay('not-available');
+            assert.ok(castButton().classList.contains('hidden'));
+            close();
+            assert.equal(listeners.size, 0, 'closing the preview removes the AirPlay listener');
+
+            // Safari with Remote Playback: its availability watch is used,
+            // not the AirPlay picker that would show without any device.
+            prompted = 0;
+            remote = {
+                prompt: () => { prompted += 1; return Promise.resolve(); },
+                watchAvailability: callback => { availability = callback; return Promise.resolve(5); },
+                cancelWatchAvailability: () => Promise.resolve()
+            };
+            first.$view.find('a')[0].click();
+            await tick();
+            assert.ok(castButton().classList.contains('hidden'));
+            assert.equal(listeners.size, 0);
+            availability(true);
+            castButton().click();
+            assert.equal(prompted, 1);
+            assert.equal(picked, 1, 'the AirPlay picker is not used');
+            close();
+        } finally {
+            delete mediaProto.webkitShowPlaybackTargetPicker;
+            mediaProto.addEventListener = originalAdd;
+            mediaProto.removeEventListener = originalRemove;
+        }
+    } finally {
+        elementProto.setAttribute = originalSetAttribute;
+        if (originalCrossOrigin) Object.defineProperty(window, 'crossOriginIsolated', originalCrossOrigin);
+        else delete window.crossOriginIsolated;
+        if (originalRemote) Object.defineProperty(mediaProto, 'remote', originalRemote);
+        else delete mediaProto.remote;
     }
 });
 
