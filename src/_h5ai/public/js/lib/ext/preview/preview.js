@@ -373,8 +373,6 @@ Session.prototype = {
                 setControlType('default');
             })
             .then(() => this.load(item))
-            // delay for testing
-            // .then(x => new Promise(resolve => setTimeout(() => resolve(x), 1000)))
             .then($content => {
                 // A later move, open() or close made this load outdated: its
                 // content comes too late. It is released, never shown in

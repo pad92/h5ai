@@ -10,8 +10,7 @@ const store = require('../core/store');
 const settings = Object.assign({
     enabled: false,
     show: false,
-    qrcode: true,
-    qrColor: '#999'
+    qrcode: true
 }, allsettings.info);
 const tpl =
         `<div id="info">

@@ -25,7 +25,6 @@ const __dirname = path.dirname(__filename);
 
 const ROOT = __dirname;
 const SRC = path.join(ROOT, 'src');
-const TEST = path.join(ROOT, 'test');
 const BUILD = path.join(ROOT, 'build');
 const isProduction = process.argv.includes('release');
 
@@ -46,10 +45,6 @@ const WEBPACK_CFG = {
             {
                 test: /\.js$/,
                 use: {loader: 'babel-loader', options: {presets: ['@babel/preset-env']}}
-            },
-            {
-                test: /jsdom/,
-                use: 'null-loader'
             }
         ]
     },
@@ -150,29 +145,12 @@ const copyFonts = () => src([
 
 const copy = parallel(copyPhpAndStatic, copyJson, copyRootFiles, copyMoviPlayer, copyFonts);
 
-// The browser test bundle carries every test and is never shipped: the size
-// hints meant for the served scripts.js do not apply to it.
-const WEBPACK_TEST_CFG = {...WEBPACK_CFG, performance: {hints: false}};
-
-const buildTests = () => src(path.join(TEST, 'index.js'))
-    .pipe(webpack(WEBPACK_TEST_CFG))
-    .pipe(insert.prepend('//= require "pre.js"\n\n'))
-    .pipe(include({hardFail: true, includePaths: [path.join(SRC, '_h5ai/public/js')]}))
-    .pipe(dest(path.join(BUILD, 'test')));
-
-const copyTestAssets = () => src(path.join(TEST, 'index.html'))
-    .pipe(dest(path.join(BUILD, 'test')));
-
-const copyTestStyles = () => src(path.join(BUILD, '_h5ai/public/css/styles.css'))
-    .pipe(dest(path.join(BUILD, 'test')));
-
 const createZip = () => src(path.join(BUILD, '_h5ai/**'))
     .pipe(zip(packageFileName(pkg.name, version)))
     .pipe(dest(BUILD));
 
 const build = series(parallel(buildScripts, buildStyles), parallel(buildPhpFromPug, copy));
-const tests = series(buildStyles, copyTestStyles, buildTests, copyTestAssets);
-const release = series(clean, build, tests, createZip);
+const release = series(clean, build, createZip);
 
-export {clean, build, tests, release};
+export {clean, build, release};
 export default release;
