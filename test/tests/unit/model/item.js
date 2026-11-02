@@ -58,7 +58,7 @@ class FakeAudio {
 }
 
 window.Audio = FakeAudio;
-reqlib('ext/preview/preview-aud');
+reqlib('ext/player');
 reqlib('ext/download');
 reqlib('ext/search');
 reqlib('ext/filter');
@@ -272,7 +272,6 @@ test('audio player queues tracks and responds to transport, seek, volume, and cl
 
         cover.$view.find('.ap-row-play')[0].click();
         await new Promise(resolve => setTimeout(resolve, 5));
-        assert.equal(cover.embeddedCoverUrl, 'blob:cover-art');
         assert.equal(document.querySelector('#ap-cover-img').getAttribute('src'), 'blob:cover-art');
         const audio = window.__audioPlayer;
         audio.currentTime = 42;

@@ -103,9 +103,12 @@ const shoot = async (chrome, workDir) => {
     for (const shot of SHOTS) {
         await chrome.viewport(...shot.size);
         // h5ai reads the view mode, tree state and theme from localStorage.
+        // The player keeps its queue there too and saves it again as the page
+        // is left: closing it first keeps an earlier shot's track out.
         await chrome.navigate(ORIGIN + '/');
         const store = {view: shot.view || {mode: 'details', size: 40}, 'ext/tree': true};
-        await chrome.evaluate(`localStorage.setItem('_h5ai', ${JSON.stringify(JSON.stringify(store))});
+        await chrome.evaluate(`document.querySelector('#ap-close-btn')?.click();
+            localStorage.setItem('_h5ai', ${JSON.stringify(JSON.stringify(store))});
             localStorage.setItem('h5ai_theme', ${JSON.stringify(shot.theme || 'light')});`);
         await chrome.navigate(ORIGIN + shot.path);
         if (shot.path.endsWith('/')) {

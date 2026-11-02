@@ -152,6 +152,12 @@ Integrates Piwik (Matomo) tracking code.
 #### `preview-aud`
 Enables the player bar: clicking an audio file plays it with the other audio files of its folder as a queue, and each audio row gets Play now, Play next and Add to queue buttons.
 
+The browser keeps the queue, the current entry and its position, the volume, shuffle and repeat (`localStorage`, key `ext/player`). The next page or visit brings them back, paused: browsers start no sound without a click. Closing the player forgets the queue. Each browser keeps its own; with several tabs, the last change wins.
+
+The queue drawer's Export button downloads the queue as an extended M3U playlist (`.m3u8`, UTF-8) with absolute URLs, to open in an external player. See [Playing the queue in an external player](#playing-the-queue-in-an-external-player).
+
+Shuffle plays every entry of the queue once, in a random order; previous goes back through that order, which ends like the queue does unless repeat is on.
+
 When `preview-vid` is enabled, video rows get the same three buttons and videos share the queue with audio files. A queued video plays in the preview; when it ends, the queue moves on, back to the bar for a track or to the next video in the open preview. Closing that preview pauses the queue, and the bar's play button opens it again from the start. A preview you are browsing is never replaced: a video reached meanwhile waits, paused, for the play button. A plain click on a video still opens the regular preview. Play now on a video queues the videos of its folder; on a track, the tracks of its folder. Volume and mute in the bar apply to tracks only; videos keep their own controls.
 - `enabled` (default: `true`).
 - `autoplay` (default: `true`): Start playback when an audio file is clicked. With `false`, the click loads the file into the player bar, paused; the row's Play now button still starts it.
@@ -160,6 +166,19 @@ When `preview-vid` is enabled, video rows get the same three buttons and videos 
 A file the browser reports it cannot play (WMA, RealAudio and MIDI, and AIFF outside Safari) keeps its plain link and stays out of the queue. A file that fails during playback is marked in the bar, and the queue moves on to the next one.
 
 The cover shown in the bar comes from the file's server thumbnail, then from the MP3's ID3 tag, then from an image named `cover`, `folder`, `front`, `album`, `albumart` or `poster` in the same folder.
+
+##### Playing the queue in an external player
+
+1. Open the queue drawer (the list button on the right of the player bar) and click **Export**. The browser downloads the queue as a playlist named after its folder, such as `Night Drive.m3u8`, or `queue.m3u8` when the tracks come from several folders.
+2. Open that file in the player:
+   - **VLC**: *Media > Open File*, or drop the file on the window. On Android or iOS, open the downloaded file with VLC.
+   - **MPC-HC** or **MPC-BE**: *File > Open File*, or drop the file on the window.
+   - **mpv**: `mpv "Night Drive.m3u8"`.
+
+The playlist holds links, not the files: the player streams each entry from the h5ai server, which must be reachable from where it runs. It is a snapshot of the queue at export time; export again after changing the queue.
+
+- **Basic Auth**: VLC asks for the user name and password when it opens the first entry. Not every player can ask. Do not write the credentials into the playlist's URLs: anyone who gets the file gets them too.
+- **HTTPS**: the player checks the server's certificate. A self-signed certificate has to be trusted on that machine; VLC offers to accept it.
 
 #### `preview-img`
 Enables overlay preview of images.
