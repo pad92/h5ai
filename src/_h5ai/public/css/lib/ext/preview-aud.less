@@ -1,3 +1,10 @@
+// Room for the fixed bar, so it never hides the last rows of the listing.
+#root.ap-bar-visible #mainrow {
+    margin-bottom: 90px;
+}
+
+// Below the preview overlay (100), notifications (100) and tasks (150): a
+// preview opened while music plays keeps its own controls visible.
 #audio-player-bar {
     position: fixed;
     bottom: 0;
@@ -12,7 +19,7 @@
     align-items: center;
     justify-content: space-between;
     padding: 0 24px;
-    z-index: 9999;
+    z-index: 90;
     box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.05);
     transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.3s, border-color 0.3s;
     transform: translateY(100%);
@@ -21,6 +28,11 @@
 
     &.active {
         transform: translateY(0);
+    }
+
+    &.ap-error .ap-track-info .ap-track-details .ap-track-folder {
+        color: #d32f2f;
+        opacity: 1;
     }
 
     * {
@@ -448,7 +460,7 @@ body[data-theme="dark"] #audio-player-bar {
     -webkit-backdrop-filter: blur(20px);
     border-left: 1px solid rgba(0, 0, 0, 0.08);
     box-shadow: -10px 0 30px rgba(0, 0, 0, 0.05);
-    z-index: 9998;
+    z-index: 89;
     display: flex;
     flex-direction: column;
     transform: translateX(100%);

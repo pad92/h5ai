@@ -51,6 +51,10 @@ class FakeAudio {
     }
 
     load() {}
+
+    canPlayType() {
+        return 'maybe';
+    }
 }
 
 window.Audio = FakeAudio;
