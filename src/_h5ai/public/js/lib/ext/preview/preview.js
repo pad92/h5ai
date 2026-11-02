@@ -368,14 +368,26 @@ Session.prototype = {
             // delay for testing
             // .then(x => new Promise(resolve => setTimeout(() => resolve(x), 1000)))
             .then($content => {
-                if (item === this.item) {
-                    dom('#pv-container').clr().app($content).show();
-                    showSpinner(false);
-                    updateGui();
-                    // Media events fired before the element was attached never
-                    // reached the document: listeners resync from here.
-                    event.pub('preview.content', item, $content[0]);
+                // A later move or open() made another item, or another
+                // Session, the current one: this content comes too late. It
+                // is released, never shown in place of the current one.
+                if (session !== this || item !== this.item) {
+                    each($content, el => {
+                        const all = el.querySelectorAll ? [el, ...el.querySelectorAll('*')] : [el];
+                        each(all, child => {
+                            if (typeof child.unload === 'function') {
+                                child.unload();
+                            }
+                        });
+                    });
+                    return;
                 }
+                dom('#pv-container').clr().app($content).show();
+                showSpinner(false);
+                updateGui();
+                // Media events fired before the element was attached never
+                // reached the document: listeners resync from here.
+                event.pub('preview.content', item, $content[0]);
             });
     },
 

@@ -767,6 +767,59 @@ test('video queue: closing the preview pauses, the play button reopens it', asyn
     });
 });
 
+test('video queue: a video loading late never replaces the one skipped to', async () => {
+    const [one, two, three] = videos('vid-race', 'one.mp4', 'two.mp4', 'three.mp4');
+    const proto = window.Element.prototype;
+    const originalSetAttribute = proto.setAttribute;
+    const originalCrossOrigin = Object.getOwnPropertyDescriptor(window, 'crossOriginIsolated');
+    Object.defineProperty(window, 'crossOriginIsolated', {configurable: true, value: false});
+    // Each video waits for its metadata until the test lets it through.
+    const loading = {};
+    proto.setAttribute = function setAttribute(name, value) {
+        originalSetAttribute.call(this, name, value);
+        if (this.id === 'pv-content-vid' && name === 'src') {
+            loading[value.split('/').pop()] = this;
+        }
+    };
+    const loaded = async name => {
+        loading[name].dispatchEvent(new window.Event('loadedmetadata'));
+        await tick();
+    };
+    let unloaded = 0;
+    try {
+        await withPlayer({}, [], async () => {
+            list(one, two, three);
+            press(one, 'folder');
+            await tick();
+            await loaded('one.mp4');
+            assert.equal(preview.item, one);
+
+            $('#ap-next').click();
+            $('#ap-next').click();
+            await tick();
+            assert.deepEqual(Object.keys(loading), ['one.mp4', 'two.mp4', 'three.mp4']);
+            const unload = loading['two.mp4'].unload;
+            loading['two.mp4'].unload = function counted() {
+                unloaded += 1;
+                return unload && unload.call(this);
+            };
+
+            await loaded('three.mp4');
+            await loaded('two.mp4');
+            assert.equal(preview.item, three);
+            assert.equal(trackName(), 'three.mp4');
+            assert.equal(document.querySelectorAll('#pv-content-vid').length, 1);
+            assert.ok(videoEl().getAttribute('src').endsWith('three.mp4'), 'the late video stays out');
+            assert.equal(unloaded, 1, 'and is unloaded');
+            $('#ap-close-btn').click();
+        });
+    } finally {
+        proto.setAttribute = originalSetAttribute;
+        if (originalCrossOrigin) Object.defineProperty(window, 'crossOriginIsolated', originalCrossOrigin);
+        else delete window.crossOriginIsolated;
+    }
+});
+
 test('video queue: a video the user opened is left alone by the queue', async () => {
     const [a, b] = tracks('vid-own', 'a.mp3', 'b.mp3');
     const [clip] = videos('vid-own', 'clip.mp4');
