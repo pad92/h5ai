@@ -58,7 +58,8 @@ A click opens the file in an overlay; the arrow keys move to the next one.
 Audio plays in a player docked at the bottom of the page, with cover art, a
 queue, shuffle and repeat; videos can join the same queue. Playback continues
 while you browse other folders, the queue comes back on your next visit, and
-it exports as an `.m3u8` playlist for VLC or MPC-HC.
+it exports as an `.m3u8` playlist for VLC or MPC-HC
+([how to](doc/configuration.md#playing-the-queue-in-an-external-player)).
 
 ![Audio player with cover art and playback controls](doc/screenshots/preview-audio.webp)
 
