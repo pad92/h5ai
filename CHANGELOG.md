@@ -9,24 +9,24 @@
 * **Audio player**:
     * A click on a track, or Play now, plays it alone instead of queueing the whole folder; the new Play folder from here button queues the folder.
     * Shuffle plays each entry once, in random order, and Previous walks back through that order.
-    * Formats the browser cannot play (WMA, RealAudio, MIDI, AIFF outside Safari) keep their plain link. A track that fails is marked and skipped.
+    * Formats the browser cannot play (WMA, RealAudio, MIDI, AIFF outside Safari) keep their plain link and stay out of the queue. A track that fails during playback is marked, and the queue moves on.
     * The bar appears even when autoplay is blocked, and no longer covers the preview, notifications or the last rows. A video preview pauses the track and hides the bar; images and text leave the music playing.
     * The server thumbnail is the first choice for covers; a random picture of the folder is no longer used.
     * The `autoplay` option is honoured. Tracks show up in the Media Session (lock screen, media keys), and controls have accessible labels.
 * **Now playing view**: a click on the bar's cover opens the track full page, with its cover, its tags (title, artist, album, year, genre, track number), format, duration, bit rate and size. Tags come from ID3 for MP3 and from Vorbis comments for FLAC.
 * **Visualizer**: a click on the large cover cycles through a spectrum analyser, an oscilloscope, then plasma, kaleidoscope and vortex modes. The last three never flash (WCAG 2.3.1, tested) and are skipped when the system asks for reduced motion. Drawing runs only while a track plays in a visible tab.
 * **Player memory and export**: the browser remembers the queue, the position, the volume, shuffle, repeat and the visualizer mode, and restores them paused. Export downloads the queue as an `.m3u8` playlist for VLC, MPC-HC or mpv.
-* **Videos in the queue**: video rows get the same buttons as tracks, and videos share the queue with tracks. A queued video plays in the preview. One you start (Play, Next, Previous, a media key, the queue or a row button) replaces the preview you are browsing, while the queue moving on by itself leaves it on screen.
+* **Videos in the queue**: video rows get the same buttons as tracks, and videos share the queue with tracks. A queued video plays in the preview. A video you start (Play, Next, Previous, a media key, the queue or a row button) replaces the preview you are browsing; when the queue moves on by itself, the preview stays on screen.
 * **Video preview**:
     * Casting through Remote Playback or AirPlay, shown when a device is reachable. The new `engine` option sets the enhanced player's engine order; `"native wasm"` allows casting but gives up its decoder for files the browser claims to play.
     * Subtitles must match the video name: `Episode 10.srt` no longer attaches to `Episode 1.mkv`, and a subtitle without a language suffix is no longer labelled English.
-    * Fixed: lost keyboard keys after a video, a late-loading video replacing the one skipped to, a 1.5 s delay before the enhanced player, and a spinner stuck on undecodable videos.
+    * An image or text preview opened after a video gets its keys back. A video that loads late no longer replaces the one skipped to, the enhanced player shows without a 1.5 s delay, and the spinner no longer stays on a video the browser cannot decode.
 * **Other fixes**: `@charset` comes first again in `styles.css`. Markdown preview images fit the preview, and those that cannot load are hidden. The HTML built by the JavaScript is valid.
 * **Development**:
     * `npm test` and the CI test jobs now fail when a test fails; before, they exited 0.
     * `make docker-w3c`, `make docker-test` and CI validate the served HTML, the CSS and the rendered DOM with a local Nu Html Checker.
     * `make screenshots` regenerates the README screenshots; build and test notes move to `doc/development.md`.
-    * The `glob` and `minimatch` overrides fix GHSA-3g3m-2fjr-6pw4 and GHSA-g3hv-75wg-m249, build tools are updated, and the scanners move to Grype 0.121.0 and Syft 1.55.0.
+    * The `glob` and `minimatch` overrides fix GHSA-3g3m-2fjr-6pw4 and GHSA-g3hv-75wg-m249, the build tools are updated, and the scanners move to Grype 0.121.0 and Syft 1.55.0.
 * **License**: `LICENSE` is now h5ai's MIT license, shipped in the zip and the image as `_h5ai/LICENSE`.
 
 ## v1.4.0 - *2026-11-01*
