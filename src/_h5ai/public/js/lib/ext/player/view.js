@@ -86,6 +86,7 @@ const QUEUE_TPL = `
     <div class="aq-header">
         <h2>Play Queue</h2>
         <div class="aq-header-actions">
+            <button class="aq-btn-export" id="aq-export" title="Save the queue as a playlist for VLC, MPC or another player" disabled="disabled">Export</button>
             <button class="aq-btn-clear" id="aq-clear">Clear</button>
             <button class="aq-btn-close" id="aq-close" aria-label="Close queue">&times;</button>
         </div>
@@ -234,6 +235,7 @@ const showCoverFallback = (item, isVideo) => {
 // `opts`: {current, isVideo(item), coverFor(item), onSelect(item), onRemove(item)}.
 const renderQueue = (entries, opts) => {
     const $list = dom('#aq-list-el').clr();
+    dom('#aq-export').prop('disabled', entries.length === 0);
     if (!isQueueOpen()) {
         return;
     }
@@ -311,12 +313,22 @@ const markListing = (current, isPlaying) => {
     });
 };
 
+// Saves `text` as a file: the browser downloads it under `name`.
+const download = (name, text, type) => {
+    const url = global.window.URL.createObjectURL(new global.window.Blob([text], {type}));
+    const link = dom('<a/>').attr('href', url).attr('download', name).appTo('body');
+    link[0].click();
+    link.rm();
+    // Left a moment to the browser before the URL goes.
+    global.window.setTimeout(() => global.window.URL.revokeObjectURL(url), 1000);
+};
+
 // The listed items accepted by `accepts`, in listing order.
 const listedItems = accepts => compact(dom('#items .item').map(el => el._item && accepts(el._item) ? el._item : null));
 
 // `on`: {togglePlay, next, previous, toggleShuffle, cycleRepeat,
 // seek(percent), previewSeek(percent) -> time or null, setVolume(volume),
-// toggleMute, queueToggled, clear, close}.
+// toggleMute, queueToggled, exportQueue, clear, close}.
 const mount = on => {
     base.$root.app(BAR_TPL);
     base.$root.app(QUEUE_TPL);
@@ -354,6 +366,7 @@ const mount = on => {
         on.queueToggled();
     });
     dom('#aq-close').on('click', () => setQueueOpen(false));
+    dom('#aq-export').on('click', on.exportQueue);
     dom('#aq-clear').on('click', on.clear);
     dom('#ap-close-btn').on('click', () => {
         setQueueOpen(false);
@@ -381,5 +394,6 @@ module.exports = {
     renderQueue,
     addRowActions,
     markListing,
-    listedItems
+    listedItems,
+    download
 };

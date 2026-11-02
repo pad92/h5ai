@@ -1,12 +1,15 @@
 // The player: plays the queue through the engine and keeps the view, the
 // covers and the Media Session in step with it.
 const {includes} = require('../../util');
+const Item = require('../../model/item');
 const preview = require('../preview/preview');
 const {createQueue} = require('./queue');
 const {createEngine} = require('./engine');
 const {canPlay} = require('./formats');
 const covers = require('./covers');
 const session = require('./session');
+const memory = require('./memory');
+const playlist = require('./playlist');
 const view = require('./view');
 
 const REPEAT_OFF = 0;
@@ -15,6 +18,8 @@ const REPEAT_SONG = 2;
 const DEFAULT_VOLUME = 0.8;
 // Back from further than this replays the entry instead of the previous one.
 const RESTART_THRESHOLD = 3;
+// While playing, the position is saved at most this often (ms).
+const SAVE_INTERVAL = 5000;
 
 // `audioTypes` and `videoTypes`: item types of tracks and videos.
 const createPlayer = ({audioTypes, videoTypes}) => {
@@ -30,6 +35,7 @@ const createPlayer = ({audioTypes, videoTypes}) => {
     // Whether the current entry was meant to play: a failure only moves the
     // queue on when it was.
     let playRequested = false;
+    let savedAt = 0;
 
     // Videos play in the preview, which shows them only once an enabled
     // preview-vid registered their type.
@@ -37,6 +43,22 @@ const createPlayer = ({audioTypes, videoTypes}) => {
     const isTrack = item => !!item && includes(audioTypes, item.type) && canPlay(engine.audio, item);
 
     const coverFor = item => covers.coverFor(item, isVideo(item));
+
+    // Kept in the browser, so a new page or a reload picks up where it was.
+    const persist = () => {
+        savedAt = Date.now();
+        const {audio} = engine;
+        memory.save({
+            queue: queue.entries.map(item => item.absHref),
+            current: queue.current ? queue.current.absHref : null,
+            time: loaded && !isVideo(loaded) ? audio.currentTime || 0 : 0,
+            volume: audio.volume,
+            lastVolume,
+            muted: audio.muted,
+            shuffle: queue.isShuffled,
+            repeat
+        });
+    };
 
     const renderQueue = () => view.renderQueue(queue.entries, {
         current: queue.current,
@@ -116,6 +138,7 @@ const createPlayer = ({audioTypes, videoTypes}) => {
         renderQueue();
 
         const {started, promise} = engine.load(item, shouldPlay);
+        persist();
         if (!promise) {
             playRequested = started;
             setPlaying(false);
@@ -151,6 +174,7 @@ const createPlayer = ({audioTypes, videoTypes}) => {
         setPlaying(false);
         view.setError(false);
         view.hideBar();
+        persist();
     };
 
     const jumpTo = item => goTo(item);
@@ -214,6 +238,7 @@ const createPlayer = ({audioTypes, videoTypes}) => {
         view.showBar();
         renderQueue();
         startIfIdle(item);
+        persist();
     };
 
     const playNext = item => {
@@ -221,6 +246,7 @@ const createPlayer = ({audioTypes, videoTypes}) => {
         view.showBar();
         renderQueue();
         startIfIdle(item);
+        persist();
     };
 
     const remove = item => {
@@ -235,6 +261,7 @@ const createPlayer = ({audioTypes, videoTypes}) => {
             }
         }
         renderQueue();
+        persist();
     };
 
     const clear = () => {
@@ -289,6 +316,9 @@ const createPlayer = ({audioTypes, videoTypes}) => {
         if (media.duration && !view.isSeeking()) {
             view.setProgress(media.currentTime, media.duration);
         }
+        if (Date.now() - savedAt > SAVE_INTERVAL) {
+            persist();
+        }
     };
 
     const onDurationChange = () => {
@@ -314,6 +344,7 @@ const createPlayer = ({audioTypes, videoTypes}) => {
     const setVolume = volume => {
         engine.audio.volume = volume;
         engine.audio.muted = volume === 0;
+        persist();
     };
 
     const showMuted = () => view.setMutedIcon(engine.audio.muted || engine.audio.volume === 0);
@@ -329,6 +360,62 @@ const createPlayer = ({audioTypes, videoTypes}) => {
         }
         view.setVolume(audio.volume, audio.muted);
         showMuted();
+        persist();
+    };
+
+    // The queue as a playlist file for an external player. Absolute URLs:
+    // the file is opened outside this page.
+    const exportQueue = () => {
+        const entries = queue.entries;
+        if (!entries.length) {
+            return;
+        }
+        const base = global.window.location.href;
+        const folders = new Set(entries.map(item => item.parent ? item.parent.label : ''));
+        const name = folders.size === 1 ? [...folders][0] : '';
+        const text = playlist.toM3u(entries.map(item => ({
+            title: item.label,
+            url: new global.window.URL(item.absHref, base).href
+        })));
+        view.download(playlist.fileName(name), text, 'audio/x-mpegurl');
+    };
+
+    // Applies a state saved by an earlier page, `memory.load()`'s shape. The
+    // entry comes back paused at its position: a browser starts no sound
+    // without a click. Only an idle player takes it.
+    const restore = state => {
+        if (!state || loaded) {
+            return;
+        }
+        const {audio} = engine;
+        if (state.volume !== null) {
+            audio.volume = state.volume;
+        }
+        if (state.lastVolume !== null) {
+            lastVolume = state.lastVolume;
+        }
+        audio.muted = state.muted;
+        view.setVolume(audio.volume, audio.muted);
+        showMuted();
+        repeat = state.repeat;
+        view.setRepeat(repeat);
+        queue.setShuffle(state.shuffle);
+        view.setShuffle(state.shuffle);
+
+        // Entries that no longer exist fail once played, and are skipped.
+        const entries = state.queue
+            .map(href => Item.get(href))
+            .filter(item => item && (isTrack(item) || isVideo(item)));
+        if (!entries.length) {
+            return;
+        }
+        const current = entries.find(item => item.absHref === state.current) || entries[0];
+        queue.replace(entries, current);
+        loadCurrent(false);
+        if (!isVideo(current) && state.time) {
+            audio.currentTime = state.time;
+            view.setProgress(state.time, 0);
+        }
     };
 
     const init = () => {
@@ -356,16 +443,19 @@ const createPlayer = ({audioTypes, videoTypes}) => {
             toggleShuffle: () => {
                 queue.setShuffle(!queue.isShuffled);
                 view.setShuffle(queue.isShuffled);
+                persist();
             },
             cycleRepeat: () => {
                 repeat = (repeat + 1) % 3;
                 view.setRepeat(repeat);
+                persist();
             },
             seek: percent => seekTo(durationOf() * percent / 100),
             previewSeek: percent => durationOf() ? durationOf() * percent / 100 : null,
             setVolume,
             toggleMute,
             queueToggled: renderQueue,
+            exportQueue,
             clear,
             close: clear
         });
@@ -376,6 +466,13 @@ const createPlayer = ({audioTypes, videoTypes}) => {
             previoustrack: previous,
             nexttrack: next,
             seekto: details => seekTo(details.seekTime)
+        });
+
+        // The position as the page is left, whatever the last save.
+        global.window.addEventListener('pagehide', () => {
+            if (loaded) {
+                persist();
+            }
         });
     };
 
@@ -392,6 +489,7 @@ const createPlayer = ({audioTypes, videoTypes}) => {
         isTrack,
         isVideo,
         playFolder,
+        restore,
         rowActions,
         refreshListing: () => view.markListing(loaded, isPlaying)
     };

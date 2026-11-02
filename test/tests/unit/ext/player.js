@@ -833,3 +833,154 @@ test('video queue: the bar shows the new entry time, and video progress counts a
         });
     });
 });
+
+const store = reqlib('core/store');
+const playerExt = reqlib('ext/player');
+const absolute = item => new window.URL(item.absHref, window.location.href).href;
+
+// Captures what the player hands to the browser as a download, and runs
+// the delayed release of its URL before leaving.
+const withDownloads = async run => {
+    const saved = {
+        click: window.HTMLAnchorElement.prototype.click,
+        createObjectURL: Object.getOwnPropertyDescriptor(window.URL, 'createObjectURL'),
+        setTimeout: window.setTimeout
+    };
+    const downloads = [];
+    const delayed = [];
+    let blob = null;
+    window.setTimeout = (fn, ms) => {
+        delayed.push(fn);
+        return ms;
+    };
+    Object.defineProperty(window.URL, 'createObjectURL', {configurable: true, value: value => {
+        blob = value;
+        return 'blob:download';
+    }});
+    window.HTMLAnchorElement.prototype.click = function click() {
+        downloads.push({name: this.getAttribute('download'), href: this.getAttribute('href'), blob});
+    };
+    try {
+        await run(downloads);
+    } finally {
+        delayed.forEach(fn => fn());
+        window.setTimeout = saved.setTimeout;
+        window.HTMLAnchorElement.prototype.click = saved.click;
+        Object.defineProperty(window.URL, 'createObjectURL', saved.createObjectURL);
+    }
+};
+
+test('player export: the queue downloads as an M3U playlist with absolute URLs', async () => {
+    const [a, b] = tracks('aud-export', 'a.mp3', 'b.mp3');
+    const [other] = tracks('aud-export-2', 'c d.mp3');
+    await withPlayer({}, [], async ({revoked}) => {
+        await withDownloads(async downloads => {
+            const [first, second] = list(a, b);
+            $('#ap-queue-btn').click();
+            assert.equal($('#aq-export').disabled, true, 'nothing to export');
+
+            press(first, 'play');
+            await settle();
+            assert.equal($('#aq-export').disabled, false);
+            $('#aq-export').click();
+            assert.equal(downloads.length, 1);
+            assert.equal(downloads[0].name, 'aud-export.m3u8', 'named after the folder');
+            assert.equal(downloads[0].blob.type, 'audio/x-mpegurl');
+            assert.equal(await downloads[0].blob.text(), [
+                '#EXTM3U',
+                `#EXTINF:-1,${first.label}`, absolute(first),
+                `#EXTINF:-1,${second.label}`, absolute(second),
+                ''
+            ].join('\n'));
+
+            list(a, b, other);
+            press(other, 'queue');
+            $('#aq-export').click();
+            assert.equal(downloads[1].name, 'queue.m3u8', 'tracks from several folders');
+            assert.ok((await downloads[1].blob.text()).includes(absolute(other)), 'the URL stays encoded');
+            $('#aq-close').click();
+        });
+        assert.deepEqual(revoked, ['blob:download', 'blob:download'], 'each download URL is released');
+    });
+});
+
+test('player memory: the queue, position and settings are saved as they change', async () => {
+    await withPlayer({}, [], async () => {
+        const [x, y] = list(...tracks('aud-save', 'a.mp3', 'b.mp3'));
+        press(y, 'play');
+        await settle();
+        $('#ap-repeat').click();
+        const volume = $('#ap-volume');
+        volume.value = '30';
+        volume.dispatchEvent(new window.Event('input', {bubbles: true}));
+        const saved = store.get('ext/player');
+        assert.deepEqual(saved.queue, [x.absHref, y.absHref]);
+        assert.equal(saved.current, y.absHref);
+        assert.equal(saved.repeat, 1);
+        assert.equal(saved.volume, 0.3);
+
+        $('#ap-close-btn').click();
+        assert.deepEqual(store.get('ext/player').queue, [], 'closing the player forgets the queue');
+    });
+});
+
+test('player memory: a saved queue comes back paused at its position', async () => {
+    await withPlayer({}, [], async () => {
+        const [x, y] = list(...tracks('aud-restore', 'a.mp3', 'b.mp3'));
+        store.put('ext/player', {
+            queue: [x.absHref, 'https://elsewhere.example/c.mp3', '//elsewhere.example/d.mp3', 42, y.absHref],
+            current: y.absHref,
+            time: 42,
+            volume: 0.3,
+            lastVolume: 0.6,
+            muted: false,
+            shuffle: false,
+            repeat: 1
+        });
+        playerExt.restoreSaved();
+        await settle();
+        assert.equal(barIsActive(), true);
+        assert.equal(trackName(), y.label);
+        assert.equal(audio().paused, true, 'no sound without a click');
+        assert.equal(audio().currentTime, 42);
+        assert.equal($('#ap-time-cur').textContent, '0:42');
+        assert.equal($('#ap-repeat').getAttribute('title'), 'Repeat (Queue)');
+        assert.equal($('#ap-volume').value, '30');
+        $('#ap-queue-btn').click();
+        assert.deepEqual(queueNames(), labels([x, y]), 'only paths of this site are kept');
+        $('#aq-close').click();
+
+        store.put('ext/player', {queue: [x.absHref], current: x.absHref, time: 5});
+        playerExt.restoreSaved();
+        assert.equal(trackName(), y.label, 'a player in use is left alone');
+    });
+});
+
+test('player memory: a broken or foreign saved state is ignored', async () => {
+    await withPlayer({}, [], async () => {
+        [null, 'text', {queue: 'nope', repeat: 7, volume: 3}].forEach(state => {
+            store.put('ext/player', state);
+            playerExt.restoreSaved();
+            assert.equal(barIsActive(), false);
+            assert.equal($('#ap-repeat').getAttribute('title'), 'Repeat (Off)');
+        });
+    });
+});
+
+test('player memory: only paths of this site are read back', () => {
+    const memory = reqlib('ext/player/memory');
+    const saved = store.get('ext/player');
+    try {
+        store.put('ext/player', {
+            queue: ['/music/a.mp3', '//elsewhere.example/b.mp3', 'https://elsewhere.example/c.mp3', 7],
+            current: '//elsewhere.example/b.mp3',
+            time: -3
+        });
+        const state = memory.load();
+        assert.deepEqual(state.queue, ['/music/a.mp3']);
+        assert.equal(state.current, null);
+        assert.equal(state.time, 0);
+    } finally {
+        store.put('ext/player', saved);
+    }
+});

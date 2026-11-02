@@ -152,6 +152,10 @@ Integrates Piwik (Matomo) tracking code.
 #### `preview-aud`
 Enables the player bar: clicking an audio file plays it with the other audio files of its folder as a queue, and each audio row gets Play now, Play next and Add to queue buttons.
 
+The browser keeps the queue, the current entry and its position, the volume, shuffle and repeat (`localStorage`, key `ext/player`). The next page or visit brings them back, paused: browsers start no sound without a click. Closing the player forgets the queue. Each browser keeps its own; with several tabs, the last change wins.
+
+The queue drawer's Export button downloads the queue as an extended M3U playlist (`.m3u8`, UTF-8) with absolute URLs, to open in VLC, MPC-HC, mpv or another player. Behind Basic Auth, that player asks for the credentials.
+
 Shuffle plays every entry of the queue once, in a random order; previous goes back through that order, which ends like the queue does unless repeat is on.
 
 When `preview-vid` is enabled, video rows get the same three buttons and videos share the queue with audio files. A queued video plays in the preview; when it ends, the queue moves on, back to the bar for a track or to the next video in the open preview. Closing that preview pauses the queue, and the bar's play button opens it again from the start. A preview you are browsing is never replaced: a video reached meanwhile waits, paused, for the play button. A plain click on a video still opens the regular preview. Play now on a video queues the videos of its folder; on a track, the tracks of its folder. Volume and mute in the bar apply to tracks only; videos keep their own controls.
