@@ -65,9 +65,9 @@ it exports as an `.m3u8` playlist for VLC or MPC-HC
 
 A click on the bar's cover opens the track in large: its cover over a
 blurred copy of it, the title, artist, album and year read from the file's
-tags (MP3 and FLAC), and the format, duration, bit rate and size. A
-Winamp-style spectrum analyser or oscilloscope follows the music, in the bar
-and in this view.
+tags (MP3 and FLAC), and the format, duration, bit rate and size. A click
+on the large cover swaps it for a Winamp-style spectrum analyser, then an
+oscilloscope, then the cover again.
 
 ![Now playing view with the large cover and the track's tags](doc/screenshots/now-playing.webp)
 

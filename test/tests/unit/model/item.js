@@ -257,7 +257,7 @@ test('audio player queues tracks and responds to transport, seek, volume, and cl
         cover.type = 'aud';
         view.setItems([first, second, cover]);
 
-        first.$view.find('.ap-row-play')[0].click();
+        first.$view.find('.ap-row-folder')[0].click();
         await new Promise(resolve => setTimeout(resolve, 0));
         assert.equal(document.querySelector('#ap-track-name-el').textContent, 'audio-one.mp3');
         assert.equal(document.querySelector('#audio-player-bar').classList.contains('active'), true);
@@ -270,7 +270,7 @@ test('audio player queues tracks and responds to transport, seek, volume, and cl
         await new Promise(resolve => setTimeout(resolve, 0));
         assert.equal(document.querySelector('#ap-track-name-el').textContent, 'cover.mp3');
 
-        cover.$view.find('.ap-row-play')[0].click();
+        cover.$view.find('.ap-row-folder')[0].click();
         await new Promise(resolve => setTimeout(resolve, 5));
         assert.equal(document.querySelector('#ap-cover-img').getAttribute('src'), 'blob:cover-art');
         const audio = window.__audioPlayer;

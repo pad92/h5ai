@@ -30,11 +30,11 @@ const initItem = item => {
     }
     if (player.isTrack(item)) {
         view.addRowActions(item, player.rowActions);
-        // A click opens the player like a preview; autoplay decides whether
-        // it also starts.
+        // A click plays the file alone, like a preview; autoplay decides
+        // whether it also starts. The row's folder button plays the folder.
         const onclick = ev => {
             ev.preventDefault();
-            player.playFolder(item, settings.autoplay);
+            player.playOne(item, settings.autoplay);
         };
         if (item.click_callback) {
             item.$view.find('a').off('click', item.click_callback);

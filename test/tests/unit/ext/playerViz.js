@@ -42,3 +42,27 @@ test('visualizer math: the classic skin colours, green at the bottom', () => {
     assert.equal(viz.scopeColor(1), 'rgb(255,255,255)');
     assert.equal(viz.scopeColor(0), 'rgb(148,156,165)');
 });
+
+test('visualizer: a new one shows the cover, and a click loops through every mode', () => {
+    const {createVisualizer, MODES} = reqlib('ext/player/visualizer');
+    const saved = {AudioContext: window.AudioContext, requestAnimationFrame: window.requestAnimationFrame};
+    window.AudioContext = class {};
+    window.requestAnimationFrame = () => 1;
+    try {
+        const changes = [];
+        const visualizer = createVisualizer({audio: {}, onModeChange: mode => changes.push(mode)});
+        assert.equal(visualizer.mode, 'off', 'the cover first, whatever the motion preference');
+        assert.deepEqual(MODES, ['spectrum', 'scope', 'off']);
+        const cover = document.createElement('div');
+        cover.appendChild(document.createElement('canvas'));
+        visualizer.addSurface(cover, {bars: 2, rows: 7, isShown: () => false});
+        assert.equal(cover.querySelector('canvas').width, 7, 'two 3-pixel bars and their gap');
+        [1, 2, 3].forEach(() => cover.click());
+        assert.deepEqual(changes, ['spectrum', 'scope', 'off']);
+        assert.equal(visualizer.label, 'Cover (click to change)');
+    } finally {
+        window.AudioContext = saved.AudioContext;
+        window.requestAnimationFrame = saved.requestAnimationFrame;
+    }
+});
+

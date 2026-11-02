@@ -1,12 +1,14 @@
 // Winamp-style visualizers of the playing track: a spectrum analyser with
-// falling peaks, or an oscilloscope. They read the real sound through a Web
-// Audio analyser and stay cheap: the FFT runs natively, the canvases are a
-// few thousand pixels scaled up without smoothing, and nothing runs while
-// paused, hidden, switched off or on a video.
+// falling peaks, or an oscilloscope, drawn in place of the large view's
+// cover. They read the real sound through a Web Audio analyser and stay
+// cheap: the FFT runs natively, the canvas is a few thousand pixels scaled up
+// without smoothing, and nothing runs while paused, hidden, back on the cover
+// or on a video.
 const viz = require('./vizmath');
 
 const MODES = ['spectrum', 'scope', 'off'];
-const MODE_LABELS = {spectrum: 'Spectrum analyser', scope: 'Oscilloscope', off: 'Visualizer off'};
+// "off" shows the cover: the cycle goes cover, spectrum, oscilloscope.
+const MODE_LABELS = {spectrum: 'Spectrum analyser', scope: 'Oscilloscope', off: 'Cover'};
 const FRAME_MS = 1000 / 30;
 // Each bar is 3 pixels wide with a 1-pixel gap, as in Winamp's 76x16 area.
 const BAR_STEP = 4;
@@ -16,22 +18,21 @@ const win = () => global.window;
 const AudioContextClass = () => win().AudioContext || win().webkitAudioContext;
 const isSupported = () => !!AudioContextClass() && typeof win().requestAnimationFrame === 'function';
 
-const prefersReducedMotion = () => typeof win().matchMedia === 'function' && win().matchMedia('(prefers-reduced-motion: reduce)').matches;
-
 // `audio`: the track element. `onModeChange(mode)`: after a click changed it.
 const createVisualizer = ({audio, onModeChange}) => {
     let context = null;
     let analyser = null;
     let freq = null;
     let wave = null;
-    let mode = prefersReducedMotion() ? 'off' : 'spectrum';
+    // The cover first: the visualizer is asked for with a click.
+    let mode = 'off';
     let isPlaying = false;
     let rafId = 0;
     let last = 0;
     const surfaces = [];
 
     const schedule = () => {
-        if (!rafId && analyser && mode !== 'off') {
+        if (!rafId && analyser && mode !== 'off' && isSupported()) {
             rafId = win().requestAnimationFrame(frame); // eslint-disable-line no-use-before-define
         }
     };
@@ -186,6 +187,9 @@ const createVisualizer = ({audio, onModeChange}) => {
         button.setAttribute('title', describe());
         button.setAttribute('aria-label', describe());
         button.addEventListener('click', () => {
+            if (!isSupported()) {
+                return;
+            }
             mode = MODES[(MODES.indexOf(mode) + 1) % MODES.length];
             surfaces.forEach(each => {
                 each.canvas.parentNode.setAttribute('title', describe());
@@ -223,6 +227,10 @@ const createVisualizer = ({audio, onModeChange}) => {
         setMode,
         get mode() {
             return mode;
+        },
+        // What a click on a display does, for its title.
+        get label() {
+            return describe();
         },
         // Drawing again, for a view that just became shown.
         refresh: schedule

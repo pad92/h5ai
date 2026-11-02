@@ -2,6 +2,8 @@
 // covers and the Media Session in step with it.
 const {includes} = require('../../util');
 const Item = require('../../model/item');
+const event = require('../../core/event');
+const viewBase = require('../../view/base');
 const preview = require('../preview/preview');
 const {createQueue} = require('./queue');
 const {createEngine} = require('./engine');
@@ -71,9 +73,15 @@ const createPlayer = ({audioTypes, videoTypes}) => {
         });
     };
 
+    // The cover, or the visualizer in its place where Web Audio exists:
+    // checked as the view shows, as a saved mode may come from elsewhere.
+    const syncVisualizer = () => {
+        nowPlaying.setSwitchable(hasVisualizer(), visualizer.label);
+        nowPlaying.showVisualizer(hasVisualizer() ? visualizer.mode : 'off');
+    };
+
     const syncExpandable = () => {
         view.setExpandable(isTrackLoaded(), isTrackLoaded() && nowPlaying.isOpen());
-        view.setVisualizerShown(hasVisualizer() && isTrackLoaded());
         visualizer.refresh();
     };
 
@@ -84,6 +92,7 @@ const createPlayer = ({audioTypes, videoTypes}) => {
         }
         if (isTrackLoaded()) {
             renderNowPlaying();
+            syncVisualizer();
             nowPlaying.open();
             syncExpandable();
         }
@@ -287,12 +296,21 @@ const createPlayer = ({audioTypes, videoTypes}) => {
 
     // Plays `item` with the listed entries of its kind (tracks or videos) as
     // the queue, or alone when it is not listed.
-    const playFolder = (item, shouldPlay = true) => {
+    // Replaces the queue with `entries`, from `item`.
+    const playFrom = (entries, item, shouldPlay) => {
         covers.release(queue.entries);
         failedInARow = 0;
-        const siblings = view.listedItems(isVideo(item) ? isVideo : isTrack);
-        queue.replace(siblings.includes(item) ? siblings : [item], item);
+        queue.replace(entries, item);
         loadCurrent(shouldPlay);
+    };
+
+    // The entry alone: Play next and Add to queue build a queue around it.
+    const playOne = (item, shouldPlay = true) => playFrom([item], item, shouldPlay);
+
+    // The entries of its kind listed in its folder, from this one on.
+    const playFolder = (item, shouldPlay = true) => {
+        const siblings = view.listedItems(isVideo(item) ? isVideo : isTrack);
+        playFrom(siblings.includes(item) ? siblings : [item], item, shouldPlay);
     };
 
     // An idle player starts with the entry it is given.
@@ -537,18 +555,37 @@ const createPlayer = ({audioTypes, videoTypes}) => {
         });
         nowPlaying.mount({close: syncExpandable});
 
-        // Winamp's own size for the bar, 76x16; twice the bars in the large view.
-        visualizer = createVisualizer({audio: engine.audio, onModeChange: persist});
-        visualizer.addSurface(global.window.document.getElementById('ap-viz'), {
-            bars: 19,
-            rows: 16,
-            isShown: () => isTrackLoaded() && view.isBarShown()
+        // Twice Winamp's 19 bars, in a square canvas that takes the cover's place.
+        visualizer = createVisualizer({
+            audio: engine.audio,
+            onModeChange: () => {
+                syncVisualizer();
+                persist();
+            }
         });
-        visualizer.addSurface(global.window.document.getElementById('np-viz'), {
+        visualizer.addSurface(global.window.document.getElementById('np-cover'), {
             bars: 38,
-            rows: 40,
+            rows: 38 * 4 - 1,
             isShown: () => isTrackLoaded() && nowPlaying.isOpen()
         });
+
+        // A video shown in the preview takes over: the track pauses, the
+        // large view closes and the bar hides until the preview shows
+        // something else or closes. A queued video keeps its place in the
+        // queue: its end still moves the queue on.
+        const setVideoShown = isShown => {
+            if (!isShown) {
+                viewBase.$root.rmCls('ap-video-shown');
+                return;
+            }
+            viewBase.$root.addCls('ap-video-shown');
+            nowPlaying.close();
+            if (!engine.audio.paused) {
+                engine.audio.pause();
+            }
+        };
+        event.sub('preview.content', (item, el) => setVideoShown(!!el && el.id === 'pv-content-vid'));
+        event.sub('preview.exit', () => setVideoShown(false));
 
         session.bindActions({
             play: () => !isPlaying && togglePlay(),
@@ -569,7 +606,8 @@ const createPlayer = ({audioTypes, videoTypes}) => {
     // A row click opens the player like a preview: `autoplay` decides
     // whether it also starts. The row buttons always start.
     const rowActions = {
-        play: item => playFolder(item),
+        play: item => playOne(item),
+        folder: item => playFolder(item),
         next: playNext,
         queue: enqueue
     };
@@ -578,6 +616,7 @@ const createPlayer = ({audioTypes, videoTypes}) => {
         init,
         isTrack,
         isVideo,
+        playOne,
         playFolder,
         restore,
         rowActions,
