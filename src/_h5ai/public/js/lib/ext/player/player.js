@@ -8,9 +8,11 @@ const {createEngine} = require('./engine');
 const {canPlay} = require('./formats');
 const covers = require('./covers');
 const session = require('./session');
+const nowPlaying = require('./nowplaying');
 const memory = require('./memory');
 const playlist = require('./playlist');
 const view = require('./view');
+const metadata = require('./metadata');
 
 const REPEAT_OFF = 0;
 const REPEAT_QUEUE = 1;
@@ -43,6 +45,57 @@ const createPlayer = ({audioTypes, videoTypes}) => {
     const isTrack = item => !!item && includes(audioTypes, item.type) && canPlay(engine.audio, item);
 
     const coverFor = item => covers.coverFor(item, isVideo(item));
+
+    // The large view of the loaded track: what is known now, then the tags
+    // and the full cover once the file was read.
+    const renderNowPlaying = () => {
+        const item = loaded;
+        const media = engine.media();
+        const duration = media && media.duration;
+        const show = result => nowPlaying.render({
+            item,
+            tags: result ? result.tags : {},
+            coverUrl: result ? covers.largeCoverFor(item) : coverFor(item),
+            background: view.gradientFor(item.label),
+            duration
+        });
+        show(metadata.known(item));
+        metadata.read(item).then(result => {
+            if (item === loaded && nowPlaying.isOpen()) {
+                show(result);
+            }
+        });
+    };
+
+    const syncExpandable = () => {
+        const isTrackLoaded = !!loaded && !isVideo(loaded);
+        view.setExpandable(isTrackLoaded, isTrackLoaded && nowPlaying.isOpen());
+    };
+
+    const toggleNowPlaying = () => {
+        if (nowPlaying.isOpen()) {
+            nowPlaying.close();
+            return;
+        }
+        if (loaded && !isVideo(loaded)) {
+            renderNowPlaying();
+            nowPlaying.open();
+            syncExpandable();
+        }
+    };
+
+    // Follows the queue while open: a new track replaces the view, a video
+    // or a stop closes it.
+    const updateNowPlaying = () => {
+        if (nowPlaying.isOpen()) {
+            if (loaded && !isVideo(loaded)) {
+                renderNowPlaying();
+            } else {
+                nowPlaying.close();
+            }
+        }
+        syncExpandable();
+    };
 
     // Kept in the browser, so a new page or a reload picks up where it was.
     const persist = () => {
@@ -136,6 +189,7 @@ const createPlayer = ({audioTypes, videoTypes}) => {
         session.setEntry(item, null);
         showCover(item);
         renderQueue();
+        updateNowPlaying();
 
         const {started, promise} = engine.load(item, shouldPlay);
         persist();
@@ -174,6 +228,7 @@ const createPlayer = ({audioTypes, videoTypes}) => {
         setPlaying(false);
         view.setError(false);
         view.hideBar();
+        updateNowPlaying();
         persist();
     };
 
@@ -325,6 +380,9 @@ const createPlayer = ({audioTypes, videoTypes}) => {
         const media = engine.media();
         if (media && media.duration) {
             view.setDuration(media.duration);
+            if (nowPlaying.isOpen()) {
+                renderNowPlaying();
+            }
         }
     };
 
@@ -457,8 +515,10 @@ const createPlayer = ({audioTypes, videoTypes}) => {
             queueToggled: renderQueue,
             exportQueue,
             clear,
-            close: clear
+            close: clear,
+            toggleNowPlaying
         });
+        nowPlaying.mount({close: syncExpandable});
 
         session.bindActions({
             play: () => !isPlaying && togglePlay(),

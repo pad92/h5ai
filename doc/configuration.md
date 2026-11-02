@@ -165,7 +165,9 @@ When `preview-vid` is enabled, video rows get the same three buttons and videos 
 
 A file the browser reports it cannot play (WMA, RealAudio and MIDI, and AIFF outside Safari) keeps its plain link and stays out of the queue. A file that fails during playback is marked in the bar, and the queue moves on to the next one.
 
-The cover shown in the bar comes from the file's server thumbnail, then from the MP3's ID3 tag, then from an image named `cover`, `folder`, `front`, `album`, `albumart` or `poster` in the same folder.
+The cover shown in the bar comes from the file's server thumbnail, then from the picture embedded in the file (MP3 ID3 tag, FLAC picture block), then from an image named `cover`, `folder`, `front`, `album`, `albumart` or `poster` in the same folder.
+
+For a track, a click on the bar's cover (or Enter on it) opens the now playing view above the listing: the cover in full over a blurred copy of it, then the title, artist, album, year, genre and track number read from the file's tags (ID3 for MP3, Vorbis comments for FLAC), and the duration, format, average bit rate, size and file name. Missing tags fall back to the file name and the folder. The view follows the queue, and the bar stays below it with the controls. The button at its top left, Escape or another click on the cover reduce it. A video has no such view: it plays in the preview.
 
 ##### Playing the queue in an external player
 

@@ -63,6 +63,12 @@ it exports as an `.m3u8` playlist for VLC or MPC-HC
 
 ![Audio player with cover art and playback controls](doc/screenshots/preview-audio.webp)
 
+A click on the bar's cover opens the track in large: its cover over a
+blurred copy of it, the title, artist, album and year read from the file's
+tags (MP3 and FLAC), and the format, duration, bit rate and size.
+
+![Now playing view with the large cover and the track's tags](doc/screenshots/now-playing.webp)
+
 Thumbnails are generated for images, video frames, audio covers, PDF and
 PostScript documents, and ZIP or RAR archives (comic books, for example),
 then cached.

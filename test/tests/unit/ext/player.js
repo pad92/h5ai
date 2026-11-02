@@ -169,9 +169,9 @@ test('audio covers: unreadable tags fall back to the folder image', async () => 
     });
 });
 
-test('audio covers: a server thumbnail wins and spares the ID3 read', async () => {
-    const [thumbed, flac] = tracks('aud-thumb', 'thumbed.mp3', 'song.flac');
-    flac.type = 'aud';
+test('audio covers: a server thumbnail wins and spares the tag read', async () => {
+    const [thumbed, ogg] = tracks('aud-thumb', 'thumbed.mp3', 'song.ogg');
+    ogg.type = 'aud';
     thumbed.thumbRational = '/thumbed.webp';
     const fetched = [];
     const covers = {[thumbed.absHref]: id3(3, frame(3, 'APIC', apic()))};
@@ -181,13 +181,13 @@ test('audio covers: a server thumbnail wins and spares the ID3 read', async () =
             fetched.push(href);
             return fetch(href, options);
         };
-        list(thumbed, flac);
+        list(thumbed, ogg);
         press(thumbed, 'play');
         await settle();
         assert.equal($('#ap-cover-img').getAttribute('src'), '/thumbed.webp');
-        press(flac, 'play');
+        press(ogg, 'play');
         await settle();
-        assert.deepEqual(fetched, [], 'neither a thumbnailed track nor a FLAC file is read for ID3');
+        assert.deepEqual(fetched, [], 'neither a thumbnailed track nor an untagged format is read');
         assert.deepEqual(blobs, []);
     });
 });
@@ -983,4 +983,137 @@ test('player memory: only paths of this site are read back', () => {
     } finally {
         store.put('ext/player', saved);
     }
+});
+
+const textFrame = (id, text) => frame(4, id, [3, ...new TextEncoder().encode(text)]);
+const panelOpen = () => $('#player-now-playing').classList.contains('active');
+const details = () => {
+    const terms = $$('#np-details dt').map(el => el.textContent);
+    const values = $$('#np-details dd').map(el => el.textContent);
+    return Object.fromEntries(terms.map((term, idx) => [term, values[idx]]));
+};
+
+test('now playing: the bar cover opens the large view with the tags, and reduces it', async () => {
+    const [tagged, plain] = tracks('np-view', '01 - tagged.mp3', 'plain.mp3');
+    tagged.size = 4000000;
+    const covers = {
+        [tagged.absHref]: id3(4, [].concat(
+            textFrame('TIT2', 'Neon Avenue'),
+            textFrame('TPE1', 'Night Drive'),
+            textFrame('TALB', 'City Lights'),
+            textFrame('TDRC', '2026'),
+            textFrame('TCON', 'Synthwave'),
+            textFrame('TRCK', '1/4'),
+            frame(4, 'APIC', apic())
+        ))
+    };
+    await withPlayer(covers, [], async () => {
+        list(tagged, plain);
+        const cover = $('#ap-cover-gradient');
+        assert.equal(cover.getAttribute('role'), null, 'nothing to open yet');
+
+        press(tagged, 'play');
+        await settle();
+        assert.equal(cover.getAttribute('role'), 'button');
+        assert.equal(cover.getAttribute('aria-expanded'), 'false');
+
+        cover.click();
+        await settle();
+        assert.ok(panelOpen());
+        assert.equal($('#player-now-playing').hasAttribute('inert'), false);
+        assert.equal(cover.getAttribute('aria-expanded'), 'true');
+        assert.equal($('#np-title').textContent, 'Neon Avenue');
+        assert.equal($('#np-artist').textContent, 'Night Drive');
+        assert.equal($('#np-album').textContent, 'City Lights · 2026');
+        assert.deepEqual(details(), {
+            Genre: 'Synthwave',
+            Track: '1 of 4',
+            Duration: '3:00',
+            Format: 'MP3',
+            'Bit rate': '178 kbps',
+            Size: reqlib('core/format').formatSize(4000000),
+            File: '01 - tagged.mp3'
+        });
+        assert.ok($('#np-cover-img').getAttribute('src').startsWith('blob:'), 'the embedded picture in full');
+        assert.equal(document.activeElement, $('#np-collapse'));
+
+        $('#ap-next').click();
+        await settle();
+        assert.equal(trackName(), 'plain.mp3', 'next, or around to the first');
+        assert.equal($('#np-title').textContent, 'plain', 'the view follows the queue');
+        assert.equal($('#np-artist').classList.contains('hidden'), true, 'no empty line for a missing tag');
+        assert.equal($('#np-album').textContent, 'np-view', 'the folder stands for a missing album');
+
+        window.dispatchEvent(new window.KeyboardEvent('keydown', {key: 'Escape'}));
+        assert.equal(panelOpen(), false, 'Escape reduces it');
+        assert.ok($('#player-now-playing').hasAttribute('inert'));
+        assert.equal(document.activeElement, cover, 'focus goes back to the cover');
+        assert.equal(cover.getAttribute('aria-expanded'), 'false');
+
+        cover.dispatchEvent(new window.KeyboardEvent('keydown', {key: 'Enter'}));
+        await settle();
+        assert.ok(panelOpen(), 'the keyboard opens it too');
+        $('#np-collapse').click();
+        assert.equal(panelOpen(), false, 'the reduce button');
+
+        cover.click();
+        await settle();
+        $('#ap-close-btn').click();
+        assert.equal(panelOpen(), false, 'stopping the player closes it');
+    });
+});
+
+test('now playing: a video entry has no large view', async () => {
+    const [clip] = videos('np-video', 'clip.mp4');
+    await withPlayer({}, [], async () => {
+        await withVideoMetadata(async () => {
+            list(clip);
+            press(clip, 'play');
+            await tick();
+            const cover = $('#ap-cover-gradient');
+            assert.equal(cover.getAttribute('role'), null);
+            cover.click();
+            await settle();
+            assert.equal(panelOpen(), false);
+            $('#pv-bar-close').click();
+        });
+    });
+});
+
+test('now playing: a queue moving on to a video closes the view', async () => {
+    const [a] = tracks('np-to-video', 'a.mp3');
+    const [clip] = videos('np-to-video', 'clip.mp4');
+    await withPlayer({}, [], async () => {
+        await withVideoMetadata(async () => {
+            list(a, clip);
+            press(a, 'play');
+            await settle();
+            press(clip, 'next');
+            $('#ap-cover-gradient').click();
+            await settle();
+            assert.ok(panelOpen());
+            audio().emit('ended');
+            await tick();
+            assert.equal(trackName(), 'clip.mp4');
+            assert.equal(panelOpen(), false);
+            $('#pv-bar-close').click();
+        });
+    });
+});
+
+test('audio covers: a FLAC picture becomes the cover', async () => {
+    const [song] = tracks('np-flac', 'song.flac');
+    song.type = 'aud';
+    const flacStart = Uint8Array.from([
+        ...bytes('fLaC'),
+        0x86, 0, 0, 32 + JPEG.length,
+        0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, ...new Array(16).fill(0), 0, 0, 0, JPEG.length, ...JPEG
+    ]).buffer;
+    await withPlayer({[song.absHref]: flacStart}, [], async ({blobs}) => {
+        list(song);
+        press(song, 'play');
+        await settle();
+        assert.deepEqual(blobs, ['image/jpeg']);
+        assert.equal($('#ap-cover-img').getAttribute('src'), 'blob:1');
+    });
 });

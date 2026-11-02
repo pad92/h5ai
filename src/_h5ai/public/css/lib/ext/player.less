@@ -822,3 +822,242 @@ body[data-theme="dark"] .ap-item-actions .ap-row-btn {
     }
 }
 
+
+// The bar's cover opens the large view of a track.
+#audio-player-bar .ap-track-info .ap-track-cover.ap-cover-expandable {
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+
+    &::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.45) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M7.41 15.41 12 10.83l4.59 4.58L18 14l-6-6-6 6z'/%3E%3C/svg%3E") center / 26px no-repeat;
+        opacity: 0;
+        transition: opacity 0.2s ease;
+    }
+
+    &:hover,
+    &:focus-visible {
+        transform: scale(1.06);
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+
+        &::after {
+            opacity: 1;
+        }
+    }
+
+    &:focus-visible {
+        outline: 2px solid #64b5f6;
+        outline-offset: 2px;
+    }
+}
+
+// Above the listing, below the queue drawer (89) and the bar (90), which
+// keeps the controls.
+#player-now-playing {
+    position: fixed;
+    inset: 0 0 90px;
+    z-index: 88;
+    overflow: hidden;
+    color: #fff;
+    background: #121212;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(32px);
+    transition: opacity 0.35s ease, transform 0.5s cubic-bezier(0.16, 1, 0.3, 1), visibility 0s linear 0.5s;
+
+    &.active {
+        opacity: 1;
+        visibility: visible;
+        transform: none;
+        transition: opacity 0.35s ease, transform 0.5s cubic-bezier(0.16, 1, 0.3, 1), visibility 0s;
+
+        .np-cover {
+            transform: none;
+        }
+    }
+
+    // The cover itself, blurred and darkened, fills the background.
+    .np-backdrop {
+        position: absolute;
+        inset: -80px;
+        background-position: center;
+        background-size: cover;
+        filter: blur(70px) saturate(1.6) brightness(0.55);
+        transform: scale(1.15);
+    }
+
+    &::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        z-index: 1;
+        background: radial-gradient(ellipse at 30% 40%, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.45) 100%),
+            linear-gradient(to bottom, rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.55));
+    }
+
+    .np-collapse {
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        z-index: 3;
+        width: 44px;
+        height: 44px;
+        border: none;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        background: rgba(255, 255, 255, 0.14);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        cursor: pointer;
+        transition: background-color 0.2s ease, transform 0.2s ease;
+
+        &:hover {
+            background: rgba(255, 255, 255, 0.26);
+            transform: translateY(2px);
+        }
+
+        &:focus-visible {
+            outline: 2px solid #64b5f6;
+            outline-offset: 2px;
+        }
+    }
+
+    .np-content {
+        position: relative;
+        z-index: 2;
+        box-sizing: border-box;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: clamp(32px, 6vw, 88px);
+        padding: 72px clamp(24px, 6vw, 96px) 48px;
+    }
+
+    .np-cover {
+        flex-shrink: 0;
+        width: min(46vh, 40vw, 460px);
+        aspect-ratio: 1;
+        border-radius: 18px;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(255, 255, 255, 0.08);
+        box-shadow: 0 40px 90px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.08);
+        transform: scale(0.94);
+        transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+
+        .np-cover-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .np-cover-fallback {
+            width: 38%;
+            height: 38%;
+            opacity: 0.55;
+        }
+    }
+
+    .np-info {
+        min-width: 0;
+        max-width: 540px;
+    }
+
+    .np-kicker {
+        margin: 0 0 14px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        opacity: 0.6;
+    }
+
+    .np-title {
+        margin: 0 0 12px;
+        font-size: clamp(26px, 3.4vw, 46px);
+        font-weight: 700;
+        line-height: 1.08;
+        overflow-wrap: anywhere;
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    .np-artist {
+        margin: 0 0 6px;
+        font-size: clamp(16px, 1.6vw, 20px);
+        font-weight: 500;
+        opacity: 0.92;
+    }
+
+    .np-album {
+        margin: 0 0 30px;
+        font-size: 15px;
+        opacity: 0.65;
+    }
+
+    .np-details {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 9px 22px;
+        margin: 0;
+        padding-top: 22px;
+        border-top: 1px solid rgba(255, 255, 255, 0.14);
+        font-size: 13px;
+
+        dt {
+            align-self: center;
+            font-size: 11px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            opacity: 0.5;
+        }
+
+        dd {
+            margin: 0;
+            opacity: 0.92;
+            overflow-wrap: anywhere;
+        }
+    }
+}
+
+@media (max-width: 760px) {
+    #player-now-playing {
+        .np-content {
+            flex-direction: column;
+            justify-content: flex-start;
+            gap: 26px;
+            padding: 76px 24px 28px;
+            overflow-y: auto;
+            text-align: center;
+        }
+
+        .np-cover {
+            width: min(72vw, 40vh);
+        }
+
+        .np-details {
+            grid-template-columns: auto auto;
+            justify-content: center;
+            text-align: left;
+        }
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #player-now-playing,
+    #player-now-playing.active,
+    #player-now-playing .np-cover,
+    #audio-player-bar .ap-track-info .ap-track-cover.ap-cover-expandable {
+        transition: none;
+    }
+}

@@ -219,6 +219,27 @@ const setMutedIcon = isMuted => {
     }
 };
 
+// The bar's cover opens the large view of a track: a button then, plain for
+// a video.
+const setExpandable = (isExpandable, isExpanded) => {
+    const $cover = dom('#ap-cover-gradient');
+    if (isExpandable) {
+        $cover.addCls('ap-cover-expandable')
+            .attr('role', 'button')
+            .attr('tabindex', '0')
+            .attr('title', isExpanded ? 'Reduce' : 'Show now playing')
+            .attr('aria-label', isExpanded ? 'Reduce' : 'Show now playing')
+            .attr('aria-expanded', isExpanded ? 'true' : 'false');
+    } else {
+        $cover.rmCls('ap-cover-expandable')
+            .rmAttr('role')
+            .rmAttr('tabindex')
+            .rmAttr('title')
+            .rmAttr('aria-label')
+            .rmAttr('aria-expanded');
+    }
+};
+
 const showCover = url => {
     dom('#ap-cover-img').attr('src', url).show();
     dom('#ap-cover-fallback').hide();
@@ -328,12 +349,24 @@ const listedItems = accepts => compact(dom('#items .item').map(el => el._item &&
 
 // `on`: {togglePlay, next, previous, toggleShuffle, cycleRepeat,
 // seek(percent), previewSeek(percent) -> time or null, setVolume(volume),
-// toggleMute, queueToggled, exportQueue, clear, close}.
+// toggleMute, queueToggled, exportQueue, clear, close, toggleNowPlaying}.
 const mount = on => {
     base.$root.app(BAR_TPL);
     base.$root.app(QUEUE_TPL);
 
     dom('#ap-play-pause').on('click', on.togglePlay);
+    const $cover = dom('#ap-cover-gradient');
+    $cover.on('click', () => {
+        if ($cover.hasCls('ap-cover-expandable')) {
+            on.toggleNowPlaying();
+        }
+    });
+    $cover.on('keydown', ev => {
+        if ($cover.hasCls('ap-cover-expandable') && (ev.key === 'Enter' || ev.key === ' ')) {
+            ev.preventDefault();
+            on.toggleNowPlaying();
+        }
+    });
     dom('#ap-next').on('click', on.next);
     dom('#ap-prev').on('click', on.previous);
     dom('#ap-shuffle').on('click', on.toggleShuffle);
@@ -389,6 +422,8 @@ module.exports = {
     resetProgress,
     setVolume,
     setMutedIcon,
+    setExpandable,
+    gradientFor,
     showCover,
     showCoverFallback,
     renderQueue,

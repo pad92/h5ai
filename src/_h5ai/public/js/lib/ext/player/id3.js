@@ -1,16 +1,16 @@
 /* eslint-disable no-bitwise, no-plusplus */
-// Finds the cover picture in an ID3v2.2, v2.3 or v2.4 tag.
+// Reads the cover picture and the text tags of an ID3v2.2, v2.3 or v2.4 tag.
+const {pictureType, decode, cleanTags} = require('./bytes');
 
-// The picture type comes from its bytes, never from the tag: a tag claiming
-// text/html would otherwise turn the cover's blob: URL into a same-origin page.
-const getPictureType = data => {
-    if (data[0] === 0xFF && data[1] === 0xD8) {
-        return 'image/jpeg';
-    }
-    if (data[0] === 0x89 && data[1] === 0x50) {
-        return 'image/png';
-    }
-    return null;
+// Text frames -> tag fields, by version: v2.2 uses three-letter ids.
+const TEXT_FRAMES = {
+    TIT2: 'title', TT2: 'title',
+    TPE1: 'artist', TP1: 'artist',
+    TPE2: 'albumArtist', TP2: 'albumArtist',
+    TALB: 'album', TAL: 'album',
+    TYER: 'year', TYE: 'year', TDRC: 'year',
+    TCON: 'genre', TCO: 'genre',
+    TRCK: 'track', TRK: 'track'
 };
 
 const syncsafe = (arr, at) => (arr[at] & 0x7F) << 21 |
@@ -56,7 +56,34 @@ const skipString = (arr, start, end, encoding) => {
     return pos;
 };
 
-// The picture of an APIC (v2.3, v2.4) or PIC (v2.2) frame, or null.
+// Encoding byte 0: ISO-8859-1, 1: UTF-16 with a byte order mark, 2: UTF-16BE,
+// 3: UTF-8. v2.4 separates several values with NUL: they are joined.
+const readText = bytes => {
+    const encoding = bytes[0];
+    let data = bytes.subarray(1);
+    let label = 'iso-8859-1';
+    if (encoding === 1) {
+        const isBigEndian = data[0] === 0xFE && data[1] === 0xFF;
+        if (isBigEndian || data[0] === 0xFF && data[1] === 0xFE) {
+            data = data.subarray(2);
+        }
+        label = isBigEndian ? 'utf-16be' : 'utf-16le';
+    } else if (encoding === 2) {
+        label = 'utf-16be';
+    } else if (encoding === 3) {
+        label = 'utf-8';
+    }
+    return decode(data, label).split('\0').filter(Boolean).join(' / ');
+};
+
+// A genre as text: ID3v1 references such as "(17)" or "17" are dropped.
+const readGenre = text => {
+    const genre = text.replace(/^(\(\d+\))+/, '').trim();
+    return (/^\d+$/).test(genre) ? '' : genre;
+};
+
+// The picture of an APIC (v2.3, v2.4) or PIC (v2.2) frame; undefined for an
+// empty one, null for one in an unknown image format.
 const readPictureFrame = (arr, version, start, size) => {
     const end = start + size;
     const encoding = arr[start];
@@ -77,13 +104,14 @@ const readPictureFrame = (arr, version, start, size) => {
         return undefined;
     }
     const bytes = arr.subarray(dataStart, end);
-    const type = getPictureType(bytes);
+    const type = pictureType(bytes);
     return type ? {type, bytes} : null;
 };
 
-// `buffer`: the start of the file. Returns {type, bytes} for the first cover
-// picture, or null when there is none, or none in a known image format.
-const readPicture = buffer => {
+// `buffer`: the start of the file. Returns {picture, tags}: the first cover
+// picture as {type, bytes}, or null when there is none or none in a known
+// image format, and the text fields found. Null when there is no ID3v2 tag.
+const readId3 = buffer => {
     const arr = new Uint8Array(buffer);
     const view = new DataView(buffer);
 
@@ -95,6 +123,9 @@ const readPicture = buffer => {
         return null;
     }
 
+    const raw = {};
+    // undefined: none seen yet; null: one in an unknown format ends the search.
+    let picture;
     const totalSize = Math.min(syncsafe(arr, 6) + 10, arr.length);
     let offset = 10;
     while (offset < totalSize - 10) {
@@ -102,19 +133,23 @@ const readPicture = buffer => {
         if (frame.size <= 0 || offset + frame.headerSize + frame.size > totalSize) {
             break;
         }
-        if (frame.id === 'APIC' || frame.id === 'PIC') {
-            const picture = readPictureFrame(arr, version, offset + frame.headerSize, frame.size);
-            // An empty picture frame is skipped; a picture in an unknown
-            // format ends the search.
-            if (picture !== undefined) {
-                return picture;
-            }
+        const start = offset + frame.headerSize;
+        const field = TEXT_FRAMES[frame.id];
+        if (field && !raw[field]) {
+            const text = readText(arr.subarray(start, start + frame.size));
+            raw[field] = field === 'genre' ? readGenre(text) : text;
+        } else if ((frame.id === 'APIC' || frame.id === 'PIC') && picture === undefined) {
+            picture = readPictureFrame(arr, version, start, frame.size);
         }
         offset += frame.headerSize + frame.size;
     }
-    return null;
+    if (raw.year) {
+        // TDRC is a timestamp: 2001-05-04T12:00 shows as 2001.
+        raw.year = raw.year.slice(0, 4);
+    }
+    return {picture: picture || null, tags: cleanTags(raw)};
 };
 
 module.exports = {
-    readPicture
+    readId3
 };

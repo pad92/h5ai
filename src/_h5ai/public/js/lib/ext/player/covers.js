@@ -1,31 +1,8 @@
-// Where a queue entry's cover comes from: the server thumbnail, the picture
-// embedded in an MP3, or an album image next to the track.
-const {readPicture} = require('./id3');
-const {mayHaveId3} = require('./formats');
+// Where an entry's cover comes from: the server thumbnail, the picture
+// embedded in the file (MP3, FLAC), or an album image next to the track.
+const metadata = require('./metadata');
 
-const ID3_RANGE = 'bytes=0-524288';
 const ALBUM_IMAGE_NAMES = ['cover', 'folder', 'front', 'album', 'albumart', 'poster'];
-
-// Entry -> object URL of its embedded picture, or null once none was found.
-// Kept here rather than on the shared item objects.
-const embedded = new Map();
-
-const fetchPicture = absHref => {
-    return global.window.fetch(absHref, {headers: {Range: ID3_RANGE}})
-        .then(response => {
-            // A server ignoring Range answers 200 with the whole file: drop it
-            // rather than download a full track for its cover.
-            if (response.status !== 206) {
-                if (response.body) {
-                    response.body.cancel().catch(() => null);
-                }
-                return null;
-            }
-            return response.arrayBuffer().then(readPicture);
-        })
-        .then(picture => picture ? global.window.URL.createObjectURL(new global.window.Blob([picture.bytes], {type: picture.type})) : null)
-        .catch(() => null);
-};
 
 // An image named like an album cover in the same folder. Any other image is
 // a photo, not the album's cover: it is not used.
@@ -47,7 +24,13 @@ const findAlbumImage = item => {
     return null;
 };
 
-// The best cover known now, without any request. A video only uses its own
+const embeddedOf = item => {
+    const result = metadata.known(item);
+    return result ? result.pictureUrl : null;
+};
+
+// The best cover known now for the bar and the queue, without any request.
+// The small server thumbnail comes first. A video only uses its own
 // thumbnail: a folder image is an album cover, not a video's.
 const coverFor = (item, isVideo) => {
     if (item.thumbRational) {
@@ -56,51 +39,22 @@ const coverFor = (item, isVideo) => {
     if (isVideo) {
         return null;
     }
-    return embedded.get(item) || findAlbumImage(item);
+    return embeddedOf(item) || findAlbumImage(item);
 };
 
-// Whether the embedded picture is worth a request: an MP3 without a server
-// thumbnail, not looked at yet.
-const needsLookup = item => !embedded.has(item) && !item.thumbRational && mayHaveId3(item);
+// The best cover for the large view, once the file was read: the full
+// picture first, the thumbnail last.
+const largeCoverFor = item => embeddedOf(item) || findAlbumImage(item) || item.thumbRational || null;
 
-// Resolves with the embedded picture's URL, or null.
-const lookup = item => fetchPicture(item.absHref).then(url => {
-    embedded.set(item, url);
-    return url;
-});
-
-const revoke = url => {
-    try {
-        global.window.URL.revokeObjectURL(url);
-    } catch {
-        // An already revoked URL: nothing left to release.
-    }
-};
-
-// A picture that failed to load is not offered nor looked up again.
-const markBroken = (item, url) => {
-    if (embedded.get(item) === url) {
-        revoke(url);
-        embedded.set(item, null);
-    }
-};
-
-// Releases the embedded pictures of entries leaving the queue; a track known
-// to have none is not looked up again.
-const release = items => {
-    items.forEach(item => {
-        const url = embedded.get(item);
-        if (url) {
-            revoke(url);
-            embedded.delete(item);
-        }
-    });
-};
+// Whether the file is worth a request for its picture: a tagged format
+// without a server thumbnail, not read yet.
+const needsLookup = item => !metadata.has(item) && !item.thumbRational && metadata.canRead(item);
 
 module.exports = {
     coverFor,
+    largeCoverFor,
     needsLookup,
-    lookup,
-    markBroken,
-    release
+    lookup: metadata.read,
+    markBroken: metadata.markBroken,
+    release: metadata.release
 };
