@@ -996,14 +996,35 @@ test('player memory: only paths of this site are read back', () => {
     const saved = store.get('ext/player');
     try {
         store.put('ext/player', {
-            queue: ['/music/a.mp3', '//elsewhere.example/b.mp3', 'https://elsewhere.example/c.mp3', 7],
-            current: '//elsewhere.example/b.mp3',
+            queue: [
+                '/music/a.mp3', '//elsewhere.example/b.mp3', 'https://elsewhere.example/c.mp3', 7,
+                '/music/a%20b%23c.mp3',
+                // Each resolves to https://elsewhere.example/... once parsed as a URL.
+                '/\\elsewhere.example/d.mp3', '/\t/elsewhere.example/e.mp3', '/\n/elsewhere.example/f.mp3',
+                '/\r/elsewhere.example/g.mp3'
+            ],
+            current: '/\\elsewhere.example/d.mp3',
             time: -3
         });
         const state = memory.load();
-        assert.deepEqual(state.queue, ['/music/a.mp3']);
+        assert.deepEqual(state.queue, ['/music/a.mp3', '/music/a%20b%23c.mp3']);
         assert.equal(state.current, null);
         assert.equal(state.time, 0);
+    } finally {
+        store.put('ext/player', saved);
+    }
+});
+
+test('player memory: every visualizer mode is read back', () => {
+    const memory = reqlib('ext/player/memory');
+    const saved = store.get('ext/player');
+    try {
+        ['spectrum', 'scope', 'plasma', 'kaleido', 'vortex', 'off'].forEach(mode => {
+            store.put('ext/player', {visualizer: mode});
+            assert.equal(memory.load().visualizer, mode);
+        });
+        store.put('ext/player', {visualizer: 'strobe'});
+        assert.equal(memory.load().visualizer, null, 'an unknown mode is dropped');
     } finally {
         store.put('ext/player', saved);
     }
@@ -1362,6 +1383,21 @@ test('visualizer: clicks on the cover loop through every mode, and are remembere
             assert.equal(store.get('ext/player').visualizer, 'off');
             largeCover().click();
             assert.equal(store.get('ext/player').visualizer, 'spectrum', 'and around again');
+        });
+    });
+});
+
+test('visualizer: a saved psychedelic mode comes back with the queue', async () => {
+    const [a] = tracks('viz-restore', 'a.mp3');
+    await withPlayer({}, [], async () => {
+        await withAudio(async () => {
+            list(a);
+            store.put('ext/player', {queue: [a.absHref], current: a.absHref, visualizer: 'plasma'});
+            playerExt.restoreSaved();
+            await settle();
+            await openLarge();
+            assert.equal(showsVisualizer(), true);
+            assert.equal(largeCover().getAttribute('title'), 'Plasma (click to change)');
         });
     });
 });
