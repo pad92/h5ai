@@ -25,7 +25,7 @@ CHROME ?= $(firstword $(foreach b,google-chrome-stable google-chrome chromium ch
 GRYPE_IMAGE = anchore/grype:v0.116.0@sha256:fd4ab4d1042b522c896e73bdf09ab8bf384fa417df99d6dd0d6e1008c7e7c821
 SYFT_IMAGE = anchore/syft:v1.49.0@sha256:13b53ebabe3d215268c90cf8fb9b875f0183908245f376fd4b3a2cb69d21d484
 
-.PHONY: help all install build lint test test-php coverage screenshots clean clean-all scan docker-build docker-test docker-grype docker-clean test-docker-config
+.PHONY: help all install build lint test test-php coverage screenshots clean clean-all scan docker-build docker-test docker-w3c docker-grype docker-clean test-docker-config
 
 .DEFAULT_GOAL := help
 
@@ -46,6 +46,7 @@ help:
 	@echo "Docker image targets (image: $(TEST_IMAGE)):"
 	@echo "  docker-build  Build the Docker image"
 	@echo "  docker-test   Build the image and run the container test suite"
+	@echo "  docker-w3c    Build the image and validate its HTML and CSS (W3C, offline)"
 	@echo "  docker-grype  Build the image and scan it with Grype"
 	@echo "  docker-clean  Remove test containers and the built image"
 
@@ -204,6 +205,7 @@ docker-test: docker-build
 	docker rm -f h5ai-test-noauth
 	sh test/docker/test-php-tar.sh $(TEST_IMAGE) $(TEST_HOST)
 	sh test/docker/test-document-thumbs.sh $(TEST_IMAGE) $(TEST_HOST)
+	sh test/docker/test-w3c.sh $(TEST_IMAGE)
 	@echo "Testing container with basic authentication..."
 	$(TEST_RUN) --name h5ai-test-auth -e ENV_U=admin -e ENV_P=secret $(TEST_IMAGE)
 	$(call wait_for_http,,HTTP/1.1 401 Unauthorized,✓ Unauthenticated request correctly blocked (401 Unauthorized),✗ Unauthenticated request test failed (did not return 401),h5ai-test-auth)
@@ -312,6 +314,9 @@ docker-test: docker-build
 	docker rm -f h5ai-test-cmds
 
 	@echo "All tests passed successfully!"
+
+docker-w3c: docker-build
+	sh test/docker/test-w3c.sh $(TEST_IMAGE)
 
 test-docker-config:
 	sh test/docker/s6-config.sh
