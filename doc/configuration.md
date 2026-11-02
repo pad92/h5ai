@@ -180,6 +180,12 @@ The enhanced player is loaded only in a secure, cross-origin-isolated context.
 Otherwise h5ai immediately uses the native `<video>` element without downloading
 the enhanced-player bundle.
 
+Subtitle files next to the video are attached when their name is the video's
+name, optionally followed by a suffix after `.`, `_` or `-`: `movie.srt`,
+`movie.fr.srt` and `movie_en.forced.vtt` all belong to `movie.mkv`. A suffix
+starting with a two- or three-letter code sets the track language. The native
+player reads WebVTT (`.vtt`) files only.
+
 #### `search`
 Allows users to search for files recursively inside the current folder and its subfolders.
 - `enabled` (default: `true`).
