@@ -115,7 +115,8 @@ const copyPhpAndStatic = () => src([
 const copyJson = () => src(`${SRC}/**/conf/*.json`)
     .pipe(dest(BUILD));
 
-const copyRootFiles = () => src(`${ROOT}/*.md`)
+// LICENSE travels with the package: the MIT terms require the notice.
+const copyRootFiles = () => src([`${ROOT}/*.md`, `${ROOT}/LICENSE`])
     .pipe(dest(path.join(BUILD, '_h5ai')));
 
 // movi-player's bundled CSS imports Google's Inter font over the network;
