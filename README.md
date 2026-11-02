@@ -168,7 +168,8 @@ Requirements:
 * PHP `8.4.0+`
 * Apache httpd `2.4+` with `mod_authz_core`, lighttpd, nginx, Cherokee, or
   Angie. The bundled deployment examples in [`doc/server/`](doc/server/) cover
-  Apache, lighttpd, nginx, and Angie.
+  lighttpd, nginx, and Angie; Apache uses the bundled `.htaccess` files (see
+  [administration](doc/administration.md)).
 
 > [!IMPORTANT]
 > `_h5ai/private/` must never be served as static content. Apache applies the

@@ -46,7 +46,7 @@ Customize the general look and feel of the index page.
 | `modes` | `array` | `["details", "grid", "icons"]` | Enabled view modes. The first one is the default. If only one is specified, the selector is hidden. The user's selection is stored in browser local storage. |
 | `modeToggle` | `boolean`/`string` | `false` | Shows a toggle button for view modes in the toolbar. Can be `"next"`. |
 | `setParentFolderLabels`| `boolean` | `true` | Shows the actual parent folder name instead of just "Parent Folder". |
-| `sizes` | `array` | `[20, 40, ...]` | List of selectable icon/row sizes. The first one is the default. If only one is specified, the selector is hidden. The user's selection is stored in browser local storage. |
+| `sizes` | `array` | `[20, 40, ...]` | List of selectable icon/row sizes. The smallest one is the default. If only one is specified, the selector is hidden. The user's selection is stored in browser local storage. |
 | `theme` | `string` | `"default"` | Name of the folder under `_h5ai/public/images/themes` to use for file icons. |
 | `unmanaged` | `array` | `["index.html", ...]` | If a folder contains any of these files, h5ai will not manage it, allowing default index pages to load instead. |
 | `unmanagedInNewWindow` | `boolean` | `false` | Opens unmanaged folder links in a new window/tab. |
@@ -57,7 +57,7 @@ Configure automatic background cache warming (for pre-generating thumbnails and 
 
 | Key | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `warmAtStartup` | `boolean` | `false` | If `true`, triggers the cache warmer script in the background on request if it has not run recently. Keep disabled on large trees unless cache warming is scheduled deliberately. |
+| `warmAtStartup` | `boolean` | `true` | If `true`, triggers the cache warmer script in the background on request if it has not run recently. On large trees, consider turning it off and scheduling the cache warmer deliberately. |
 | `warmInterval` | `number` | `86400` | The execution interval in seconds for the background cache warmer (default is 24 hours). |
 
 Older releases named these options `warm_at_startup` and `warm_interval`; those names are still read when the new ones are absent.
@@ -80,7 +80,7 @@ Each extension under `options.json` can be enabled or disabled and has specific 
 
 #### `autorefresh`
 Automatically refreshes the current folder contents at a defined interval.
-- `enabled` (default: `false`): Enable autorefresh.
+- `enabled` (default: `true`): Enable autorefresh.
 - `interval` (default: `5000`): Refresh interval in milliseconds (minimum is `1000`).
 
 #### `crumb`
@@ -122,7 +122,7 @@ Allows the user to filter the files displayed in the current folder using a text
 #### `foldersize`
 Calculates and displays the sizes of directories.
 > [!WARNING]
-> This operation can significantly slow down directory loading speeds, especially on large folders.
+> Listings never wait for a folder size: they show the cached ones, and a background worker measures the rest. On large or slow storage, that worker and the cache warmer can still put a heavy load on the disks.
 - `enabled` (default: `true`).
 - `type` (default: `"shell-du"`): Can be `"php"` (slow, adds up sizes of files recursively in PHP) or `"shell-du"` (uses command line `du`, faster but still potentially expensive).
 - `backgroundTimeout` (default: `900`, maximum: `3600`): Maximum runtime in seconds of the `du` passes started by the CLI cache warmer and the background refresh worker. The cache warmer measures the whole share with a single `du` pass, so this limit must cover a full pass. No php-fpm limit applies to these workers, and cutting a genuinely large tree short would leave it permanently uncached and retried on every pass. Raise it if a full pass over your share needs longer.
@@ -136,6 +136,8 @@ Shows an informational sidebar displaying file/folder details on hover or select
 - `qrcode` (default: `true`): Generates and displays a QR code for the hovered/selected file URL.
 - `qrFill` (default: `"#999"`): QR code fill color.
 - `qrBack` (default: `"#fff"`): QR code background color.
+- `qrFillDark` (default: `"#fff"`): QR code fill color in dark mode.
+- `qrBackDark` (default: `"#212121"`): QR code background color in dark mode.
 
 #### `l10n`
 Configures localization and language preferences.
@@ -260,7 +262,7 @@ Defines default sorting criteria.
 #### `tasks`
 Shows a spinning gear in the toolbar while the cache warmer, the folder size refresh worker or the thumbnails of the current page are running. Hovering over it, or focusing it with the keyboard, lists each task with its progress and the estimated time left.
 The server tasks are estimated from their previous run, so a first run shows neither a percentage nor a time left. Every visitor sees these tasks, but never a file name or path.
-- `enabled` (default: `false`).
+- `enabled` (default: `true`).
 - `interval` (default: `3000`): polling interval in milliseconds while a server task runs (minimum `1000`).
 - `idleInterval` (default: `30000`): polling interval in milliseconds while no server task runs. A page in a background tab sends no request and checks again when it becomes visible.
 
@@ -306,30 +308,23 @@ Shows a collapsible directory tree sidebar on the left.
 
 Located at [types.json](../src/_h5ai/private/conf/types.json).
 
-This file configures how **h5ai** classifies files. It is a JSON dictionary mapping a generic type name (used by CSS styling and previews) to an array of filename glob patterns.
+This file configures how **h5ai** classifies files. It is a JSON dictionary mapping a generic type name (used by CSS styling and previews) to an object with a `glob` array of filename patterns and, optionally, a `mime` array of MIME types. An entry without a `glob` array matches no file.
 
 ### Customizing types
 
 You can add custom file extensions to existing categories or define new file type groupings.
 
-For example, to configure Markdown files to be previewed as text-markdown, make sure `*.md` is in the `"txt-md"` array:
+For example, to configure Markdown files to be previewed as text-markdown, make sure `*.md` is in the `glob` array of `"txt-md"`:
 ```json
-"txt-md": [
-    "*.markdown",
-    "*.md"
-]
+"txt-md": {"glob": ["*.markdown", "*.md"]}
 ```
 
-To configure configurations like `.env` or `.yaml` to render as scripts:
+To configure files like `.env` or `.yaml` to render as scripts:
 ```json
-"txt-script": [
-    "*.conf",
-    "*.ini",
-    "*.yaml",
-    "*.yml",
-    ".gitignore"
-]
+"txt-script": {"glob": ["*.conf", "*.ini", "*.yaml", "*.yml", "*.env", ".gitignore"]}
 ```
+
+An entry replaces the shipped one as a whole: the shipped `txt-script` lists more patterns, so copy them over to keep them.
 
 ## 3. Localization (`l10n/` directory)
 
