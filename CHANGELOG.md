@@ -20,7 +20,7 @@
 * **Video preview**:
     * Casting through Remote Playback or AirPlay, shown when a device is reachable. The new `engine` option sets the enhanced player's engine order; `"native wasm"` allows casting but gives up its decoder for files the browser claims to play.
     * Subtitles must match the video name: `Episode 10.srt` no longer attaches to `Episode 1.mkv`, and a subtitle without a language suffix is no longer labelled English.
-    * An image or text preview opened after a video gets its keys back. A video that loads late no longer replaces the one skipped to, the enhanced player shows without a 1.5 s delay, and the spinner no longer stays on a video the browser cannot decode.
+    * An image or text preview opened after a video gets its keys back. A video that loads late no longer replaces the one skipped to, or plays hidden after the preview closed, the enhanced player shows without a 1.5 s delay, and the spinner no longer stays on a video the browser cannot decode.
 * **Other fixes**: `@charset` comes first again in `styles.css`. Markdown preview images fit the preview, and those that cannot load are hidden. The HTML built by the JavaScript is valid.
 * **Development**:
     * `npm test` and the CI test jobs now fail when a test fails; before, they exited 0.

@@ -820,6 +820,98 @@ test('video queue: a video loading late never replaces the one skipped to', asyn
     }
 });
 
+// Holds each native video's metadata until the test lets it through:
+// `loads` lists the elements in the order they started loading.
+const withHeldMetadata = async run => {
+    const proto = window.Element.prototype;
+    const originalSetAttribute = proto.setAttribute;
+    const originalCrossOrigin = Object.getOwnPropertyDescriptor(window, 'crossOriginIsolated');
+    Object.defineProperty(window, 'crossOriginIsolated', {configurable: true, value: false});
+    const loads = [];
+    proto.setAttribute = function setAttribute(name, value) {
+        originalSetAttribute.call(this, name, value);
+        if (this.id === 'pv-content-vid' && name === 'src') {
+            loads.push(this);
+        }
+    };
+    const release = async el => {
+        el.dispatchEvent(new window.Event('loadedmetadata'));
+        await tick();
+    };
+    // Counts the unload() calls of `el`, set once its loader ran.
+    const countUnloads = el => {
+        const counter = {count: 0};
+        const unload = el.unload;
+        el.unload = function counted() {
+            counter.count += 1;
+            return unload && unload.call(this);
+        };
+        return counter;
+    };
+    try {
+        await run({loads, release, countUnloads});
+    } finally {
+        proto.setAttribute = originalSetAttribute;
+        if (originalCrossOrigin) Object.defineProperty(window, 'crossOriginIsolated', originalCrossOrigin);
+        else delete window.crossOriginIsolated;
+    }
+};
+
+test('video preview: closed while its video loads, nothing shows and the music goes on', async () => {
+    const [a] = tracks('vid-closed', 'a.mp3');
+    const [clip] = videos('vid-closed', 'clip.mp4');
+    await withPlayer({}, [], async () => {
+        await withHeldMetadata(async ({loads, release, countUnloads}) => {
+            list(a, clip);
+            press(a, 'folder');
+            await settle();
+            assert.equal(audio().paused, false);
+
+            clip.$view.find('a')[0].click();
+            await tick();
+            assert.equal(loads.length, 1);
+            const unloads = countUnloads(loads[0]);
+            $('#pv-bar-close').click();
+            await release(loads[0]);
+
+            assert.equal(document.querySelector('#pv-content-vid'), null, 'no video in the closed preview');
+            assert.equal(unloads.count, 1, 'the late video is unloaded');
+            assert.equal(audio().paused, false, 'the track is not paused for it');
+            assert.equal(barIsActive(), true);
+            assert.equal(document.querySelector('.ap-video-shown'), null, 'the bar is not hidden for it');
+        });
+    });
+});
+
+test('video preview: back and forth while loading shows the last load only', async () => {
+    const [first, second] = videos('vid-back', 'first.mp4', 'second.mp4');
+    await withPlayer({}, [], async () => {
+        await withHeldMetadata(async ({loads, release, countUnloads}) => {
+            list(first, second);
+            first.$view.find('a')[0].click();
+            await tick();
+            $('#pv-bar-next').click();
+            await tick();
+            $('#pv-bar-prev').click();
+            await tick();
+            assert.equal(loads.length, 3, 'first, second, first again');
+            const [early, middle, last] = loads;
+            const earlyUnloads = countUnloads(early);
+            const middleUnloads = countUnloads(middle);
+
+            await release(early);
+            await release(middle);
+            await release(last);
+            assert.equal(preview.item, first);
+            assert.equal(document.querySelectorAll('#pv-content-vid').length, 1);
+            assert.equal(videoEl(), last, 'the last load is the one shown');
+            assert.equal(earlyUnloads.count, 1, 'the earlier load of the same video is unloaded');
+            assert.equal(middleUnloads.count, 1);
+            $('#pv-bar-close').click();
+        });
+    });
+});
+
 test('video queue: a video the user opened is left alone by the queue', async () => {
     const [a, b] = tracks('vid-own', 'a.mp3', 'b.mp3');
     const [clip] = videos('vid-own', 'clip.mp4');

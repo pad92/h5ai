@@ -293,6 +293,10 @@ const enter = () => {
 
 const exit = () => {
     const closedItem = session && session.item;
+    // A load still running for the closed preview must not show.
+    if (session) {
+        session.token = null;
+    }
     setLabels([]);
     // Restore the user's stored preference so the fullscreen forced for
     // images does not leak into the next non-image preview.
@@ -351,6 +355,10 @@ Session.prototype = {
         setLabels([this.item.label]);
 
         const item = this.item;
+        // Each load has its own token: only the latest one of the current
+        // Session shows, and closing the preview takes it back.
+        const token = {};
+        this.token = token;
         Promise.resolve()
             .then(() => {
                 each(dom('#pv-container *'), el => {
@@ -368,10 +376,10 @@ Session.prototype = {
             // delay for testing
             // .then(x => new Promise(resolve => setTimeout(() => resolve(x), 1000)))
             .then($content => {
-                // A later move or open() made another item, or another
-                // Session, the current one: this content comes too late. It
-                // is released, never shown in place of the current one.
-                if (session !== this || item !== this.item) {
+                // A later move, open() or close made this load outdated: its
+                // content comes too late. It is released, never shown in
+                // place of the current one or in a closed preview.
+                if (session !== this || this.token !== token) {
                     each($content, el => {
                         const all = el.querySelectorAll ? [el, ...el.querySelectorAll('*')] : [el];
                         each(all, child => {
