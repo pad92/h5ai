@@ -127,6 +127,13 @@ const list = (...items) => {
 const labels = items => items.map(item => item.label);
 const press = (item, action) => item.$view.find(`.ap-row-${action}`)[0].click();
 
+// The W3C check of the rendered pages (test:docker) rejects an aria-label
+// on a div without a role; the player's markup is mounted at load.
+test('player markup: no aria-label on a div without a role', () => {
+    const offending = $$('div[aria-label]').filter(el => !el.getAttribute('role')).map(el => el.id || el.className);
+    assert.deepEqual(offending, []);
+});
+
 test('audio covers: ID3 v2.2 PIC and v2.4 APIC pictures become object URLs', async () => {
     const [v22, v24, mime] = tracks('aud-id3', 'v22.mp3', 'v24.mp3', 'mime.mp3');
     const covers = {
@@ -139,7 +146,7 @@ test('audio covers: ID3 v2.2 PIC and v2.4 APIC pictures become object URLs', asy
     await withPlayer(covers, [], async ({blobs, revoked}) => {
         list(v22, v24, mime);
         for (const item of [v22, v24, mime]) {
-            press(item, 'play');
+            press(item, 'folder');
             await settle();
         }
         assert.deepEqual(blobs, ['image/png', 'image/png', 'image/jpeg']);
@@ -161,7 +168,7 @@ test('audio covers: unreadable tags fall back to the folder image', async () => 
     await withPlayer(covers, [], async ({blobs}) => {
         list(...items);
         for (const item of [old, notpic, empty, missing, utf8]) {
-            press(item, 'play');
+            press(item, 'folder');
             await settle();
             assert.equal($('#ap-cover-img').getAttribute('src'), '/aud-bad/Folder.jpg', `${item.label}: a folder image is preferred`);
         }
@@ -182,10 +189,10 @@ test('audio covers: a server thumbnail wins and spares the tag read', async () =
             return fetch(href, options);
         };
         list(thumbed, ogg);
-        press(thumbed, 'play');
+        press(thumbed, 'folder');
         await settle();
         assert.equal($('#ap-cover-img').getAttribute('src'), '/thumbed.webp');
-        press(ogg, 'play');
+        press(ogg, 'folder');
         await settle();
         assert.deepEqual(fetched, [], 'neither a thumbnailed track nor an untagged format is read');
         assert.deepEqual(blobs, []);
@@ -198,17 +205,17 @@ test('audio covers: a broken cover falls back to the folder image, then to a gra
     const covers = {[tagged.absHref]: id3(3, frame(3, 'APIC', apic()))};
     await withPlayer(covers, ['blob:1', '/aud-cover/Cover.png'], async ({blobs, revoked}) => {
         list(tagged, lone, folderImage, orphan, photo);
-        press(tagged, 'play');
+        press(tagged, 'folder');
         await settle();
         assert.ok($('#ap-cover-img').classList.contains('hidden'), 'the folder image is broken too');
         assert.ok($('#ap-cover-gradient').style.background.includes('linear-gradient'));
         assert.deepEqual(revoked, ['blob:1'], 'a broken picture is released');
 
-        press(orphan, 'play');
+        press(orphan, 'folder');
         await settle();
         assert.ok($('#ap-cover-img').classList.contains('hidden'), 'a random photo is not an album cover');
 
-        press(tagged, 'play');
+        press(tagged, 'folder');
         await settle();
         assert.equal(blobs.length, 1, 'a broken picture is not looked up again');
     });
@@ -222,9 +229,9 @@ test('audio covers: the blob type comes from the picture bytes, not from the tag
     };
     await withPlayer(covers, [], async ({blobs}) => {
         list(html, unknown);
-        press(html, 'play');
+        press(html, 'folder');
         await settle();
-        press(unknown, 'play');
+        press(unknown, 'folder');
         await settle();
         assert.deepEqual(blobs, ['image/jpeg']);
     });
@@ -247,7 +254,7 @@ test('audio covers: a server ignoring Range is not downloaded in full', async ()
             }
         });
         list(a);
-        press(a, 'play');
+        press(a, 'folder');
         await settle();
         assert.deepEqual(calls, {cancel: 1, arrayBuffer: 0});
         assert.deepEqual(blobs, []);
@@ -263,7 +270,7 @@ test('audio covers: a late cover stays with its own track', async () => {
             release = () => resolve(id3(3, frame(3, 'APIC', apic())));
         });
         covers[y.absHref] = id3(3, frame(3, 'APIC', apic({picture: PNG})));
-        press(x, 'play');
+        press(x, 'folder');
         await settle();
         $('#ap-next').click();
         await settle();
@@ -301,13 +308,28 @@ test('audio queue: rows play, queue and play next without duplicates', async () 
         press(a, 'next');
         assert.deepEqual(queueNames(), ['c.mp3', 'b.mp3', 'a.mp3'], 'a moves after the current track');
 
-        press(outside, 'play');
+        press(outside, 'folder');
         await settle();
         assert.deepEqual(queueNames(), ['outside.mp3'], 'a track outside the listing plays alone');
 
-        a.$view.find('a')[0].click();
+        press(a, 'folder');
         await settle();
-        assert.deepEqual(queueNames(), labels(listed), 'a listed track queues its folder');
+        assert.deepEqual(queueNames(), labels(listed), 'the folder button queues the listed tracks');
+        assert.equal(trackName(), 'a.mp3', 'from the one pressed');
+
+        // Play now and a plain click play the track alone, in place of the queue.
+        press(b, 'play');
+        await settle();
+        assert.deepEqual(queueNames(), ['b.mp3'], 'play now replaces the queue with the track');
+        assert.equal(trackName(), 'b.mp3');
+        assert.equal(audio().paused, false);
+        press(a, 'folder');
+        await settle();
+        c.$view.find('a')[0].click();
+        await settle();
+        assert.deepEqual(queueNames(), ['c.mp3'], 'a click on the file plays it alone too');
+        press(a, 'next');
+        assert.deepEqual(queueNames(), ['c.mp3', 'a.mp3'], 'play next builds the queue around it');
 
         $('#aq-clear').click();
         press(c, 'next');
@@ -323,7 +345,7 @@ test('audio queue: the drawer jumps to and removes tracks', async () => {
     await withPlayer(covers, [], async ({revoked}) => {
         const [x, y, z] = list(...tracks('aud-drawer', 'a.mp3', 'b.mp3', 'c.mp3'));
         covers[x.absHref] = id3(3, frame(3, 'APIC', apic()));
-        press(x, 'play');
+        press(x, 'folder');
         await settle();
         $('#ap-queue-btn').click();
 
@@ -391,7 +413,7 @@ test('audio transport: blocked playback leaves the player paused', async () => {
     await withPlayer({}, [], async ({logged}) => {
         list(a);
         audio().play = () => Promise.reject(new Error('NotAllowedError'));
-        press(a, 'play');
+        press(a, 'folder');
         await settle();
         assert.equal($('#ap-play-pause').classList.contains('playing'), false);
         assert.ok(a.$view.hasCls('ap-active-paused'));
@@ -405,7 +427,7 @@ test('audio transport: blocked playback leaves the player paused', async () => {
 test('audio transport: the end of a track follows the repeat and shuffle modes', async () => {
     await withPlayer({}, [], async ({logged}) => {
         const [x, y] = list(...tracks('aud-ended', 'a.mp3', 'b.mp3'));
-        press(x, 'play');
+        press(x, 'folder');
         await settle();
 
         audio().emit('ended');
@@ -446,7 +468,7 @@ test('audio controls: mute restores the previous volume and odd durations read 0
     const [a] = tracks('aud-volume', 'a.mp3');
     await withPlayer({}, [], async () => {
         list(a);
-        press(a, 'play');
+        press(a, 'folder');
         await settle();
         audio().volume = 0.4;
         $('#ap-volume-btn').click();
@@ -484,7 +506,9 @@ test('audio rows: the action buttons sit beside the link, never inside it', asyn
         list(a);
         const link = a.$view.find('a')[0];
         assert.equal(link.querySelector('button'), null, 'HTML forbids a button inside an <a>');
-        assert.equal(a.$view[0].querySelectorAll(':scope > .ap-item-actions button').length, 3);
+        assert.equal(a.$view[0].querySelectorAll(':scope > .ap-item-actions button').length, 4);
+        assert.deepEqual($$('.ap-item-actions button').filter(btn => a.$view[0].contains(btn)).map(btn => btn.getAttribute('aria-label')),
+            ['Play Now', 'Play folder from here', 'Play Next', 'Add to Queue'], 'each button says what it does');
     });
 });
 
@@ -516,7 +540,7 @@ test('audio errors: a failed track is shown and the queue moves on until all fai
         audio().emit('error');
         assert.equal(barIsActive(), false, 'an error without a track is ignored');
 
-        press(x, 'play');
+        press(x, 'folder');
         await settle();
         audio().emit('error');
         await settle();
@@ -533,7 +557,7 @@ test('audio errors: a failed track is shown and the queue moves on until all fai
         // As in a browser, an undecodable source also rejects play().
         audio().play = () => Promise.reject(new Error('NotSupportedError'));
         $('#ap-repeat').click();
-        press(x, 'play');
+        press(x, 'folder');
         await settle();
         audio().emit('error');
         await settle();
@@ -549,7 +573,7 @@ test('audio transport: blocked playback still shows the bar to resume from', asy
     await withPlayer({}, [], async () => {
         list(a);
         audio().play = () => Promise.reject(new Error('NotAllowedError'));
-        press(a, 'play');
+        press(a, 'folder');
         await settle();
         assert.equal(barIsActive(), true);
         assert.ok($('#root').classList.contains('ap-bar-visible'), 'the listing makes room for the bar');
@@ -562,7 +586,7 @@ test('audio transport: another player starting pauses the bar', async () => {
     const [a] = tracks('aud-other', 'a.mp3');
     await withPlayer({}, [], async () => {
         list(a);
-        press(a, 'play');
+        press(a, 'folder');
         await settle();
         assert.equal(audio().paused, false);
         const video = document.createElement('video');
@@ -590,7 +614,7 @@ test('audio media session: the playing track is published with its cover', async
     try {
         await withPlayer({}, [], async () => {
             list(a);
-            press(a, 'play');
+            press(a, 'folder');
             await settle();
             assert.equal(session.metadata.title, 'a.mp3');
             assert.equal(session.metadata.album, 'aud-session');
@@ -642,12 +666,12 @@ const previewShown = () => !$('#pv-overlay').classList.contains('hidden') && $('
 const videoEl = () => $('#pv-container #pv-content-vid');
 const tick = () => new Promise(resolve => setTimeout(resolve, 10));
 
-test('video rows: the same three actions, and the click still opens the preview', async () => {
+test('video rows: the same four actions, and the click still opens the preview', async () => {
     const [clip] = videos('vid-rows', 'clip.mp4');
     await withPlayer({}, [], async () => {
         await withVideoMetadata(async () => {
             list(clip);
-            assert.equal(clip.$view[0].querySelectorAll(':scope > .ap-item-actions button').length, 3);
+            assert.equal(clip.$view[0].querySelectorAll(':scope > .ap-item-actions button').length, 4);
             clip.$view.find('a')[0].click();
             await tick();
             assert.ok(previewShown());
@@ -657,13 +681,13 @@ test('video rows: the same three actions, and the click still opens the preview'
     });
 });
 
-test('video queue: play now queues the folder videos and opens the preview', async () => {
+test('video queue: the folder button queues the folder videos and opens the preview', async () => {
     const [one, two] = videos('vid-now', 'one.mp4', 'two.mp4');
     const [song] = tracks('vid-now', 'song.mp3');
     await withPlayer({}, [], async () => {
         await withVideoMetadata(async () => {
             const listedVideos = list(one, song, two).filter(item => item.type === 'vid');
-            press(two, 'play');
+            press(two, 'folder');
             await tick();
             assert.equal(trackName(), 'two.mp4');
             assert.ok(previewShown());
@@ -687,7 +711,7 @@ test('video queue: tracks and videos follow each other in one queue', async () =
     await withPlayer({}, [], async () => {
         await withVideoMetadata(async () => {
             const [first, second] = list(a, clip, b).filter(item => item.type === 'aud');
-            press(first, 'play');
+            press(first, 'folder');
             await settle();
             press(clip, 'next');
             $('#ap-queue-btn').click();
@@ -719,7 +743,7 @@ test('video queue: closing the preview pauses, the play button reopens it', asyn
     await withPlayer({}, [], async () => {
         await withVideoMetadata(async () => {
             const [firstVideo, secondVideo] = list(clip, next);
-            press(firstVideo, 'play');
+            press(firstVideo, 'folder');
             await tick();
             videoEl().dispatchEvent(new window.Event('play'));
             $('#pv-bar-close').click();
@@ -749,7 +773,7 @@ test('video queue: a video the user opened is left alone by the queue', async ()
     await withPlayer({}, [], async () => {
         await withVideoMetadata(async () => {
             const [first, second] = list(a, b, clip).filter(item => item.type === 'aud');
-            press(first, 'play');
+            press(first, 'folder');
             await settle();
             clip.$view.find('a')[0].click();
             await tick();
@@ -770,7 +794,7 @@ test('video queue: a preview the user is browsing is not taken over', async () =
     await withPlayer({}, [], async () => {
         await withVideoMetadata(async () => {
             list(a, clip, photo);
-            press(a, 'play');
+            press(a, 'folder');
             await settle();
             press(clip, 'next');
             photo.$view.find('a')[0].click();
@@ -797,7 +821,7 @@ test('video queue: a video failing before it is shown still moves the queue on',
     await withPlayer({}, [], async () => {
         await withVideoMetadata(async () => {
             list(clip, b);
-            press(clip, 'play');
+            press(clip, 'folder');
             press(b, 'queue');
             await tick();
             await settle();
@@ -813,12 +837,12 @@ test('video queue: the bar shows the new entry time, and video progress counts a
     await withPlayer({}, [], async () => {
         await withVideoMetadata(async () => {
             list(a, clip);
-            press(a, 'play');
+            press(a, 'folder');
             await settle();
             audio().emit('durationchange');
             assert.equal($('#ap-time-dur').textContent, '3:00');
 
-            press(clip, 'play');
+            press(clip, 'folder');
             await tick();
             assert.equal($('#ap-time-dur').textContent, '0:00', 'the previous duration is not kept');
 
@@ -879,7 +903,7 @@ test('player export: the queue downloads as an M3U playlist with absolute URLs',
             $('#ap-queue-btn').click();
             assert.equal($('#aq-export').disabled, true, 'nothing to export');
 
-            press(first, 'play');
+            press(first, 'folder');
             await settle();
             assert.equal($('#aq-export').disabled, false);
             $('#aq-export').click();
@@ -907,7 +931,7 @@ test('player export: the queue downloads as an M3U playlist with absolute URLs',
 test('player memory: the queue, position and settings are saved as they change', async () => {
     await withPlayer({}, [], async () => {
         const [x, y] = list(...tracks('aud-save', 'a.mp3', 'b.mp3'));
-        press(y, 'play');
+        press(y, 'folder');
         await settle();
         $('#ap-repeat').click();
         const volume = $('#ap-volume');
@@ -1012,7 +1036,7 @@ test('now playing: the bar cover opens the large view with the tags, and reduces
         const cover = $('#ap-cover-gradient');
         assert.equal(cover.getAttribute('role'), null, 'nothing to open yet');
 
-        press(tagged, 'play');
+        press(tagged, 'folder');
         await settle();
         assert.equal(cover.getAttribute('role'), 'button');
         assert.equal(cover.getAttribute('aria-expanded'), 'false');
@@ -1068,7 +1092,7 @@ test('now playing: a video entry has no large view', async () => {
     await withPlayer({}, [], async () => {
         await withVideoMetadata(async () => {
             list(clip);
-            press(clip, 'play');
+            press(clip, 'folder');
             await tick();
             const cover = $('#ap-cover-gradient');
             assert.equal(cover.getAttribute('role'), null);
@@ -1086,7 +1110,7 @@ test('now playing: a queue moving on to a video closes the view', async () => {
     await withPlayer({}, [], async () => {
         await withVideoMetadata(async () => {
             list(a, clip);
-            press(a, 'play');
+            press(a, 'folder');
             await settle();
             press(clip, 'next');
             $('#ap-cover-gradient').click();
@@ -1111,7 +1135,7 @@ test('audio covers: a FLAC picture becomes the cover', async () => {
     ]).buffer;
     await withPlayer({[song.absHref]: flacStart}, [], async ({blobs}) => {
         list(song);
-        press(song, 'play');
+        press(song, 'folder');
         await settle();
         assert.deepEqual(blobs, ['image/jpeg']);
         assert.equal($('#ap-cover-img').getAttribute('src'), 'blob:1');
@@ -1178,11 +1202,24 @@ const withAudio = async run => {
                 calls,
                 fillStyle: null,
                 createLinearGradient: () => ({addColorStop() {}}),
+                globalAlpha: 1,
                 clearRect() {
                     calls.length = 0;
                 },
                 fillRect(x, y, w, h) {
                     calls.push({x, y, w, h, style: this.fillStyle});
+                },
+                save() {},
+                restore() {},
+                translate() {},
+                rotate() {},
+                scale() {},
+                drawImage(source) {
+                    calls.push({image: source});
+                },
+                createImageData: (w, h) => ({width: w, height: h, data: new Uint8ClampedArray(w * h * 4)}),
+                putImageData(image) {
+                    calls.push({put: image});
                 }
             });
         }
@@ -1211,7 +1248,22 @@ const runFrames = (count = 1) => {
         audioEnv.frames.splice(0).forEach(fn => fn(now));
     }
 };
-const barCanvas = () => $('#ap-viz canvas');
+const largeCover = () => $('#np-cover');
+const largeCanvas = () => $('#np-viz-canvas');
+const showsVisualizer = () => largeCover().classList.contains('np-cover-viz');
+// Opens the large view of the playing track, then clicks its cover until
+// the visualizer shows `mode`.
+const openLarge = async () => {
+    $('#ap-cover-gradient').click();
+    await settle();
+    assert.ok(panelOpen());
+};
+const switchTo = mode => {
+    for (let i = 0; i < 6 && store.get('ext/player').visualizer !== mode; i += 1) {
+        largeCover().click();
+    }
+    assert.equal(store.get('ext/player').visualizer, mode);
+};
 
 test('visualizer: a held-back audio context never takes the track', async () => {
     const [a] = tracks('viz-held', 'a.mp3');
@@ -1220,12 +1272,11 @@ test('visualizer: a held-back audio context never takes the track', async () => 
             audioEnv.startState = 'suspended';
             audioEnv.resumes = false;
             list(a);
-            press(a, 'play');
+            press(a, 'folder');
             await settle();
             assert.equal(audioEnv.contexts.length, 1);
             assert.deepEqual(audioEnv.sources, [], 'not connected: the track keeps its sound');
             assert.equal(audioEnv.frames.length, 0, 'nothing to draw');
-            assert.equal($('#ap-viz').classList.contains('hidden'), false, 'the place is there for a later start');
         });
     });
 });
@@ -1236,53 +1287,142 @@ test('visualizer: the spectrum follows the sound, falls when paused, and stops',
         await withAudio(async () => {
             audioEnv.resumes = true;
             list(a);
-            press(a, 'play');
+            press(a, 'folder');
             await settle();
             assert.deepEqual(audioEnv.sources, [audio()], 'a later click starts the context and connects the track');
             assert.equal(audioEnv.contexts.length, 1, 'one context for the page');
+            await openLarge();
+            switchTo('spectrum');
 
             runFrames(2);
-            const bars = recorderOf(barCanvas()).calls.filter(call => call.w === 3 && call.h > 1);
+            const bars = recorderOf(largeCanvas()).calls.filter(call => call.w === 3 && call.h > 1);
             assert.ok(bars.length > 0, 'bars drawn');
             assert.equal(bars[0].x, 0, 'the bass bar is lit');
-            assert.equal(bars[0].h, 16, 'a full-scale bass fills the 16 rows');
-            assert.ok(bars.every(call => call.x % 4 === 0 && call.x < 76), 'Winamp layout: 19 bars, 4 pixels apart');
+            assert.equal(bars[0].h, 151, 'a full-scale bass fills the square canvas');
+            assert.ok(bars.every(call => call.x % 4 === 0 && call.x < 152), 'Winamp layout: 38 bars, 4 pixels apart');
 
             audio().pause();
             runFrames(1);
             assert.ok(audioEnv.frames.length > 0, 'still falling after the pause');
             runFrames(60);
             assert.equal(audioEnv.frames.length, 0, 'at rest: no frame requested any more');
-            assert.equal(recorderOf(barCanvas()).calls.length, 0, 'an empty display');
+            assert.equal(recorderOf(largeCanvas()).calls.length, 0, 'an empty display');
         });
     });
 });
 
-test('visualizer: a click cycles spectrum, oscilloscope and off, and is remembered', async () => {
+test('visualizer: none in the bar, the large view shows the cover first', async () => {
+    const [a] = tracks('viz-none', 'a.mp3');
+    await withPlayer({}, [], async () => {
+        await withAudio(async () => {
+            list(a);
+            press(a, 'folder');
+            await settle();
+            assert.equal($('#audio-player-bar canvas'), null, 'no visualizer in the bar');
+            await openLarge();
+            switchTo('off');
+            assert.equal(showsVisualizer(), false, 'the cover is shown');
+            assert.equal(largeCover().getAttribute('role'), 'button');
+            assert.equal(largeCover().getAttribute('title'), 'Cover (click to change)');
+            assert.equal($('#player-now-playing .np-viz'), null, 'no separate visualizer box');
+        });
+    });
+});
+
+test('visualizer: clicks on the cover loop through every mode, and are remembered', async () => {
     const [a] = tracks('viz-modes', 'a.mp3');
     await withPlayer({}, [], async () => {
         await withAudio(async () => {
             list(a);
-            press(a, 'play');
+            press(a, 'folder');
             await settle();
-            const button = $('#ap-viz');
-            assert.equal(button.getAttribute('title'), 'Spectrum analyser (click to change)');
+            await openLarge();
+            switchTo('off');
 
-            button.click();
-            assert.equal(button.getAttribute('title'), 'Oscilloscope (click to change)');
-            assert.equal($('#np-viz').getAttribute('title'), 'Oscilloscope (click to change)', 'both displays share the mode');
-            runFrames(2);
-            const columns = recorderOf(barCanvas()).calls;
-            assert.equal(columns.length, 75, 'one column per pixel');
-            assert.equal(columns[1].h, 16, 'a full swing joins top and bottom');
-
-            button.click();
-            runFrames(1);
-            assert.equal(audioEnv.frames.length, 0, 'off: no frame at all');
-            assert.equal(store.get('ext/player').visualizer, 'off');
-            button.click();
+            largeCover().click();
+            assert.equal(showsVisualizer(), true, 'the visualizer takes the cover\'s place');
+            assert.equal(largeCover().getAttribute('title'), 'Spectrum analyser (click to change)');
             assert.equal(store.get('ext/player').visualizer, 'spectrum');
+
+            largeCover().dispatchEvent(new window.KeyboardEvent('keydown', {key: 'Enter'}));
+            assert.equal(largeCover().getAttribute('title'), 'Oscilloscope (click to change)', 'the keyboard switches too');
+            runFrames(2);
+            const columns = recorderOf(largeCanvas()).calls;
+            assert.equal(columns.length, 151, 'one column per pixel');
+            assert.equal(columns[1].h, 151, 'a full swing joins top and bottom');
+
+            ['Plasma', 'Kaleidoscope', 'Vortex'].forEach(name => {
+                largeCover().click();
+                assert.equal(largeCover().getAttribute('title'), `${name} (click to change)`);
+            });
+            largeCover().click();
+            assert.equal(showsVisualizer(), false, 'back to the cover');
+            runFrames(1);
+            assert.equal(audioEnv.frames.length, 0, 'the cover: no frame at all');
+            assert.equal(store.get('ext/player').visualizer, 'off');
+            largeCover().click();
+            assert.equal(store.get('ext/player').visualizer, 'spectrum', 'and around again');
         });
+    });
+});
+
+test('visualizer: the psychedelic modes draw with the music and rest when paused', async () => {
+    const [a] = tracks('viz-trip', 'a.mp3');
+    await withPlayer({}, [], async () => {
+        await withAudio(async () => {
+            list(a);
+            press(a, 'folder');
+            await settle();
+            await openLarge();
+            const calls = () => recorderOf(largeCanvas()).calls;
+
+            switchTo('plasma');
+            runFrames(2);
+            const put = calls().filter(call => call.put);
+            assert.equal(put.length, 2, 'one plasma image per frame');
+            assert.equal(put[0].put.width, 151, 'on the whole square');
+            assert.ok(put[0].put.data.some(value => value > 0), 'with colours in it');
+            audio().pause();
+            runFrames(1);
+            assert.equal(audioEnv.frames.length, 0, 'paused, the plasma stays still and nothing runs');
+            assert.equal(calls().filter(call => call.put).length, 2, 'not even drawn again');
+
+            ['kaleido', 'vortex'].forEach(mode => {
+                audio().play();
+                switchTo(mode);
+                runFrames(2);
+                assert.ok(calls().some(call => call.image), `${mode}: the last frame comes back as trails`);
+                assert.ok(calls().filter(call => call.w === 2 || call.h >= 1).length > 0, `${mode}: new shapes over them`);
+                audio().pause();
+                runFrames(5);
+                assert.ok(audioEnv.frames.length > 0, `${mode}: the trails fade after the pause`);
+                runFrames(30);
+                assert.equal(audioEnv.frames.length, 0, `${mode}: then nothing runs`);
+                assert.equal(calls().length, 0, `${mode}: on a cleared canvas`);
+            });
+            $('#np-collapse').click();
+        });
+    });
+});
+
+test('visualizer: a saved mode without Web Audio leaves the cover in place', async () => {
+    const [a] = tracks('viz-unsupported', 'a.mp3');
+    await withPlayer({}, [], async () => {
+        await withAudio(async () => {
+            list(a);
+            press(a, 'folder');
+            await settle();
+            await openLarge();
+            switchTo('spectrum');
+            $('#np-collapse').click();
+        });
+        // Outside withAudio: no AudioContext any more.
+        await openLarge();
+        assert.equal(showsVisualizer(), false, 'the cover, not an empty canvas');
+        assert.equal(largeCover().getAttribute('role'), null, 'nothing to switch to');
+        largeCover().click();
+        assert.equal(store.get('ext/player').visualizer, 'spectrum', 'the click changes nothing');
+        $('#np-collapse').click();
     });
 });
 
@@ -1293,20 +1433,97 @@ test('visualizer: only for tracks, and drawn in the large view while it is open'
         await withAudio(async () => {
             await withVideoMetadata(async () => {
                 list(a, clip);
-                press(a, 'play');
+                press(a, 'folder');
                 await settle();
-                $('#ap-cover-gradient').click();
-                await settle();
+                await openLarge();
+                switchTo('spectrum');
                 runFrames(2);
-                const large = recorderOf($('#np-viz canvas')).calls.filter(call => call.w === 3 && call.h > 1);
-                assert.ok(large.length > 0, 'the large view draws too');
-                assert.equal(large[0].h, 40, 'on its 40 rows');
+                const large = recorderOf(largeCanvas()).calls.filter(call => call.w === 3 && call.h > 1);
+                assert.ok(large.length > 0, 'the large view draws');
 
-                press(clip, 'play');
+                $('#np-collapse').click();
+                recorderOf(largeCanvas()).calls.length = 0;
+                runFrames(2);
+                assert.equal(recorderOf(largeCanvas()).calls.length, 0, 'nothing drawn once reduced');
+
+                press(clip, 'folder');
                 await tick();
-                assert.ok($('#ap-viz').classList.contains('hidden'), 'no visualizer for a video');
+                assert.equal(panelOpen(), false);
                 $('#pv-bar-close').click();
             });
         });
+    });
+});
+
+test('now playing: the large view takes the bar in, one size at a time', async () => {
+    const [a] = tracks('np-size', 'a.mp3');
+    await withPlayer({}, [], async () => {
+        list(a);
+        press(a, 'folder');
+        await settle();
+        assert.equal($('#root').classList.contains('np-open'), false);
+        await openLarge();
+        // The style sheet hides the bar's own look and track part under
+        // #root.np-open: the controls stay the same elements.
+        assert.ok($('#root').classList.contains('np-open'));
+        $('#ap-play-pause').click();
+        assert.equal(audio().paused, true, 'the controls still drive the track');
+        $('#np-collapse').click();
+        assert.equal($('#root').classList.contains('np-open'), false);
+    });
+});
+
+test('video takeover: a video shown in the preview pauses the track and hides the player', async () => {
+    const [a] = tracks('vid-takeover', 'a.mp3');
+    const [clip] = videos('vid-takeover', 'clip.mp4');
+    const [picture] = tracks('vid-takeover', 'picture.png');
+    picture.type = 'img';
+    const hidden = () => $('#root').classList.contains('ap-video-shown');
+    await withPlayer({}, [], async () => {
+        await withVideoMetadata(async () => {
+            list(a, clip, picture);
+
+            // A video the user opens.
+            press(a, 'folder');
+            await settle();
+            await openLarge();
+            clip.$view.find('a')[0].click();
+            await tick();
+            assert.ok(previewShown());
+            assert.equal(audio().paused, true, 'the track pauses, even before the video plays');
+            assert.ok(hidden(), 'the bar is hidden');
+            assert.equal(panelOpen(), false, 'the large view closes');
+            $('#pv-bar-close').click();
+            assert.equal(hidden(), false, 'the bar comes back with the preview closed');
+            assert.ok(barIsActive());
+            assert.equal(audio().paused, true, 'still paused: nothing starts on its own');
+
+            // A video the queue plays.
+            $('#ap-play-pause').click();
+            await settle();
+            press(clip, 'folder');
+            await tick();
+            assert.equal(audio().paused, true);
+            assert.ok(hidden());
+            $('#pv-bar-close').click();
+            assert.equal(hidden(), false);
+        });
+    });
+});
+
+test('video takeover: an image preview leaves the music alone', async () => {
+    const [a] = tracks('img-music', 'a.mp3');
+    const [picture] = tracks('img-music', 'picture.png');
+    picture.type = 'img';
+    await withPlayer({}, [], async () => {
+        list(a, picture);
+        press(a, 'folder');
+        await settle();
+        preview.open([picture], 0);
+        await tick();
+        event.pub('preview.content', picture, document.createElement('img'));
+        assert.equal(audio().paused, false, 'the track keeps playing');
+        assert.equal($('#root').classList.contains('ap-video-shown'), false);
+        preview.close();
     });
 });

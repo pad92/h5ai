@@ -150,7 +150,7 @@ Integrates Piwik (Matomo) tracking code.
 - `idSite` (default: `1`): The site ID configured in Piwik.
 
 #### `preview-aud`
-Enables the player bar: clicking an audio file plays it with the other audio files of its folder as a queue, and each audio row gets Play now, Play next and Add to queue buttons.
+Enables the player bar: clicking an audio file plays it alone, in place of the queue. Each audio row gets four buttons: Play now (the same as the click), Play folder from here (the audio files listed in its folder become the queue, starting with this one), Play next and Add to queue.
 
 The browser keeps the queue, the current entry and its position, the volume, shuffle and repeat (`localStorage`, key `ext/player`). The next page or visit brings them back, paused: browsers start no sound without a click. Closing the player forgets the queue. Each browser keeps its own; with several tabs, the last change wins.
 
@@ -158,7 +158,7 @@ The queue drawer's Export button downloads the queue as an extended M3U playlist
 
 Shuffle plays every entry of the queue once, in a random order; previous goes back through that order, which ends like the queue does unless repeat is on.
 
-When `preview-vid` is enabled, video rows get the same three buttons and videos share the queue with audio files. A queued video plays in the preview; when it ends, the queue moves on, back to the bar for a track or to the next video in the open preview. Closing that preview pauses the queue, and the bar's play button opens it again from the start. A preview you are browsing is never replaced: a video reached meanwhile waits, paused, for the play button. A plain click on a video still opens the regular preview. Play now on a video queues the videos of its folder; on a track, the tracks of its folder. Volume and mute in the bar apply to tracks only; videos keep their own controls.
+When `preview-vid` is enabled, video rows get the same four buttons and videos share the queue with audio files. A queued video plays in the preview; when it ends, the queue moves on, back to the bar for a track or to the next video in the open preview. Closing that preview pauses the queue, and the bar's play button opens it again from the start. A preview you are browsing is never replaced: a video reached meanwhile waits, paused, for the play button. A plain click on a video still opens the regular preview. Play now on a video plays it alone; Play folder from here queues the videos of its folder, and on a track the tracks of its folder. Volume and mute in the bar apply to tracks only; videos keep their own controls.
 - `enabled` (default: `true`).
 - `autoplay` (default: `true`): Start playback when an audio file is clicked. With `false`, the click loads the file into the player bar, paused; the row's Play now button still starts it.
 - `types` (default: `["aud"]`): File types (configured in `types.json`) handled by the player.
@@ -167,9 +167,9 @@ A file the browser reports it cannot play (WMA, RealAudio and MIDI, and AIFF out
 
 The cover shown in the bar comes from the file's server thumbnail, then from the picture embedded in the file (MP3 ID3 tag, FLAC picture block), then from an image named `cover`, `folder`, `front`, `album`, `albumart` or `poster` in the same folder.
 
-For a track, a click on the bar's cover (or Enter on it) opens the now playing view above the listing: the cover in full over a blurred copy of it, then the title, artist, album, year, genre and track number read from the file's tags (ID3 for MP3, Vorbis comments for FLAC), and the duration, format, average bit rate, size and file name. Missing tags fall back to the file name and the folder. The view follows the queue, and the bar stays below it with the controls. The button at its top left, Escape or another click on the cover reduce it. A video has no such view: it plays in the preview.
+For a track, a click on the bar's cover (or Enter on it) opens the now playing view over the whole page: the cover in full over a blurred copy of it, then the title, artist, album, year, genre and track number read from the file's tags (ID3 for MP3, Vorbis comments for FLAC), and the duration, format, average bit rate, size and file name. Missing tags fall back to the file name and the folder. The view follows the queue. The player is either large or small: the view takes the bar's controls in at its bottom, and the bar's own cover and title are hidden while it is open. The button at its top left or Escape reduce it. A video has no such view: it plays in the preview, and while a video is shown there the track pauses and the bar hides until the preview closes or shows something else.
 
-Tracks also get a visualizer in the style of the first Winamp releases, in the bar (Winamp's own 76x16 pixels, doubled; hidden on a bar narrower than 1000 pixels) and larger in the now playing view: a spectrum analyser of 19 or 38 log-spaced bands from 40 Hz to 16 kHz, with falling peaks, in the classic skin's colours, or an oscilloscope. A click on it cycles spectrum, oscilloscope and off; the browser keeps the choice, and the default is off when the system asks for reduced motion. It reads the sound through a Web Audio analyser, which needs the browser's audio context: that starts with the first play after a click, and until it does the track plays without visualizer. It costs little: the frequency analysis runs in the browser's native code, the canvases hold a few thousand pixels, at most 30 frames a second are drawn, and nothing runs while paused, in a hidden tab, switched off, or during a video.
+Tracks also get a visualizer in the style of the first Winamp releases, in the now playing view, in place of the large cover: a spectrum analyser of 38 log-spaced bands from 40 Hz to 16 kHz, with falling peaks, in the classic skin's colours, or an oscilloscope, drawn on a square of 151 pixels scaled up without smoothing. Three psychedelic modes follow them: a plasma of sine waves, a kaleidoscope of the spectrum mirrored into eight sectors, and a vortex of the wave bent into a ring, the last two over trails of their previous frames, turned and zoomed. The music speeds their colours and their motion up but never changes their brightness, so a beat swells instead of flashing; when the system asks for reduced motion, they are left out of the cycle. A click on the cover (or Enter on it) cycles cover, spectrum, oscilloscope, plasma, kaleidoscope and vortex, then back to the cover. The view opens on the cover, and the browser keeps the choice. The bar has no visualizer. It reads the sound through a Web Audio analyser, which needs the browser's audio context: that starts with the first play after a click, and until it does the track plays without visualizer. It costs little: the frequency analysis runs in the browser's native code, the canvas holds about 23,000 pixels, at most 30 frames a second are drawn, and nothing runs while paused, in a hidden tab, with the cover shown or the view reduced, or during a video.
 
 ##### Playing the queue in an external player
 
@@ -203,11 +203,28 @@ Enables previewing and syntax highlighting of text-based files.
 Enables in-browser video playback.
 - `enabled` (default: `true`).
 - `autoplay` (default: `true`): Autoplay the video on preview start.
+- `engine` (default: `""`): The enhanced player's engines, by priority, among `wasm`, `native`, `shaka`, `dashjs` and `hlsjs`; unknown names are ignored. Empty keeps the player's own order, its decoder first, which plays the most formats. `"native wasm"` puts the browser first, which casting needs, with the decoder as a fallback; see below.
 - `types`: Supported video types for preview.
 
 The enhanced player is loaded only in a secure, cross-origin-isolated context.
 Otherwise h5ai immediately uses the native `<video>` element without downloading
 the enhanced-player bundle.
+
+h5ai sends the headers of that context on every page, so over HTTPS (or on
+localhost) the enhanced player is the one Chrome, Edge and Firefox use.
+
+When the browser exposes Remote Playback (Chrome, Edge) or Safari's AirPlay,
+the video player offers a cast button for devices such as Chromecast, while a
+device is reachable. The native player gets it in the preview bar. The enhanced
+player shows it in its own controls only while the browser plays the video
+itself: its own decoder draws on a canvas, which cannot be cast. With the
+default `engine`, that decoder plays first, so the enhanced player rarely
+offers casting; set `"engine": "native wasm"` to cast. The trade-off: every
+file the browser claims to play then goes through it, and a file whose video
+the browser decodes but whose audio it does not (AC3 or DTS in Chrome, for
+instance) may play without sound instead of falling back to the decoder.
+Device discovery and format support depend on the browser and receiver; a
+video the receiver cannot play may not cast successfully.
 
 Subtitle files next to the video are attached when their name is the video's
 name, optionally followed by a suffix after `.`, `_` or `-`: `movie.srt`,

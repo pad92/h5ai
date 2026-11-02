@@ -14,6 +14,7 @@ const ICONS = {
     film: 'M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4h-4z',
     play: 'M8 5v14l11-7z',
     pause: 'M6 19h4V5H6v14zm8-14v14h4V5h-4z',
+    playFolder: 'M3 10h11v2H3zm0-4h11v2H3zm0 8h7v2H3zm13-1v8l6-4z',
     playNext: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z',
     add: 'M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z',
     shuffle: 'M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.45 20 9.5V4h-5.5zm.38 10.17l-1.42 1.41 3.17 3.17L14.5 20H20v-5.5l-2.04 2.04-3.08-3.08z',
@@ -42,7 +43,6 @@ const BAR_TPL = `
             <p class="ap-track-name" id="ap-track-name-el">No Track</p>
             <p class="ap-track-folder" id="ap-track-folder-el">Unknown Folder</p>
         </div>
-        <button class="ap-viz hidden" id="ap-viz"><canvas></canvas></button>
     </div>
     <div class="ap-controls-container">
         <div class="ap-control-buttons">
@@ -100,6 +100,7 @@ const QUEUE_TPL = `
 const ROW_ACTIONS_TPL = `
 <span class="ap-item-actions">
     <button class="ap-row-btn ap-row-play" title="Play Now" aria-label="Play Now">${svg(ICONS.play)}</button>
+    <button class="ap-row-btn ap-row-folder" title="Play folder from here" aria-label="Play folder from here">${svg(ICONS.playFolder)}</button>
     <button class="ap-row-btn ap-row-next" title="Play Next" aria-label="Play Next">${svg(ICONS.playNext)}</button>
     <button class="ap-row-btn ap-row-queue" title="Add to Queue" aria-label="Add to Queue">${svg(ICONS.add)}</button>
 </span>`;
@@ -147,8 +148,6 @@ const showBar = () => {
     dom('#audio-player-bar').addCls('active');
     base.$root.addCls('ap-bar-visible');
 };
-
-const isBarShown = () => dom('#audio-player-bar').hasCls('active');
 
 const hideBar = () => {
     dom('#audio-player-bar').rmCls('active');
@@ -243,15 +242,6 @@ const setExpandable = (isExpandable, isExpanded) => {
     }
 };
 
-// The bar's visualizer, for a track only.
-const setVisualizerShown = isShown => {
-    if (isShown) {
-        dom('#ap-viz').show();
-    } else {
-        dom('#ap-viz').hide();
-    }
-};
-
 const showCover = url => {
     dom('#ap-cover-img').attr('src', url).show();
     dom('#ap-cover-fallback').hide();
@@ -314,7 +304,7 @@ const renderQueue = (entries, opts) => {
 
 // The buttons go next to the item's link, not inside it: HTML does not
 // allow a button within an <a>. The <li> is the positioned box.
-// `actions`: {play, next, queue}, each called with the item.
+// `actions`: {play, folder, next, queue}, each called with the item.
 const addRowActions = (item, actions) => {
     if (item.$view.find('.ap-item-actions').length > 0) {
         return;
@@ -424,7 +414,6 @@ module.exports = {
     isSeeking: () => isSeeking,
     showBar,
     hideBar,
-    isBarShown,
     setEntry,
     setError,
     setPlaying,
@@ -436,7 +425,6 @@ module.exports = {
     setVolume,
     setMutedIcon,
     setExpandable,
-    setVisualizerShown,
     gradientFor,
     showCover,
     showCoverFallback,

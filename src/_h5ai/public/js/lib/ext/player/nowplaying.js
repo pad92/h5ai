@@ -1,6 +1,8 @@
 // The large "now playing" view of a track: its cover in full over a blurred
 // copy of it, and what the file says about itself. It opens from the bar's
-// cover, above the listing, and leaves the bar below for the controls.
+// cover and fills the page; the bar's controls sit at its bottom, the rest of
+// the bar is hidden (player.less). Where Web Audio exists, a click on the
+// cover swaps it for the visualizer, and so on in a loop.
 const {dom} = require('../../util');
 const format = require('../../core/format');
 const resource = require('../../core/resource');
@@ -20,6 +22,7 @@ const TPL = `
         <div class="np-cover" id="np-cover">
             <img class="np-cover-img hidden" id="np-cover-img" src="${resource.blankImage}" alt=""/>
             <svg class="np-cover-fallback" id="np-cover-fallback" viewBox="0 0 24 24" fill="currentColor"><path d="${NOTE_ICON}"/></svg>
+            <canvas class="np-viz-canvas" id="np-viz-canvas"></canvas>
         </div>
         <div class="np-info">
             <p class="np-kicker">Now playing</p>
@@ -27,7 +30,6 @@ const TPL = `
             <p class="np-artist" id="np-artist"></p>
             <p class="np-album" id="np-album"></p>
             <dl class="np-details" id="np-details"></dl>
-            <button class="np-viz" id="np-viz"><canvas></canvas></button>
         </div>
     </div>
 </div>`;
@@ -114,6 +116,28 @@ const render = ({item, tags, coverUrl, background, duration}) => {
     showCover(coverUrl, background);
 };
 
+// Where Web Audio exists, the cover is the visualizer's button: the
+// visualizer handles its clicks, mount() lets the keyboard click it.
+// `label`: what a click does.
+const setSwitchable = (isSwitchable, label) => {
+    const $cover = dom('#np-cover');
+    if (isSwitchable) {
+        $cover.addCls('np-cover-switchable').attr('role', 'button').attr('tabindex', '0')
+            .attr('title', label).attr('aria-label', label);
+    } else {
+        $cover.rmCls('np-cover-switchable').rmAttr('role').rmAttr('tabindex').rmAttr('title').rmAttr('aria-label');
+    }
+};
+
+// `mode`: a visualizer mode; "off" shows the cover.
+const showVisualizer = mode => {
+    if (mode && mode !== 'off') {
+        dom('#np-cover').addCls('np-cover-viz');
+    } else {
+        dom('#np-cover').rmCls('np-cover-viz');
+    }
+};
+
 const open = () => {
     isOpen = true;
     dom('#player-now-playing').addCls('active').rmAttr('inert');
@@ -143,6 +167,13 @@ const mount = on => {
     onClose = on.close;
     base.$root.app(TPL);
     dom('#np-collapse').on('click', close);
+    const $cover = dom('#np-cover');
+    $cover.on('keydown', ev => {
+        if ($cover.hasCls('np-cover-switchable') && (ev.key === 'Enter' || ev.key === ' ')) {
+            ev.preventDefault();
+            $cover[0].click();
+        }
+    });
     dom(global.window).on('keydown', ev => {
         // The preview, when open above, handles its own Escape.
         const previewIsOpen = dom('#pv-overlay').length && !dom('#pv-overlay').isHidden();
@@ -156,6 +187,8 @@ const mount = on => {
 module.exports = {
     mount,
     render,
+    setSwitchable,
+    showVisualizer,
     open,
     close,
     isOpen: () => isOpen
