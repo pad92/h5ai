@@ -1,6 +1,6 @@
 {
   "name": "h5ai",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "Modern HTTP web server index.",
   "homepage": "https://github.com/pad92/h5ai",
   "author": "pad92",
@@ -25,8 +25,8 @@
     "test:coverage": "c8 --all --include=\"src/_h5ai/public/js/**/*.js\" --reporter=text-summary --reporter=json-summary --reporter=cobertura --reports-dir=coverage/js node scripts/run-tests.js"
   },
   "devDependencies": {
-    "@babel/core": "8.0.1",
-    "@babel/preset-env": "8.0.2",
+    "@babel/core": "8.0.10",
+    "@babel/preset-env": "8.0.7",
     "@eslint/js": "^10.0.1",
     "@fontsource/ubuntu": "^5.2.8",
     "@fontsource/ubuntu-mono": "^5.2.8",
@@ -34,9 +34,9 @@
     "@stylistic/eslint-plugin": "^5.10.0",
     "babel-loader": "^10.0.0",
     "c8": "12.0.0",
-    "del": "^8.0.0",
-    "eslint": "10.8.1",
-    "globals": "17.11.0",
+    "del": "^9.0.1",
+    "eslint": "10.14.0",
+    "globals": "17.14.0",
     "gulp": "^5.0.1",
     "gulp-autoprefixer": "^10.0.0",
     "gulp-clean-css": "^4.3.0",
@@ -49,16 +49,16 @@
     "gulp-replace": "^1.1.4",
     "gulp-uglify": "^3.0.2",
     "gulp-zip": "^6.1.0",
-    "jsdom": "30.0.1",
+    "jsdom": "30.1.3",
     "kjua": "0.10.0",
     "lolight": "1.4.1",
-    "marked": "^18.0.5",
-    "movi-player": "^0.4.0",
+    "marked": "^18.1.2",
+    "movi-player": "^0.4.1",
     "normalize.css": "8.0.1",
     "null-loader": "4.0.1",
-    "postcss-less": "^6.0.0",
+    "postcss-less": "^7.0.1",
     "scar": "2.3.4",
-    "stylelint": "^17.13.0",
+    "stylelint": "^17.16.0",
     "stylelint-config-standard": "^40.0.0",
     "webpack-stream": "^7.0.0"
   },
@@ -66,6 +66,7 @@
     "exif-js": "^2.3.0"
   },
   "overrides": {
-    "glob": "^13.0.6"
+    "glob": "^14.0.3",
+    "minimatch": "^11.0.4"
   }
 }

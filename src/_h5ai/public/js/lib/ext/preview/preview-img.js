@@ -13,7 +13,7 @@ const settings = Object.assign({
     size: null,
     types: []
 }, allsettings['preview-img']);
-const tpl = '<img id="pv-content-img"/>';
+const tpl = '<img id="pv-content-img" alt=""/>';
 
 let $infoBtn = null;
 let $exifCard = null;
@@ -127,6 +127,7 @@ const load = item => {
 
     const loadSrc = src => new Promise((resolve, reject) => {
         const $el = dom(tpl)
+            .attr('alt', item.label)
             .on('load', () => resolve($el))
             .on('error', () => reject($el))
             .attr('src', src);
@@ -139,7 +140,7 @@ const load = item => {
 
 const init = () => {
     if (settings.enabled) {
-        $infoBtn = dom(`<li id="pv-bar-info" class="bar-right bar-button"><img src="${resource.image('info-toggle')}"/></li>`)
+        $infoBtn = dom(`<li id="pv-bar-info" class="bar-right bar-button"><img src="${resource.image('info-toggle')}" alt="photo details"/></li>`)
             .hide()
             .appTo('#pv-buttons');
 

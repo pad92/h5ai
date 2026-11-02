@@ -20,8 +20,15 @@ export const launch = async ({binary, hostRules}) => {
     const args = [
         '--headless=new', `--remote-debugging-port=${DEBUG_PORT}`, `--user-data-dir=${profile}`,
         '--hide-scrollbars', '--no-first-run', '--no-default-browser-check',
-        '--autoplay-policy=no-user-gesture-required', '--font-render-hinting=none'
+        '--autoplay-policy=no-user-gesture-required', '--font-render-hinting=none',
+        // Containers get a 64 MB /dev/shm, too small for Chrome's renderer.
+        '--disable-dev-shm-usage'
     ];
+    // Chrome refuses to start as root with its sandbox on, which is the case
+    // in the throwaway CI container of the W3C check.
+    if (process.getuid && process.getuid() === 0) {
+        args.push('--no-sandbox');
+    }
     if (hostRules) {
         args.push(`--host-resolver-rules=${hostRules}`);
     }

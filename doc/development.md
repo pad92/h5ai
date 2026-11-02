@@ -51,15 +51,22 @@ percentage drops below 90%; set `COVERAGE_MIN` to use another floor.
 `make docker-w3c` builds the image and validates what it serves with the
 [Nu Html Checker](https://validator.github.io/validator/), the engine behind
 validator.w3.org, run locally from its Docker image: nothing is published or
-sent to w3.org. `test/docker/test-w3c.sh` fetches the index page, a fallback
-listing (the page text browsers get), the info page and `styles.css` inside
-the h5ai container and pipes them to the checker. Any error fails; notes such
-as the trailing slash on void elements are printed only. `make docker-test`
-and the `test:docker` CI job run the same script, which backs the W3C badges
-of the README.
+sent to w3.org. `test/docker/test-w3c.sh` checks two things:
 
-The check covers the HTML sent by the server, as the online validator does,
-not the DOM the JavaScript builds afterwards.
+* what the server sends: the index page, a fallback listing (the page text
+  browsers get), the info page and `styles.css`, fetched inside the h5ai
+  container;
+* what the browser ends up with: `test/docker/dump-dom.mjs` opens the
+  listings, the image, Markdown and audio previews and the info page in
+  headless Chromium and saves the DOM once the JavaScript has run. Chromium
+  comes from Debian, in the same pinned Node image as the Dockerfile build
+  stage, and shares the h5ai container's network.
+
+Any error fails; notes such as the trailing slash on void elements are
+printed only. A run takes about a minute, most of it installing Chromium.
+`make docker-test` and the `test:docker` CI job run the same script, which
+backs the W3C badges of the README. To check a new state of the interface,
+add it to `PAGES` in `dump-dom.mjs`.
 
 
 ## Docker image tags
