@@ -319,6 +319,9 @@ test:docker:
     - wait_http "" "401 Unauthorized" "Unauthenticated request correctly blocked (401 Unauthorized)" "Unauthenticated request test failed (did not return 401)" h5ai-test-auth
     - wait_http "-u admin:secret" "200 OK" "Authenticated request successfully bypassed basic auth" "Authenticated request test failed (rejected credentials or PHP-FPM not ready)" h5ai-test-auth
     - docker rm -f h5ai-test-auth
+
+    - echo "Validating the served HTML and CSS (W3C Nu Html Checker, offline)..."
+    - sh test/docker/test-w3c.sh "$TEST_IMAGE_REF"
     - echo "All tests passed successfully!"
   rules: *pipeline_rules
 

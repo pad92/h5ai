@@ -77,6 +77,16 @@ const comment_html = `<!-- ${comment} -->`;
 console.log(comment);
 if (isProduction) console.log('Running in production mode');
 
+// A style sheet's @charset only counts as the very first bytes of the file,
+// so the version banner goes after it.
+const prependCssBanner = css => {
+    const charset = css.match(/^@charset "[^"]*";/);
+    if (!charset) {
+        return comment_js + css;
+    }
+    return `${charset[0]}\n${comment_js}${css.slice(charset[0].length)}`;
+};
+
 const clean = () => del([BUILD]);
 
 const buildScripts = () => src(path.join(SRC, '_h5ai/public/js/scripts.js'))
@@ -93,7 +103,7 @@ const buildStyles = () => src(path.join(SRC, '_h5ai/public/css/styles.less'))
     .pipe(less({math: 'always'}))
     .pipe(autoprefixer())
     .pipe(pipeIf(isProduction, cleanCss()))
-    .pipe(insert.prepend(comment_js))
+    .pipe(insert.transform(prependCssBanner))
     .pipe(dest(path.join(BUILD, '_h5ai/public/css')));
 
 const buildPhpFromPug = () => src(`${SRC}/**/*.php.pug`)
@@ -115,7 +125,8 @@ const copyPhpAndStatic = () => src([
 const copyJson = () => src(`${SRC}/**/conf/*.json`)
     .pipe(dest(BUILD));
 
-const copyRootFiles = () => src(`${ROOT}/*.md`)
+// LICENSE travels with the package: the MIT terms require the notice.
+const copyRootFiles = () => src([`${ROOT}/*.md`, `${ROOT}/LICENSE`])
     .pipe(dest(path.join(BUILD, '_h5ai')));
 
 // movi-player's bundled CSS imports Google's Inter font over the network;

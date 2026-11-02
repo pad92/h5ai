@@ -1,0 +1,92 @@
+# Developing h5ai
+
+## Build
+
+Building needs Node.js `22.22.2–22.x`, `24.15.0–24.x`, or `26.0.0+`, and npm.
+From within the root folder run the following commands to find a fresh zipball
+in folder `build` (tested on linux only, might work on other configurations):
+
+~~~sh
+> npm ci
+> npm run build
+~~~
+
+Do **not** install any files from the `src` folder: they need to be
+preprocessed to work correctly.
+
+To try a build with sample media, `docker compose -f docker-compose.dev.yml up --build`
+serves the test fixtures and the Markdown docs on <http://localhost:8888/>.
+`test/docker/generate-fixtures.sh` recreates the fixtures.
+
+
+## Tests
+
+Run `npm test` for the JavaScript tests and `npm run test:php` (or
+`make test-php`) for the PHP tests. The PHP suite runs with PHPUnit, which the
+Makefile downloads once to `/tmp/phpunit.phar` and verifies against a pinned
+checksum; `phpunit.xml.dist` defines the suite. It requires PHP 8.4+, the
+`tar`, `du` and `cp` commands, and permission to start temporary HTTP servers
+on `127.0.0.1`. Each test works in its own temporary folder and removes it.
+Tests that need an optional PHP extension (GD, SQLite) are reported as skipped
+when it is missing. `make test` runs both suites.
+
+
+## Coverage
+
+CI also measures line coverage. `npm run test:coverage` writes JavaScript
+reports to `coverage/js/`, including source files the tests never load. The PHP
+job runs PHPUnit with Xdebug over `src/_h5ai/private/php/`, untested files
+included, and writes its report to `coverage/php/`. The PHP processes the tests
+start (the API server, `Bootstrap::run()` behind a server, the CLI workers)
+count too. `make coverage` produces both reports locally, in Docker when PHP has
+no Xdebug. Both jobs upload Cobertura reports for GitLab diff annotations. The
+`test:coverage` job combines covered and total line counts from both languages
+into the percentage shown by the coverage badge, which a successful pipeline on
+the default branch updates. That job, like `make coverage`, fails when the
+percentage drops below 90%; set `COVERAGE_MIN` to use another floor.
+
+
+## W3C validation
+
+`make docker-w3c` builds the image and validates what it serves with the
+[Nu Html Checker](https://validator.github.io/validator/), the engine behind
+validator.w3.org, run locally from its Docker image: nothing is published or
+sent to w3.org. `test/docker/test-w3c.sh` fetches the index page, a fallback
+listing (the page text browsers get), the info page and `styles.css` inside
+the h5ai container and pipes them to the checker. Any error fails; notes such
+as the trailing slash on void elements are printed only. `make docker-test`
+and the `test:docker` CI job run the same script, which backs the W3C badges
+of the README.
+
+The check covers the HTML sent by the server, as the online validator does,
+not the DOM the JavaScript builds afterwards.
+
+
+## Docker image tags
+
+Docker Hub protects tags matching `^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9]+)?$` from
+changes. Stable releases update `latest` and the major/minor aliases only when
+they are the newest stable Git tag. Prereleases keep their versioned tags and
+leave stable aliases unchanged. The `devel` tag follows `master`.
+
+
+## Screenshots
+
+The README screenshots in `doc/screenshots/` are generated:
+
+~~~sh
+> make screenshots
+~~~
+
+The target builds the Docker image with the version from `package.json`,
+creates a sample share with `scripts/screenshots/demo-share.mjs` (drawn
+landscapes, generated music and videos, documents and code), serves it on
+`127.0.0.1:8891`, and shoots it with headless Chrome through
+`scripts/screenshots/shoot.mjs`. The container and the sample share are removed
+afterwards, even when a step fails. It needs Docker, Node.js, ffmpeg,
+ImageMagick 7 (`magick`) and Chrome or Chromium; set `CHROME` to the browser
+binary when it is not found on `PATH`, and `SCREENSHOT_PORT` when 8891 is taken.
+
+The files get a fixed date, so the listings are the same from one run to the
+next. To add a screenshot, add an entry to `SHOTS` in `shoot.mjs` and reference
+the WebP file from the README.
