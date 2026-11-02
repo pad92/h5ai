@@ -152,6 +152,8 @@ Integrates Piwik (Matomo) tracking code.
 #### `preview-aud`
 Enables the player bar: clicking an audio file plays it with the other audio files of its folder as a queue, and each audio row gets Play now, Play next and Add to queue buttons.
 
+Shuffle plays every entry of the queue once, in a random order; previous goes back through that order, which ends like the queue does unless repeat is on.
+
 When `preview-vid` is enabled, video rows get the same three buttons and videos share the queue with audio files. A queued video plays in the preview; when it ends, the queue moves on, back to the bar for a track or to the next video in the open preview. Closing that preview pauses the queue, and the bar's play button opens it again from the start. A preview you are browsing is never replaced: a video reached meanwhile waits, paused, for the play button. A plain click on a video still opens the regular preview. Play now on a video queues the videos of its folder; on a track, the tracks of its folder. Volume and mute in the bar apply to tracks only; videos keep their own controls.
 - `enabled` (default: `true`).
 - `autoplay` (default: `true`): Start playback when an audio file is clicked. With `false`, the click loads the file into the player bar, paused; the row's Play now button still starts it.

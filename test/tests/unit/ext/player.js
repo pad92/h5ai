@@ -143,7 +143,6 @@ test('audio covers: ID3 v2.2 PIC and v2.4 APIC pictures become object URLs', asy
             await settle();
         }
         assert.deepEqual(blobs, ['image/png', 'image/png', 'image/jpeg']);
-        assert.equal(mime.embeddedCoverUrl, 'blob:3');
         assert.equal($('#ap-cover-img').getAttribute('src'), 'blob:3');
         assert.deepEqual(revoked, ['blob:1', 'blob:2'], 'replacing the queue releases its covers');
     });
@@ -164,8 +163,7 @@ test('audio covers: unreadable tags fall back to the folder image', async () => 
         for (const item of [old, notpic, empty, missing, utf8]) {
             press(item, 'play');
             await settle();
-            assert.equal(item.embeddedCoverUrl, 'none', item.label);
-            assert.equal($('#ap-cover-img').getAttribute('src'), '/aud-bad/Folder.jpg', 'a folder image is preferred');
+            assert.equal($('#ap-cover-img').getAttribute('src'), '/aud-bad/Folder.jpg', `${item.label}: a folder image is preferred`);
         }
         assert.deepEqual(blobs, []);
     });
@@ -198,18 +196,21 @@ test('audio covers: a broken cover falls back to the folder image, then to a gra
     const [tagged, lone, folderImage] = tracks('aud-cover', 'tagged.mp3', 'lone.mp3', 'Cover.png');
     const [orphan, photo] = tracks('aud-orphan', 'orphan.mp3', 'holiday.jpg');
     const covers = {[tagged.absHref]: id3(3, frame(3, 'APIC', apic()))};
-    await withPlayer(covers, ['blob:1', '/aud-cover/Cover.png'], async ({revoked}) => {
+    await withPlayer(covers, ['blob:1', '/aud-cover/Cover.png'], async ({blobs, revoked}) => {
         list(tagged, lone, folderImage, orphan, photo);
         press(tagged, 'play');
         await settle();
-        assert.equal(tagged.embeddedCoverUrl, 'none', 'a cover that fails to load is forgotten');
         assert.ok($('#ap-cover-img').classList.contains('hidden'), 'the folder image is broken too');
         assert.ok($('#ap-cover-gradient').style.background.includes('linear-gradient'));
+        assert.deepEqual(revoked, ['blob:1'], 'a broken picture is released');
 
         press(orphan, 'play');
         await settle();
         assert.ok($('#ap-cover-img').classList.contains('hidden'), 'a random photo is not an album cover');
-        assert.deepEqual(revoked, []);
+
+        press(tagged, 'play');
+        await settle();
+        assert.equal(blobs.length, 1, 'a broken picture is not looked up again');
     });
 });
 
@@ -226,7 +227,6 @@ test('audio covers: the blob type comes from the picture bytes, not from the tag
         press(unknown, 'play');
         await settle();
         assert.deepEqual(blobs, ['image/jpeg']);
-        assert.equal(unknown.embeddedCoverUrl, 'none');
     });
 });
 
@@ -250,7 +250,6 @@ test('audio covers: a server ignoring Range is not downloaded in full', async ()
         press(a, 'play');
         await settle();
         assert.deepEqual(calls, {cancel: 1, arrayBuffer: 0});
-        assert.equal(a.embeddedCoverUrl, 'none');
         assert.deepEqual(blobs, []);
     });
 });
@@ -258,23 +257,23 @@ test('audio covers: a server ignoring Range is not downloaded in full', async ()
 test('audio covers: a late cover stays with its own track', async () => {
     let release;
     const covers = {};
-    await withPlayer(covers, [], async () => {
+    await withPlayer(covers, [], async ({blobs}) => {
         const [x, y] = list(...tracks('aud-late', 'a.mp3', 'b.mp3'));
         covers[x.absHref] = () => new Promise(resolve => {
             release = () => resolve(id3(3, frame(3, 'APIC', apic())));
         });
-        y.embeddedCoverUrl = 'blob:y';
+        covers[y.absHref] = id3(3, frame(3, 'APIC', apic({picture: PNG})));
         press(x, 'play');
         await settle();
         $('#ap-next').click();
         await settle();
         assert.equal(trackName(), y.label);
+        assert.equal($('#ap-cover-img').getAttribute('src'), 'blob:1');
 
         release();
         await settle();
-        assert.equal(x.embeddedCoverUrl, 'blob:1');
-        assert.equal(y.embeddedCoverUrl, 'blob:y', 'the next track keeps its cover');
-        assert.equal($('#ap-cover-img').getAttribute('src'), 'blob:y');
+        assert.deepEqual(blobs, ['image/png', 'image/jpeg'], 'the late picture is still read');
+        assert.equal($('#ap-cover-img').getAttribute('src'), 'blob:1', 'the next track keeps its cover');
     });
 });
 
@@ -320,9 +319,10 @@ test('audio queue: rows play, queue and play next without duplicates', async () 
 });
 
 test('audio queue: the drawer jumps to and removes tracks', async () => {
-    await withPlayer({}, [], async ({revoked}) => {
+    const covers = {};
+    await withPlayer(covers, [], async ({revoked}) => {
         const [x, y, z] = list(...tracks('aud-drawer', 'a.mp3', 'b.mp3', 'c.mp3'));
-        x.embeddedCoverUrl = 'blob:x';
+        covers[x.absHref] = id3(3, frame(3, 'APIC', apic()));
         press(x, 'play');
         await settle();
         $('#ap-queue-btn').click();
@@ -333,7 +333,7 @@ test('audio queue: the drawer jumps to and removes tracks', async () => {
 
         $$('#aq-list-el .aq-item-remove')[0].click();
         assert.deepEqual(queueNames(), labels([y, z]));
-        assert.deepEqual(revoked, ['blob:x'], 'the removed track releases its cover');
+        assert.deepEqual(revoked, ['blob:1'], 'the removed track releases its cover');
         assert.equal(trackName(), z.label, 'removing another track keeps playing');
 
         $$('#aq-list-el .aq-item-remove')[1].click();
@@ -361,16 +361,28 @@ test('audio transport: prev, next and shuffle move through the queue', async () 
         await settle();
         assert.equal(trackName(), z.label, 'prev wraps around');
 
+        // Shuffle deals the others after the current track: z, then y, x.
+        Math.random = () => 0;
         $('#ap-shuffle').click();
-        const draws = [2 / 3, 0];
-        Math.random = () => draws.shift();
         $('#ap-next').click();
         await settle();
-        assert.equal(trackName(), x.label, 'shuffle redraws the current track');
-        Math.random = () => 0.5;
+        assert.equal(trackName(), y.label);
+        $('#ap-next').click();
+        await settle();
+        assert.equal(trackName(), x.label, 'each track comes once');
         $('#ap-prev').click();
         await settle();
-        assert.equal(trackName(), y.label);
+        assert.equal(trackName(), y.label, 'previous goes back through the shuffled order');
+        $('#ap-next').click();
+        await settle();
+        audio().emit('ended');
+        await settle();
+        assert.equal(trackName(), x.label, 'the shuffled order ends like the queue');
+        assert.equal($('#ap-play-pause').classList.contains('playing'), false);
+
+        $('#ap-next').click();
+        await settle();
+        assert.notEqual(trackName(), x.label, 'next deals a new round, never starting with the last track');
     });
 });
 
