@@ -2,6 +2,7 @@
 const {dom, each, compact, includes} = require('../../util');
 const allsettings = require('../../core/settings');
 const event = require('../../core/event');
+const resource = require('../../core/resource');
 const base = require('../../view/base');
 
 const settings = Object.assign({
@@ -258,9 +259,9 @@ const updateListVisuals = () => {
             if (isPlaying) {
                 $el.addCls('ap-active-playing');
                 const $eq = dom(`
-                    <div class="ap-playing-equalizer">
+                    <span class="ap-playing-equalizer">
                         <span></span><span></span><span></span><span></span>
-                    </div>
+                    </span>
                 `);
                 $el.find('.icon.square').app($eq);
             } else {
@@ -391,7 +392,7 @@ const clearQueue = () => {
 const showCoverFallback = item => {
     const $img = dom('#ap-cover-img');
     const $fallback = dom('#ap-cover-fallback');
-    $img.hide().attr('src', '');
+    $img.hide().attr('src', resource.blankImage);
     $fallback.show();
     dom('#ap-cover-gradient').css({background: getGradientForTrack(item.label)});
 };
@@ -594,9 +595,9 @@ const playNext = item => {
 
 const injectItemActions = item => {
     if (item.$view && item.type === 'aud') {
-        const $a = item.$view.find('a');
-
-        if ($a.find('.ap-item-actions').length > 0) {
+        // The buttons go next to the item's link, not inside it: HTML does
+        // not allow a button within an <a>. The <li> is the positioned box.
+        if (item.$view.find('.ap-item-actions').length > 0) {
             return;
         }
 
@@ -632,7 +633,7 @@ const injectItemActions = item => {
             addToQueue(item);
         });
 
-        $a.app($actions);
+        item.$view.app($actions);
     }
 };
 
@@ -687,11 +688,11 @@ const initUI = () => {
     <div id="audio-player-bar">
         <div class="ap-track-info">
             <div class="ap-track-cover" id="ap-cover-gradient">
-                <img class="ap-cover-img hidden" id="ap-cover-img" alt="cover"/>
+                <img class="ap-cover-img hidden" id="ap-cover-img" src="${resource.blankImage}" alt="cover"/>
                 <svg id="ap-cover-fallback" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
             </div>
             <div class="ap-track-details">
-                <h4 class="ap-track-name" id="ap-track-name-el">No Track</h4>
+                <p class="ap-track-name" id="ap-track-name-el">No Track</p>
                 <p class="ap-track-folder" id="ap-track-folder-el">Unknown Folder</p>
             </div>
         </div>
@@ -752,7 +753,7 @@ const initUI = () => {
     const QUEUE_PANEL_TPL = `
     <div class="audio-queue-panel" id="audio-queue-panel">
         <div class="aq-header">
-            <h3>Play Queue</h3>
+            <h2>Play Queue</h2>
             <div class="aq-header-actions">
                 <button class="aq-btn-clear" id="aq-clear">Clear</button>
                 <button class="aq-btn-close" id="aq-close">&times;</button>

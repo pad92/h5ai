@@ -31,7 +31,14 @@ const icon = id => {
 };
 
 
+// A transparent 1x1 GIF for <img> elements that have nothing to show yet: an
+// img without src, or with an empty one, is invalid HTML. data: images are
+// allowed by the Docker image's Content-Security-Policy.
+const blankImage = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+
+
 module.exports = {
     image,
-    icon
+    icon,
+    blankImage
 };

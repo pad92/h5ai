@@ -36,8 +36,8 @@ const viewTpl =
 const itemTpl =
         `<li class="item">
             <a>
-                <span class="icon square"><img/></span>
-                <span class="icon landscape"><img/></span>
+                <span class="icon square"><img src="${resource.blankImage}" alt=""/></span>
+                <span class="icon landscape"><img src="${resource.blankImage}" alt=""/></span>
                 <span class="label"></span>
                 <span class="date"></span>
                 <span class="size"></span>

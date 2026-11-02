@@ -17,10 +17,10 @@ const settings = Object.assign({
 const itemTpl =
         `<div class="item folder">
             <span class="indicator">
-                <img src="${resource.image('tree-indicator')}"/>
+                <img src="${resource.image('tree-indicator')}" alt=""/>
             </span>
             <a>
-                <span class="icon"><img src="${resource.icon('folder')}"/></span>
+                <span class="icon"><img src="${resource.icon('folder')}" alt=""/></span>
                 <span class="label"></span>
             </a>
         </span>`;

@@ -404,3 +404,13 @@ test('audio rows: a re-rendered row keeps a single set of actions', async () => 
         assert.equal(barIsActive(), true);
     });
 });
+
+test('audio rows: the action buttons sit beside the link, never inside it', async () => {
+    const [a] = tracks('aud-markup', 'a.mp3');
+    await withPlayer({}, [], async () => {
+        list(a);
+        const link = a.$view.find('a')[0];
+        assert.equal(link.querySelector('button'), null, 'HTML forbids a button inside an <a>');
+        assert.equal(a.$view[0].querySelectorAll(':scope > .ap-item-actions button').length, 3);
+    });
+});

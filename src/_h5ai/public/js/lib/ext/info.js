@@ -15,7 +15,7 @@ const settings = Object.assign({
 }, allsettings.info);
 const tpl =
         `<div id="info">
-            <div class="icon"><img/></div>
+            <div class="icon"><img src="${resource.blankImage}" alt=""/></div>
             <div class="block">
                 <div class="label"></div>
                 <div class="time"></div>
@@ -103,7 +103,7 @@ const update = item => {
         const theme = document.body && document.body.getAttribute && document.body.getAttribute('data-theme');
         const qFill = theme === 'dark' ? settings.qrFillDark || '#fff' : settings.qrFill || '#999';
         const qBack = theme === 'dark' ? settings.qrBackDark || '#212121' : settings.qrBack || '#fff';
-        $qrcode.clr().app(kjua({
+        const qrImage = kjua({
             render: 'image',
             size: 200,
             fill: qFill,
@@ -111,7 +111,10 @@ const update = item => {
             text: loc.protocol + '//' + loc.host + item.absHref,
             crisp: true,
             quiet: 1
-        }));
+        });
+        // kjua creates the img without alt, which HTML requires.
+        qrImage.setAttribute('alt', 'QR code of the link');
+        $qrcode.clr().app(qrImage);
     }
 };
 
