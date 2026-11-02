@@ -1,4 +1,4 @@
-# h5ai (pad92 fork)
+# h5ai
 
 [![Pipeline][pipeline-img]][pipelines]
 [![Coverage][coverage-img]][pipelines]
@@ -8,101 +8,129 @@
 [![Docker stars][docker-stars-img]][dockerhub]
 [![Docker image size][docker-size-img]][dockerhub-tags]
 
-A modern HTTP web server index for Apache httpd, lighttpd, nginx, and Angie.
+A file index for Apache httpd, lighttpd, nginx and Angie.
 
-This repository is a detached fork of the original [h5ai](https://github.com/lrsjng/h5ai) project by Lars Jung, which is no longer maintained. This fork keeps it going with updated dependencies, bug fixes, and compatibility with modern PHP.
+h5ai replaces the default directory listing of a web server with a browsable
+interface: folder tree, search, thumbnails, in-browser previews and archive
+downloads. It reads the folders as they are, without a database or an import
+step.
 
+![h5ai showing a photo folder as thumbnails, in light and dark theme](doc/screenshots/hero.webp)
 
-## Important
-
-* Do **not** install any files from the `src` folder, they need to be
-  preprocessed to work correctly!
-* Find a preprocessed package on the [GitHub releases page][github-releases].
-* For bug reports and feature requests please use [issues][github-issues].
-
-
-## Requirements
-
-### Runtime (Server-side)
-* PHP `8.4.0+`
-* Web server: Apache httpd `2.4+` with `mod_authz_core`, lighttpd, nginx, Cherokee, or Angie. h5ai recognizes these server names; the bundled deployment examples cover Apache, lighttpd, nginx, and Angie.
-* PHP extensions depend on the enabled features:
-  * GD with WebP support is required for server-generated thumbnails, which are stored as WebP.
-  * Imagick is an optional backend for image resizing; its availability depends on the host's ImageMagick build and delegates.
-  * `exif` enables embedded-thumbnail extraction and EXIF orientation handling where supported.
-* Command-line helpers are needed only for the corresponding configured feature or backend:
-  * `ffmpeg` or `avconv` for video and audio thumbnails, with `ffprobe` or `avprobe` to pick a frame at `thumbnails.seek`; without a probe the frame at 0.1 seconds is used.
-  * ImageMagick (`magick`, or `convert` on ImageMagick 6) with Ghostscript (`gs`) for document thumbnails such as PDF: ImageMagick hands PDF and PostScript files to Ghostscript. GraphicsMagick is an opt-in compatibility fallback and does not use the bundled ImageMagick policy.
-  * `tar` and `zip` for downloads configured to use those command-line archive formats; the PHP TAR writer does not need them.
-  * `du` for folder sizes when `foldersize.type` is `shell-du`.
-
-### Build-time (Development)
-* Node.js `22.22.2–22.x`, `24.15.0–24.x`, or `26.0.0+`, and npm (for building the project)
-
-> [!IMPORTANT]
-> `_h5ai/private/` must never be served as static content. Apache applies the
-> bundled `.htaccess` rules when `AllowOverride` permits them. nginx, lighttpd
-> and Angie require the matching deny rules from [`doc/server/`](doc/server/)
-> to be included in the virtual host before h5ai is exposed.
+Typical uses are sharing a NAS on a local network, publishing release files,
+or browsing a media library from a phone.
 
 
-## Build
-
-There are installation ready packages on the [GitHub releases page][github-releases]. But to build **h5ai** yourself either `git clone` or
-download the repository. From within the root folder run the following
-commands to find a fresh zipball in folder `build` (tested on linux only,
-might work on other configurations):
-
-~~~sh
-> npm ci
-> npm run build
-~~~
-
-Run `npm test` for the JavaScript tests and `npm run test:php` (or
-`make test-php`) for the PHP tests. The PHP suite runs with PHPUnit, which the
-Makefile downloads once to `/tmp/phpunit.phar` and verifies against a pinned
-checksum; `phpunit.xml.dist` defines the suite. It requires PHP 8.4+, the
-`tar`, `du` and `cp` commands, and permission to start temporary HTTP servers
-on `127.0.0.1`. Each test works in its own temporary folder and removes it.
-Tests that need an optional PHP extension (GD, SQLite) are reported as skipped
-when it is missing. `make test` runs both suites.
-
-CI also measures line coverage. `npm run test:coverage` writes JavaScript
-reports to `coverage/js/`, including source files the tests never load. The PHP
-job runs PHPUnit with Xdebug over `src/_h5ai/private/php/`, untested files
-included, and writes its report to `coverage/php/`. The PHP processes the tests
-start (the API server, `Bootstrap::run()` behind a server, the CLI workers)
-count too. `make coverage` produces both reports locally, in Docker when PHP has
-no Xdebug. Both jobs upload Cobertura reports for GitLab diff annotations. The
-`test:coverage` job combines covered and total line counts from both languages
-into the percentage shown by the coverage badge, which a successful pipeline on
-the default branch updates. That job, like `make coverage`, fails when the
-percentage drops below 90%; set `COVERAGE_MIN` to use another floor.
-
-
-## Docker Image
-
-A ready-to-use Docker image is published to Docker Hub as [`pad92/docker-h5ai`][dockerhub].
-It runs on Angie 1.11+ (Alpine) and PHP 8.4, with s6-overlay as the process supervisor.
-It includes the tools for every thumbnail type: ImageMagick with Ghostscript (PDF, PostScript, TIFF), ffmpeg (video, audio covers) and the PHP image extensions.
-Docker Hub protects tags matching `^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9]+)?$` from changes. Stable releases update `latest` and the major/minor aliases only when they are the newest stable Git tag. Prereleases keep their versioned tags and leave stable aliases unchanged. The `devel` tag follows `master`.
+## Quick start
 
 ```bash
-# Basic usage — mount the directory to share at /share
-docker run -d -p 80:80 \
-  -v /path/to/files:/share \
-  pad92/docker-h5ai:latest
+docker run -d -p 8080:80 -v /path/to/files:/share:ro pad92/docker-h5ai
 ```
 
+Then open <http://localhost:8080/>. The image is built for `linux/amd64` and
+`linux/arm64`.
+
+
+## Features
+
+### Browse
+
+A folder tree, breadcrumbs, and three layouts (details, grid, icons) with
+adjustable icon size. Folders show their total size, computed in the background
+so listings stay fast. The view refreshes on its own when files change. Light
+and dark themes follow the system setting, with a toggle in the toolbar.
+
+![Details view with folder sizes and the folder tree](doc/screenshots/details-root.webp)
+
+### Previews
+
+A click opens the file in an overlay; the arrow keys move to the next one.
+
+| | |
+| --- | --- |
+| ![Image preview](doc/screenshots/preview-image.webp) | ![Markdown preview](doc/screenshots/preview-markdown.webp) |
+| **Images**: JPEG, PNG, WebP, GIF, SVG, TIFF, BMP, with EXIF details for photos. | **Markdown** rendered, plus plain text, CSV and logs. |
+| ![Source code preview](doc/screenshots/preview-code.webp) | ![Video preview](doc/screenshots/preview-video.webp) |
+| **Source code** highlighted: Python, JavaScript, TypeScript, Go, Rust, C/C++, SQL and more. | **Video**: MP4, WebM, MKV, MOV and MPEG, in a built-in player. |
+
+Audio plays in a player docked at the bottom of the page, with cover art, a
+queue, shuffle and repeat. Playback continues while you browse other folders.
+
+![Audio player with cover art and playback controls](doc/screenshots/preview-audio.webp)
+
+Thumbnails are generated for images, video frames, audio covers, PDF and
+PostScript documents, and ZIP or RAR archives (comic books, for example),
+then cached.
+
+### Search and download
+
+Search the current folder and all its subfolders, or filter the listing as you
+type. Drag a rectangle or Ctrl-click to select files, then download them
+together as a ZIP or TAR archive.
+
+| | |
+| --- | --- |
+| ![Search results across folders](doc/screenshots/search.webp) | ![Several files selected, with the download button in the toolbar](doc/screenshots/select-download.webp) |
+
+The optional info panel in the sidebar shows the details of the file under the
+mouse, with a QR code of its link for opening it on a phone.
+
+### Administration
+
+The admin page checks the PHP setup and every helper tool, shows the cache and
+the background tasks (cache warmer, folder sizes, thumbnails), and lets you
+start, stop or purge them.
+
+![Admin page with setup checks and background tasks](doc/screenshots/info.webp)
+
+### Other features
+
+* 35 interface languages.
+* Custom header and footer per folder, in HTML or Markdown.
+* Hidden-file rules, sort order, date format and almost everything else set in
+  one [`options.json`](doc/configuration.md).
+* Fonts, icons and players are self-hosted: pages make no request to an
+  external host and work under a strict Content Security Policy.
+
+
+## Why this fork
+
+The [original h5ai](https://github.com/lrsjng/h5ai) by Lars Jung is no longer
+maintained. This fork continues it:
+
+* **Current stack**: PHP 8.4, Angie, Alpine, and up-to-date frontend
+  dependencies.
+* **Hardened**: confined file access, bounded archive and thumbnail work, a
+  locked-down ImageMagick policy, rate-limited admin login, and image and
+  dependency scans that block a release.
+* **Tested**: JavaScript and PHP suites with over 90% combined line coverage,
+  enforced in CI.
+* **New features**: the audio player with its queue, the dark theme, EXIF
+  details, a video player that handles HEVC, several audio tracks and
+  subtitles, and background tasks that the admin page can start, stop and
+  purge.
+
+See the [changelog](CHANGELOG.md) for the details of each release.
+
+
+## Install
+
+### Docker (recommended)
+
+The [`pad92/docker-h5ai`][dockerhub] image bundles Angie, PHP 8.4 and every
+thumbnail tool (ImageMagick with Ghostscript, ffmpeg, the PHP image
+extensions), supervised by s6-overlay.
+
 ```bash
-# With basic authentication
+# Protect the whole site with a password
 docker run -d -p 80:80 \
   -e ENV_U=admin -e ENV_P=mysecretpassword \
-  -v /path/to/files:/share \
+  -v /path/to/files:/share:ro \
   pad92/docker-h5ai:latest
 ```
 
-The container reads these environment variables:
+A [`docker-compose.yml`](docker-compose.yml) example is included. It reads
+`H5AI_ADMIN_PASSWORD` from a `.env` file next to it.
 
 | Variable | Default | Effect |
 | --- | --- | --- |
@@ -115,43 +143,60 @@ The container reads these environment variables:
 See [doc/administration.md](doc/administration.md) for the admin password and
 the diagnostic page.
 
-A `docker-compose.yml` example is included for convenience. It reads
-`H5AI_ADMIN_PASSWORD` from a `.env` file next to it. See
-[`CHANGELOG.md`](CHANGELOG.md) for the changelog, which covers both the
-application and the Docker image.
+### On your own web server
 
-[dockerhub]: https://hub.docker.com/r/pad92/docker-h5ai
-[dockerhub-tags]: https://hub.docker.com/r/pad92/docker-h5ai/tags
+Download a ready-to-use package from the [releases page][github-releases] and
+unpack its `_h5ai` folder into the root of the folder you want to share. Then
+add `/_h5ai/public/index.php` to the web server's directory index list.
+
+Requirements:
+
+* PHP `8.4.0+`
+* Apache httpd `2.4+` with `mod_authz_core`, lighttpd, nginx, Cherokee, or
+  Angie. The bundled deployment examples in [`doc/server/`](doc/server/) cover
+  Apache, lighttpd, nginx, and Angie.
+
+> [!IMPORTANT]
+> `_h5ai/private/` must never be served as static content. Apache applies the
+> bundled `.htaccess` rules when `AllowOverride` permits them. nginx, lighttpd
+> and Angie require the matching deny rules from [`doc/server/`](doc/server/)
+> to be included in the virtual host before h5ai is exposed.
+
+Optional features need extra tools on the host:
+
+* GD with WebP support is required for server-generated thumbnails, which are
+  stored as WebP. Imagick is an optional backend for image resizing; its
+  availability depends on the host's ImageMagick build and delegates. `exif`
+  enables embedded-thumbnail extraction and EXIF orientation handling where
+  supported.
+* `ffmpeg` or `avconv` for video and audio thumbnails, with `ffprobe` or
+  `avprobe` to pick a frame at `thumbnails.seek`; without a probe the frame at
+  0.1 seconds is used.
+* ImageMagick (`magick`, or `convert` on ImageMagick 6) with Ghostscript (`gs`)
+  for document thumbnails such as PDF: ImageMagick hands PDF and PostScript
+  files to Ghostscript. GraphicsMagick is an opt-in compatibility fallback and
+  does not use the bundled ImageMagick policy.
+* `tar` and `zip` for downloads configured to use those command-line archive
+  formats; the PHP TAR writer does not need them.
+* `du` for folder sizes when `foldersize.type` is `shell-du`.
 
 
 ## Configuration
 
-For detailed information on configuring **h5ai**, including options, file types, and localization, see the [Configuration Guide](doc/configuration.md).
+Options, file types and translations are described in the
+[configuration guide](doc/configuration.md).
+
+
+## Contributing
+
+Bug reports and feature requests are welcome in the [issues][github-issues].
+To build from source, run the tests or regenerate the screenshots, see
+[doc/development.md](doc/development.md).
 
 
 ## License
 
-The MIT License (MIT)
-
-Copyright (c) 2020 Lars Jung (https://larsjung.de)
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
+MIT, copyright (c) 2020 Lars Jung. See [LICENSE](LICENSE).
 
 
 ## References
@@ -162,7 +207,11 @@ the [Ubuntu and Ubuntu Mono fonts][fontsource-ubuntu] (Ubuntu Font License 1.0),
 and [movi-player][movi-player] (Apache-2.0), all self-hosted with no runtime
 dependency on fonts.googleapis.com or any other external host.
 
+The screenshots use generated sample files.
 
+
+[dockerhub]: https://hub.docker.com/r/pad92/docker-h5ai
+[dockerhub-tags]: https://hub.docker.com/r/pad92/docker-h5ai/tags
 [github-issues]: https://github.com/pad92/h5ai/issues
 [github-releases]: https://github.com/pad92/h5ai/releases
 [fontawesome]: https://fontawesome.com

@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+* **License**: `LICENSE` now holds the MIT license of h5ai (Lars Jung), as the README always stated, instead of the license file of the former docker-h5ai repository. The release zip and the Docker image ship it in `_h5ai/LICENSE`.
+* **Documentation**: the README presents the features with screenshots; build, test and coverage notes move to `doc/development.md`. `make screenshots` regenerates the screenshots from a generated sample share.
+
 ## v1.4.0 - *2026-11-01*
 
 This release includes v1.3.7, which was prepared but never published.

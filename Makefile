@@ -9,16 +9,23 @@ TEST_URL = http://$(TEST_HOST):8890/
 TEST_RUN = docker run -d -p 8890:80 -v $(CURDIR):/share:ro
 OPTIONS_JSON = /usr/share/h5ai/_h5ai/private/conf/options.json
 CMDS_JSON = /usr/share/h5ai/_h5ai/private/cache/cmds.json
+PKG_VERSION := $(shell sed -n 's/.*"version":[[:space:]]*"\([^"]*\)".*/\1/p' package.json | head -n1)
 PHPUNIT_PHAR ?= /tmp/phpunit.phar
 PHPUNIT_VERSION = 12.5.42
 PHPUNIT_SHA256 = bcd5cef3751188d7953f46efafd407c1acf37c5f49dbf7933e413eb20e933ac5
 PHP_COVERAGE_IMAGE = php:8.4.27-cli@sha256:a4ae1f57e22b89a0a69c5e085b3010ee727d094e1542d249e48a01bec3c44810
 
+# README screenshots: image, container and loopback port used while shooting.
+SCREENSHOT_IMAGE = h5ai-screenshots:local
+SCREENSHOT_CONTAINER = h5ai-screenshots
+SCREENSHOT_PORT ?= 8891
+CHROME ?= $(firstword $(foreach b,google-chrome-stable google-chrome chromium chromium-browser,$(shell command -v $(b) 2>/dev/null)))
+
 # Scanners pinned by digest, kept in sync with .gitlab-ci.yml.
 GRYPE_IMAGE = anchore/grype:v0.116.0@sha256:fd4ab4d1042b522c896e73bdf09ab8bf384fa417df99d6dd0d6e1008c7e7c821
 SYFT_IMAGE = anchore/syft:v1.49.0@sha256:13b53ebabe3d215268c90cf8fb9b875f0183908245f376fd4b3a2cb69d21d484
 
-.PHONY: help all install build lint test test-php coverage clean clean-all scan docker-build docker-test docker-grype docker-clean test-docker-config
+.PHONY: help all install build lint test test-php coverage screenshots clean clean-all scan docker-build docker-test docker-grype docker-clean test-docker-config
 
 .DEFAULT_GOAL := help
 
@@ -31,6 +38,7 @@ help:
 	@echo "  test          Run JavaScript and PHP tests"
 	@echo "  test-php      Run the PHPUnit suite (downloads a pinned PHPUnit)"
 	@echo "  coverage      Run JavaScript and PHP tests and combine line coverage"
+	@echo "  screenshots   Regenerate doc/screenshots/ (Docker, Chrome, ffmpeg, magick)"
 	@echo "  clean         Clean build output"
 	@echo "  clean-all     Clean build output, node_modules and Docker artifacts"
 	@echo "  scan          Scan npm dependencies with Syft + Grype"
@@ -79,6 +87,22 @@ coverage: node_modules $(PHPUNIT_PHAR)
 		docker run --rm -e HOST_UID=$$(id -u) -e HOST_GID=$$(id -g) -v "$(CURDIR):/workspace" -w /workspace -v "$(PHPUNIT_PHAR):/tmp/phpunit.phar:ro" $(PHP_COVERAGE_IMAGE) sh -ec 'apt-get update -qq && apt-get install -y -qq --no-install-recommends libpng-dev libjpeg62-turbo-dev libwebp-dev; docker-php-ext-configure gd --with-jpeg --with-webp; docker-php-ext-install -j"$$(nproc)" gd; pecl install xdebug-3.5.3; docker-php-ext-enable xdebug; find src test/php -name "*.php" -print0 | xargs -0 -n1 php -l; XDEBUG_MODE=coverage setpriv --reuid="$$HOST_UID" --regid="$$HOST_GID" --clear-groups php /tmp/phpunit.phar --coverage-cobertura coverage/php/cobertura.xml --coverage-text --only-summary-for-coverage-text'; \
 	fi
 	node scripts/coverage-summary.js
+
+# Builds the image with the package version, so the pages show a release
+# number, serves a generated sample share on 127.0.0.1 only, and shoots it.
+# The container and the sample share are removed even when a step fails.
+screenshots:
+	@test -n "$(CHROME)" || { echo "screenshots: no Chrome or Chromium found, set CHROME=/path/to/chrome"; exit 1; }
+	@for tool in docker ffmpeg magick node; do command -v $$tool >/dev/null || { echo "screenshots: $$tool is required"; exit 1; }; done
+	docker buildx build --load --tag $(SCREENSHOT_IMAGE) --build-arg H5AI_VERSION=$(PKG_VERSION) .
+	@share=$$(mktemp -d); \
+	trap 'docker rm -f $(SCREENSHOT_CONTAINER) >/dev/null 2>&1; rm -rf "$$share"' EXIT; \
+	CHROME='$(CHROME)' node scripts/screenshots/demo-share.mjs "$$share" && \
+	chmod -R a+rX "$$share" && \
+	docker run -d --name $(SCREENSHOT_CONTAINER) -p 127.0.0.1:$(SCREENSHOT_PORT):80 \
+		-e H5AI_ADMIN_PASSWORD=screenshots -v "$$share":/share:ro $(SCREENSHOT_IMAGE) >/dev/null && \
+	CHROME='$(CHROME)' H5AI_ADMIN_PASSWORD=screenshots \
+		node scripts/screenshots/shoot.mjs http://127.0.0.1:$(SCREENSHOT_PORT) doc/screenshots
 
 clean:
 	npx gulp clean
@@ -134,7 +158,7 @@ endef
 
 docker-build:
 	docker buildx build --load --tag $(TEST_IMAGE) \
-		--build-arg H5AI_VERSION=$$(if [ "$$(git branch --show-current)" = "master" ]; then git rev-parse --short HEAD; else sed -n 's/.*"version":[[:space:]]*"\([^"]*\)".*/\1/p' package.json | head -n1; fi) \
+		--build-arg H5AI_VERSION=$$(if [ "$$(git branch --show-current)" = "master" ]; then git rev-parse --short HEAD; else echo '$(PKG_VERSION)'; fi) \
 		--build-arg BUILD_DATE=$$(date -u +%Y-%m-%dT%H:%M:%SZ) \
 		--build-arg BUILD_VCSREF=$$(git rev-parse --short HEAD) \
 		.
@@ -295,4 +319,6 @@ test-docker-config:
 docker-clean:
 	docker rm -f $(TEST_CONTAINERS) 2>/dev/null || true
 	docker rmi $(TEST_IMAGE) 2>/dev/null || true
+	docker rm -f $(SCREENSHOT_CONTAINER) 2>/dev/null || true
+	docker rmi $(SCREENSHOT_IMAGE) 2>/dev/null || true
 	rm -f /tmp/h5ai-test-options.json

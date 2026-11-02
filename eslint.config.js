@@ -176,6 +176,17 @@ module.exports = [
             'no-console': 1
         }
     },
+    // Node-only ES module scripts (scripts/screenshots/)
+    {
+        files: ['**/*.mjs'],
+        languageOptions: {
+            ecmaVersion: 'latest',
+            sourceType: 'module',
+            globals: {
+                ...globals.node
+            }
+        }
+    },
     // Project uses ES modules for build tooling (gulpfile)
     {
         files: ['gulpfile.js'],
