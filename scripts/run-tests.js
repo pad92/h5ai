@@ -8,7 +8,12 @@ require(path.join(__dirname, '..', 'test', 'index.js'));
 (async () => {
     const scar = require('scar');
     try {
-        await scar.test.run({reporter: require('scar/lib/reporter'), sync: true});
+        const suite = await scar.test.run({reporter: require('scar/lib/reporter'), sync: true});
+        // The reporter only prints the failures: without this, a failing
+        // suite would still exit 0 and pass the CI jobs.
+        if (!suite || suite.failed_count) {
+            process.exit(1);
+        }
     } catch (err) {
         console.error(err);
         process.exit(2);

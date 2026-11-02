@@ -55,4 +55,14 @@ const fresh = (name, settings = {}) => {
 // Lets pending promise callbacks and zero-delay timers run.
 const flush = () => new Promise(resolve => setTimeout(resolve, 0));
 
-module.exports = {fresh, flush};
+// Event loop turns, for a chain of promises and zero-delay timers (a preview
+// Session, then a mocked media event, then its content). Unlike a fixed wait
+// of a few milliseconds, a slow run cannot outlast it: a timer armed during
+// one turn fires before the next turn's. It does not wait for real delays.
+const drain = async (turns = 10) => {
+    for (let turn = 0; turn < turns; turn += 1) {
+        await flush();
+    }
+};
+
+module.exports = {fresh, flush, drain};

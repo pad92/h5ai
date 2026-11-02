@@ -1,6 +1,6 @@
 const {test, assert} = require('scar');
 const reqlib = require('../../../util/reqlib');
-const {flush} = require('../../../util/fresh');
+const {flush, drain} = require('../../../util/fresh');
 
 // Drives the audio player mounted by the item tests (with their FakeAudio).
 // The player is a singleton, so every test starts from a cleared, plain state.
@@ -664,7 +664,7 @@ const videos = (folder, ...names) => names.map(name => {
 });
 const previewShown = () => !$('#pv-overlay').classList.contains('hidden') && $('#pv-overlay').style.display !== 'none';
 const videoEl = () => $('#pv-container #pv-content-vid');
-const tick = () => new Promise(resolve => setTimeout(resolve, 10));
+const tick = drain;
 
 test('video rows: the same four actions, and the click still opens the preview', async () => {
     const [clip] = videos('vid-rows', 'clip.mp4');
