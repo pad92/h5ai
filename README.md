@@ -209,7 +209,9 @@ the [Ubuntu and Ubuntu Mono fonts][fontsource-ubuntu] (Ubuntu Font License 1.0),
 and [movi-player][movi-player] (Apache-2.0), all self-hosted with no runtime
 dependency on fonts.googleapis.com or any other external host.
 
-The screenshots use generated sample files.
+The screenshots use generated sample files. The W3C badges show the
+[HTML5 logo](https://www.w3.org/html/logo/) by W3C (CC BY 3.0) and the
+[CSS logo](https://github.com/CSS-Next/logo.css) by CSS-Next (CC0).
 
 
 [dockerhub]: https://hub.docker.com/r/pad92/docker-h5ai
@@ -231,5 +233,5 @@ The screenshots use generated sample files.
 [docker-stars-img]: https://img.shields.io/docker/stars/pad92/docker-h5ai
 [docker-size-img]: https://img.shields.io/docker/image-size/pad92/docker-h5ai/latest
 [w3c-check]: doc/development.md#w3c-validation
-[w3c-html-img]: https://img.shields.io/badge/W3C-HTML-005A9C
-[w3c-css-img]: https://img.shields.io/badge/W3C-CSS-005A9C
+[w3c-html-img]: https://img.shields.io/badge/W3C-HTML-005A9C?logo=html5&logoColor=white
+[w3c-css-img]: https://img.shields.io/badge/W3C-CSS-005A9C?logo=css&logoColor=white
