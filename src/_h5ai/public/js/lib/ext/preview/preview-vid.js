@@ -23,6 +23,12 @@ const loadMoviPlayerScript = () => {
     });
 };
 
+// A subtitle belongs to a video when its name is the video's name, optionally
+// followed by a [._-] separated suffix: "movie.srt", "movie.fr.srt",
+// "movie_en.forced.vtt". "Episode 10.srt" is not a subtitle of "Episode 1.mkv".
+const SUBTITLE_RE = /^(?:[._-]([^/]+?))?\.(srt|vtt)$/i;
+const LANG_RE = /^([a-z]{2,3})(?:[._-]|$)/i;
+
 const findSubtitleTracks = item => {
     if (!item.parent || !item.parent.content) {
         return [];
@@ -37,35 +43,42 @@ const findSubtitleTracks = item => {
     const tracks = [];
     Object.keys(item.parent.content).forEach(absHref => {
         const child = item.parent.content[absHref];
-        if (child.isFolder()) {
+        if (child.isFolder() || !absHref.startsWith(baseHref)) {
+            return;
+        }
+        const match = SUBTITLE_RE.exec(absHref.substring(baseHref.length));
+        if (!match) {
             return;
         }
 
-        if (absHref.startsWith(baseHref)) {
-            const ext = absHref.substring(baseHref.length).toLowerCase();
-            if (ext.endsWith('.srt') || ext.endsWith('.vtt')) {
-                let label = 'Subtitles';
-                let lang = 'en';
-                const match = ext.match(/^[\._\-]([a-z]{2,3})(\.(srt|vtt))$/);
-                if (match) {
-                    lang = match[1];
-                    label = lang.toUpperCase();
-                } else {
-                    const cleaned = ext.replace(/\.(srt|vtt)$/, '').replace(/^[\._\-]/, '');
-                    if (cleaned) {
-                        label = cleaned.toUpperCase();
-                    }
-                }
-                tracks.push({
-                    src: child.absHref,
-                    label,
-                    srclang: lang
-                });
-            }
-        }
+        let suffix = match[1] || '';
+        try {
+            suffix = decodeURIComponent(suffix);
+        } catch {/* keep the encoded suffix */}
+        const langMatch = LANG_RE.exec(suffix);
+        tracks.push({
+            src: child.absHref,
+            format: match[2].toLowerCase(),
+            label: suffix ? suffix.toUpperCase() : 'Subtitles',
+            // No language is guessed for an unsuffixed file.
+            srclang: langMatch ? langMatch[1].toLowerCase() : ''
+        });
     });
 
     return tracks;
+};
+
+const appendTracks = ($el, tracks) => {
+    tracks.forEach(track => {
+        const $track = dom('<track/>')
+            .attr('kind', 'subtitles')
+            .attr('src', track.src)
+            .attr('label', track.label);
+        if (track.srclang) {
+            $track.attr('srclang', track.srclang);
+        }
+        $el.app($track);
+    });
 };
 
 const updateGui = () => {
@@ -85,10 +98,13 @@ const updateGui = () => {
     ]);
 };
 
+// An undecodable file resolves too: the preview then shows the browser's
+// broken-video state instead of a spinner that never ends.
 const loadNativeVideo = item => {
     return new Promise(resolve => {
         const $el = dom('<video id="pv-content-vid"/>')
             .on('loadedmetadata', () => resolve($el))
+            .on('error', () => resolve($el))
             .attr('controls', 'controls');
         if (settings.autoplay) {
             $el.attr('autoplay', 'autoplay');
@@ -99,40 +115,33 @@ const loadNativeVideo = item => {
                 }
             });
         }
+        // The native element reads WebVTT only.
+        appendTracks($el, findSubtitleTracks(item).filter(track => track.format === 'vtt'));
         addUnloadFn($el[0]);
         $el.attr('src', item.absHref);
     });
 };
 
+// movi-player starts loading only once connected, and the preview attaches
+// the element after this promise resolves: waiting for its metadata here
+// would only add a delay. The labels follow once the metadata is known.
 const loadMoviVideo = item => {
-    return new Promise(resolve => {
-        const $el = dom('<movi-player id="pv-content-vid"/>')
-            .attr('controls', 'controls');
-        if (settings.autoplay) {
-            $el.attr('autoplay', 'autoplay');
+    const $el = dom('<movi-player id="pv-content-vid"/>')
+        .attr('controls', 'controls');
+    if (settings.autoplay) {
+        $el.attr('autoplay', 'autoplay');
+    }
+
+    appendTracks($el, findSubtitleTracks(item));
+
+    $el.on('loadedmetadata', () => {
+        if (preview.item === item) {
+            updateGui();
         }
-
-        const subtitleTracks = findSubtitleTracks(item);
-        subtitleTracks.forEach(track => {
-            const $track = dom('<track/>')
-                .attr('kind', 'subtitles')
-                .attr('src', track.src)
-                .attr('srclang', track.srclang)
-                .attr('label', track.label);
-            $el.app($track);
-        });
-
-        $el.attr('src', item.absHref);
-        addUnloadFn($el[0]);
-
-        $el.on('loadedmetadata', () => resolve($el));
-
-        const timeoutId = setTimeout(() => {
-            resolve($el);
-        }, 1500);
-
-        $el.on('loadedmetadata', () => clearTimeout(timeoutId));
     });
+    $el.attr('src', item.absHref);
+    addUnloadFn($el[0]);
+    return Promise.resolve($el);
 };
 
 const load = item => {

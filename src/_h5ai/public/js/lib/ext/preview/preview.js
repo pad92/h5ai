@@ -292,6 +292,7 @@ const enter = () => {
 };
 
 const exit = () => {
+    const closedItem = session && session.item;
     setLabels([]);
     // Restore the user's stored preference so the fullscreen forced for
     // images does not leak into the next non-image preview.
@@ -306,6 +307,7 @@ const exit = () => {
         .clr();
     dom('#pv-overlay').hide();
     dom(win).off('keydown', onKeydown);
+    event.pub('preview.exit', closedItem);
 };
 
 const showSpinner = (show, src, delay) => {
@@ -358,6 +360,9 @@ Session.prototype = {
                 });
                 dom('#pv-container').hide().clr();
                 showSpinner(true, item.thumbRational || item.icon, 200);
+                // Each item starts from the default keys: the video loader
+                // sets its own again, other types must not inherit them.
+                setControlType('default');
             })
             .then(() => this.load(item))
             // delay for testing
@@ -367,6 +372,9 @@ Session.prototype = {
                     dom('#pv-container').clr().app($content).show();
                     showSpinner(false);
                     updateGui();
+                    // Media events fired before the element was attached never
+                    // reached the document: listeners resync from here.
+                    event.pub('preview.content', item, $content[0]);
                 }
             });
     },
@@ -376,7 +384,33 @@ Session.prototype = {
     }
 };
 
+// The loader each extension registered, by item type: lets other extensions
+// open a preview on a list of their own (the player's queue).
+const loaders = {};
+
+const canOpen = item => settings.enabled && !!item && !!loaders[item.type];
+
+// Opens `items` at `idx`, or moves an open preview to them. Returns whether a
+// registered extension can show the item.
+const open = (items, idx) => {
+    const item = items[idx];
+    if (!canOpen(item)) {
+        return false;
+    }
+    const {load, adjust} = loaders[item.type];
+    const wasOpen = !dom('#pv-overlay').isHidden();
+    session = Session(items, idx, load, adjust);
+    if (!wasOpen) {
+        enter();
+    }
+    return true;
+};
+
 const register = (types, load, adjust) => {
+    each(types, type => {
+        loaders[type] = {load, adjust};
+    });
+
     const initItem = item => {
         if (item.$view && includes(types, item.type)) {
             const onclick = ev => {
@@ -441,6 +475,13 @@ const init = () => {
 const Preview = {
     setLabels,
     register,
+    canOpen,
+    open,
+    close: () => {
+        if (!dom('#pv-overlay').isHidden()) {
+            exit();
+        }
+    },
     get item() {
         return session && session.item;
     },

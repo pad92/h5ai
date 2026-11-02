@@ -51,6 +51,10 @@ class FakeAudio {
     }
 
     load() {}
+
+    canPlayType() {
+        return 'maybe';
+    }
 }
 
 window.Audio = FakeAudio;
@@ -537,6 +541,64 @@ test('video preview uses native and isolated-player paths with subtitle tracks',
         document.querySelector('#pv-bar-close').click();
     } finally {
         imageProto.setAttribute = originalSetAttribute;
+        if (originalCrossOrigin) Object.defineProperty(window, 'crossOriginIsolated', originalCrossOrigin);
+        else delete window.crossOriginIsolated;
+    }
+});
+
+test('video preview: subtitles match the video name only, natively as WebVTT', async () => {
+    const originalCrossOrigin = Object.getOwnPropertyDescriptor(window, 'crossOriginIsolated');
+    const proto = window.Element.prototype;
+    const originalSetAttribute = proto.setAttribute;
+    let answer = 'loadedmetadata';
+    proto.setAttribute = function setAttribute(name, value) {
+        originalSetAttribute.call(this, name, value);
+        if (this.id === 'pv-content-vid' && name === 'src' && answer) {
+            const video = this;
+            window.setTimeout(() => video.dispatchEvent(new window.Event(answer)), 0);
+        }
+    };
+    const tracksOf = () => [...document.querySelectorAll('#pv-content-vid track')]
+        .map(track => [track.getAttribute('label'), track.getAttribute('srclang')]);
+
+    try {
+        const folder = Item.get('/episodes/');
+        const video = Item.get('/episodes/Episode%201.mkv');
+        const names = ['Episode%2010.srt', 'Episode%201.srt', 'Episode%201.en.forced.srt', 'Episode%201_fr.vtt', 'Episode%201%202.srt'];
+        video.type = 'vid';
+        video.parent = folder;
+        folder.content[video.absHref] = video;
+        names.forEach(name => {
+            const sub = Item.get('/episodes/' + name);
+            sub.parent = folder;
+            folder.content[sub.absHref] = sub;
+        });
+
+        Object.defineProperty(window, 'crossOriginIsolated', {configurable: true, value: true});
+        // Metadata never comes before the element is attached: movi must not wait for it.
+        answer = null;
+        view.setItems([video]);
+        video.$view.find('a')[0].click();
+        await new Promise(resolve => setTimeout(resolve, 10));
+        assert.equal(document.querySelector('#pv-content-vid').tagName.toLowerCase(), 'movi-player');
+        assert.deepEqual(tracksOf().sort(), [['EN.FORCED', 'en'], ['FR', 'fr'], ['Subtitles', null]]);
+        document.querySelector('#pv-bar-close').click();
+
+        answer = 'loadedmetadata';
+        Object.defineProperty(window, 'crossOriginIsolated', {configurable: true, value: false});
+        video.$view.find('a')[0].click();
+        await new Promise(resolve => setTimeout(resolve, 10));
+        assert.equal(document.querySelector('#pv-content-vid').tagName, 'VIDEO');
+        assert.deepEqual(tracksOf(), [['FR', 'fr']], 'the native element gets WebVTT only');
+        document.querySelector('#pv-bar-close').click();
+
+        answer = 'error';
+        video.$view.find('a')[0].click();
+        await new Promise(resolve => setTimeout(resolve, 10));
+        assert.ok(document.querySelector('#pv-container #pv-content-vid'), 'an undecodable video still replaces the spinner');
+        document.querySelector('#pv-bar-close').click();
+    } finally {
+        proto.setAttribute = originalSetAttribute;
         if (originalCrossOrigin) Object.defineProperty(window, 'crossOriginIsolated', originalCrossOrigin);
         else delete window.crossOriginIsolated;
     }

@@ -8,6 +8,17 @@
 * **Valid HTML once the JavaScript has run**: icons and buttons get an `alt` text (empty when decorative), images waiting for content start from a blank image instead of no `src`, the QR code has an `alt`, the raw-file link only gets `target` together with its `href`, the audio player headings no longer skip levels, and the audio row buttons sit next to the file link instead of inside it.
 * **W3C validation**: `make docker-w3c`, `make docker-test` and the `test:docker` CI job validate the served HTML pages, `styles.css` and the DOM built in headless Chromium (listings, previews, audio player, info page) with a local Nu Html Checker; the README shows the matching badges.
 * **Dependencies** (build and test tooling only): the `glob` override moves to 14.0.3 and a `minimatch` 11.0.4 override is added, fixing GHSA-3g3m-2fjr-6pw4 (glob) and GHSA-g3hv-75wg-m249 (minimatch); `npm audit` reports no vulnerability. Babel 8.0.10, eslint 10.14, globals 17.14, jsdom 30.1.3, marked 18.1.2, movi-player 0.4.1, stylelint 17.16, and the majors `del` 9 and `postcss-less` 7.
+* **Audio player**:
+    * A cover image embedded in an MP3 is now always served as JPEG or PNG, according to its bytes. Before, the type came from the tag itself, and a crafted file could turn its cover into a same-origin HTML page.
+    * A file the browser cannot play (WMA, RealAudio, MIDI, AIFF outside Safari) keeps its plain link and stays out of the queue, instead of doing nothing on click. A track that fails during playback is marked in the bar and the queue moves on.
+    * The bar shows up even when the browser blocks autoplay, so the track can be started from it. It no longer covers the preview, notifications or the last rows of the listing, and a video preview starting pauses it.
+    * The server thumbnail is used as cover before the ID3 tag, which is now read from MP3 files only; a server ignoring `Range` requests no longer sends the whole file. A random image of the folder is no longer used as cover.
+    * The `autoplay` option is honoured. The track is published to the Media Session API (lock screen, notification, media keys), and the buttons and sliders have accessible labels.
+* **Videos in the player queue**: video rows get the same Play now, Play next and Add to queue buttons as audio rows, and videos share one queue with tracks. A queued video plays in the preview, then the queue moves on to the next track in the bar or the next video in the preview; the bar's transport and progress follow the video. A plain click on a video still opens the regular preview.
+* **Video preview**:
+    * Subtitles must match the video's name followed by a separator: `Episode 10.srt` is no longer attached to `Episode 1.mkv`. A subtitle without a language suffix no longer defaults to English, and the native player now gets the `.vtt` files.
+    * After a video, the next preview of an image or a text gets its keys back: Space steps to the next item again instead of being left to a video player that is gone.
+    * The enhanced player no longer waits 1.5 seconds before showing, and its size labels are updated once the video is known. A video the native player cannot decode no longer leaves the spinner on screen.
 * **Documentation**: the README presents the features with screenshots; build, test and coverage notes move to `doc/development.md`. `make screenshots` regenerates the screenshots from a generated sample share.
 
 ## v1.4.0 - *2026-11-01*

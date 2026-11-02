@@ -7,6 +7,7 @@ const {flush} = require('../../../util/fresh');
 const Item = reqlib('model/item');
 const view = reqlib('view/view');
 const event = reqlib('core/event');
+const preview = reqlib('ext/preview/preview');
 
 const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
@@ -170,27 +171,87 @@ test('audio covers: unreadable tags fall back to the folder image', async () => 
     });
 });
 
-test('audio covers: a broken cover falls back to the thumbnail, then to a gradient', async () => {
-    const [thumbed, lone, picture] = tracks('aud-cover', 'thumbed.mp3', 'lone.mp3', 'pic.png');
-    const [orphan] = tracks('aud-orphan', 'orphan.mp3');
+test('audio covers: a server thumbnail wins and spares the ID3 read', async () => {
+    const [thumbed, flac] = tracks('aud-thumb', 'thumbed.mp3', 'song.flac');
+    flac.type = 'aud';
     thumbed.thumbRational = '/thumbed.webp';
+    const fetched = [];
     const covers = {[thumbed.absHref]: id3(3, frame(3, 'APIC', apic()))};
-    await withPlayer(covers, ['blob:1', '/aud-cover/pic.png'], async ({revoked}) => {
-        list(thumbed, lone, picture, orphan);
+    await withPlayer(covers, [], async ({blobs}) => {
+        const fetch = window.fetch;
+        window.fetch = (href, options) => {
+            fetched.push(href);
+            return fetch(href, options);
+        };
+        list(thumbed, flac);
         press(thumbed, 'play');
         await settle();
-        assert.equal(thumbed.embeddedCoverUrl, 'none', 'a cover that fails to load is forgotten');
         assert.equal($('#ap-cover-img').getAttribute('src'), '/thumbed.webp');
-
-        press(lone, 'play');
+        press(flac, 'play');
         await settle();
-        assert.ok($('#ap-cover-img').classList.contains('hidden'), 'the only image is broken');
+        assert.deepEqual(fetched, [], 'neither a thumbnailed track nor a FLAC file is read for ID3');
+        assert.deepEqual(blobs, []);
+    });
+});
+
+test('audio covers: a broken cover falls back to the folder image, then to a gradient', async () => {
+    const [tagged, lone, folderImage] = tracks('aud-cover', 'tagged.mp3', 'lone.mp3', 'Cover.png');
+    const [orphan, photo] = tracks('aud-orphan', 'orphan.mp3', 'holiday.jpg');
+    const covers = {[tagged.absHref]: id3(3, frame(3, 'APIC', apic()))};
+    await withPlayer(covers, ['blob:1', '/aud-cover/Cover.png'], async ({revoked}) => {
+        list(tagged, lone, folderImage, orphan, photo);
+        press(tagged, 'play');
+        await settle();
+        assert.equal(tagged.embeddedCoverUrl, 'none', 'a cover that fails to load is forgotten');
+        assert.ok($('#ap-cover-img').classList.contains('hidden'), 'the folder image is broken too');
         assert.ok($('#ap-cover-gradient').style.background.includes('linear-gradient'));
 
         press(orphan, 'play');
         await settle();
-        assert.ok($('#ap-cover-img').classList.contains('hidden'), 'no image in the folder');
+        assert.ok($('#ap-cover-img').classList.contains('hidden'), 'a random photo is not an album cover');
         assert.deepEqual(revoked, []);
+    });
+});
+
+test('audio covers: the blob type comes from the picture bytes, not from the tag', async () => {
+    const [html, unknown] = tracks('aud-mime', 'html.mp3', 'unknown.mp3');
+    const covers = {
+        [html.absHref]: id3(3, frame(3, 'APIC', apic({mime: 'text/html'}))),
+        [unknown.absHref]: id3(3, frame(3, 'APIC', apic({mime: 'image/png', picture: bytes('<script>x</script>')})))
+    };
+    await withPlayer(covers, [], async ({blobs}) => {
+        list(html, unknown);
+        press(html, 'play');
+        await settle();
+        press(unknown, 'play');
+        await settle();
+        assert.deepEqual(blobs, ['image/jpeg']);
+        assert.equal(unknown.embeddedCoverUrl, 'none');
+    });
+});
+
+test('audio covers: a server ignoring Range is not downloaded in full', async () => {
+    const [a] = tracks('aud-norange', 'a.mp3');
+    const calls = {cancel: 0, arrayBuffer: 0};
+    await withPlayer({}, [], async ({blobs}) => {
+        window.fetch = async () => ({
+            ok: true,
+            status: 200,
+            body: {cancel: () => {
+                calls.cancel += 1;
+                return Promise.resolve();
+            }},
+            arrayBuffer: async () => {
+                calls.arrayBuffer += 1;
+                return id3(3, frame(3, 'APIC', apic()));
+            }
+        });
+        list(a);
+        press(a, 'play');
+        await settle();
+        assert.deepEqual(calls, {cancel: 1, arrayBuffer: 0});
+        assert.equal(a.embeddedCoverUrl, 'none');
+        assert.deepEqual(blobs, []);
     });
 });
 
@@ -412,5 +473,351 @@ test('audio rows: the action buttons sit beside the link, never inside it', asyn
         const link = a.$view.find('a')[0];
         assert.equal(link.querySelector('button'), null, 'HTML forbids a button inside an <a>');
         assert.equal(a.$view[0].querySelectorAll(':scope > .ap-item-actions button').length, 3);
+    });
+});
+
+test('audio rows: a type the browser cannot play keeps its plain link', async () => {
+    const [mp3, wma] = tracks('aud-unplayable', 'a.mp3', 'b.wma');
+    wma.type = 'aud';
+    await withPlayer({}, [], async () => {
+        audio().canPlayType = mime => mime === 'audio/x-ms-wma' ? '' : 'maybe';
+        try {
+            list(mp3, wma);
+            assert.equal(wma.$view.find('.ap-item-actions').length, 0);
+            assert.equal(wma.click_callback, undefined, 'the click is left to the link');
+            assert.equal(mp3.$view.find('.ap-item-actions').length, 1);
+
+            $('#ap-play-pause').click();
+            $('#ap-queue-btn').click();
+            await settle();
+            assert.deepEqual(queueNames(), ['a.mp3'], 'the folder queue skips it');
+        } finally {
+            delete audio().canPlayType;
+            $('#aq-close').click();
+        }
+    });
+});
+
+test('audio errors: a failed track is shown and the queue moves on until all failed', async () => {
+    await withPlayer({}, [], async () => {
+        const [x, y] = list(...tracks('aud-error', 'a.mp3', 'b.mp3'));
+        audio().emit('error');
+        assert.equal(barIsActive(), false, 'an error without a track is ignored');
+
+        press(x, 'play');
+        await settle();
+        audio().emit('error');
+        await settle();
+        assert.equal(trackName(), y.label, 'the queue moves on');
+        assert.equal($('#audio-player-bar').classList.contains('ap-error'), false, 'the next track starts clean');
+
+        audio().emit('error');
+        await settle();
+        assert.equal(trackName(), y.label, 'the last track does not wrap without repeat');
+        assert.ok($('#audio-player-bar').classList.contains('ap-error'));
+        assert.equal($('#ap-track-folder-el').textContent, 'Cannot play this file');
+        assert.equal(barIsActive(), true);
+
+        // As in a browser, an undecodable source also rejects play().
+        audio().play = () => Promise.reject(new Error('NotSupportedError'));
+        $('#ap-repeat').click();
+        press(x, 'play');
+        await settle();
+        audio().emit('error');
+        await settle();
+        audio().emit('error');
+        await settle();
+        assert.equal(trackName(), y.label, 'once every track failed in a row, it stops');
+        assert.ok($('#audio-player-bar').classList.contains('ap-error'));
+    });
+});
+
+test('audio transport: blocked playback still shows the bar to resume from', async () => {
+    const [a] = tracks('aud-blocked-bar', 'a.mp3');
+    await withPlayer({}, [], async () => {
+        list(a);
+        audio().play = () => Promise.reject(new Error('NotAllowedError'));
+        press(a, 'play');
+        await settle();
+        assert.equal(barIsActive(), true);
+        assert.ok($('#root').classList.contains('ap-bar-visible'), 'the listing makes room for the bar');
+        $('#ap-close-btn').click();
+        assert.equal($('#root').classList.contains('ap-bar-visible'), false);
+    });
+});
+
+test('audio transport: another player starting pauses the bar', async () => {
+    const [a] = tracks('aud-other', 'a.mp3');
+    await withPlayer({}, [], async () => {
+        list(a);
+        press(a, 'play');
+        await settle();
+        assert.equal(audio().paused, false);
+        const video = document.createElement('video');
+        document.body.appendChild(video);
+        video.dispatchEvent(new window.Event('play'));
+        video.remove();
+        assert.equal(audio().paused, true);
+    });
+});
+
+test('audio media session: the playing track is published with its cover', async () => {
+    const [a] = tracks('aud-session', 'a.mp3');
+    a.thumbRational = '/a.webp';
+    const session = {};
+    const saved = {
+        mediaSession: Object.getOwnPropertyDescriptor(window.navigator, 'mediaSession'),
+        MediaMetadata: window.MediaMetadata
+    };
+    Object.defineProperty(window.navigator, 'mediaSession', {configurable: true, value: session});
+    window.MediaMetadata = class {
+        constructor(init) {
+            Object.assign(this, init);
+        }
+    };
+    try {
+        await withPlayer({}, [], async () => {
+            list(a);
+            press(a, 'play');
+            await settle();
+            assert.equal(session.metadata.title, 'a.mp3');
+            assert.equal(session.metadata.album, 'aud-session');
+            assert.deepEqual(session.metadata.artwork, [{src: '/a.webp'}]);
+            assert.equal(session.playbackState, 'playing');
+        });
+    } finally {
+        if (saved.mediaSession) {
+            Object.defineProperty(window.navigator, 'mediaSession', saved.mediaSession);
+        } else {
+            delete window.navigator.mediaSession;
+        }
+        window.MediaMetadata = saved.MediaMetadata;
+    }
+});
+
+// The native video preview resolves on its metadata, which jsdom never loads.
+const withVideoMetadata = async (run, answer = 'loadedmetadata') => {
+    const proto = window.Element.prototype;
+    const originalSetAttribute = proto.setAttribute;
+    const originalCrossOrigin = Object.getOwnPropertyDescriptor(window, 'crossOriginIsolated');
+    Object.defineProperty(window, 'crossOriginIsolated', {configurable: true, value: false});
+    proto.setAttribute = function setAttribute(name, value) {
+        originalSetAttribute.call(this, name, value);
+        if (this.id === 'pv-content-vid' && name === 'src') {
+            const video = this;
+            window.setTimeout(() => {
+                if (answer === 'error') {
+                    Object.defineProperty(video, 'error', {configurable: true, value: {code: 4}});
+                }
+                video.dispatchEvent(new window.Event(answer));
+            }, 0);
+        }
+    };
+    try {
+        await run();
+    } finally {
+        proto.setAttribute = originalSetAttribute;
+        if (originalCrossOrigin) Object.defineProperty(window, 'crossOriginIsolated', originalCrossOrigin);
+        else delete window.crossOriginIsolated;
+    }
+};
+const videos = (folder, ...names) => names.map(name => {
+    const item = Item.get(`/${folder}/${name}`);
+    item.type = 'vid';
+    return item;
+});
+const previewShown = () => !$('#pv-overlay').classList.contains('hidden') && $('#pv-overlay').style.display !== 'none';
+const videoEl = () => $('#pv-container #pv-content-vid');
+const tick = () => new Promise(resolve => setTimeout(resolve, 10));
+
+test('video rows: the same three actions, and the click still opens the preview', async () => {
+    const [clip] = videos('vid-rows', 'clip.mp4');
+    await withPlayer({}, [], async () => {
+        await withVideoMetadata(async () => {
+            list(clip);
+            assert.equal(clip.$view[0].querySelectorAll(':scope > .ap-item-actions button').length, 3);
+            clip.$view.find('a')[0].click();
+            await tick();
+            assert.ok(previewShown());
+            assert.equal(barIsActive(), false, 'a plain click is a preview, not the queue');
+            $('#pv-bar-close').click();
+        });
+    });
+});
+
+test('video queue: play now queues the folder videos and opens the preview', async () => {
+    const [one, two] = videos('vid-now', 'one.mp4', 'two.mp4');
+    const [song] = tracks('vid-now', 'song.mp3');
+    await withPlayer({}, [], async () => {
+        await withVideoMetadata(async () => {
+            const listedVideos = list(one, song, two).filter(item => item.type === 'vid');
+            press(two, 'play');
+            await tick();
+            assert.equal(trackName(), 'two.mp4');
+            assert.ok(previewShown());
+            assert.equal(preview.item, two);
+            assert.ok(videoEl(), 'the video is shown');
+            $('#ap-queue-btn').click();
+            assert.deepEqual(queueNames(), labels(listedVideos), 'the folder queue holds its videos only');
+            $('#aq-close').click();
+
+            videoEl().dispatchEvent(new window.Event('play'));
+            assert.ok($('#ap-play-pause').classList.contains('playing'), 'the bar follows the video');
+            videoEl().dispatchEvent(new window.Event('pause'));
+            assert.equal($('#ap-play-pause').classList.contains('playing'), false);
+        });
+    });
+});
+
+test('video queue: tracks and videos follow each other in one queue', async () => {
+    const [a, b] = tracks('vid-mixed', 'a.mp3', 'b.mp3');
+    const [clip] = videos('vid-mixed', 'clip.mp4');
+    await withPlayer({}, [], async () => {
+        await withVideoMetadata(async () => {
+            const [first, second] = list(a, clip, b).filter(item => item.type === 'aud');
+            press(first, 'play');
+            await settle();
+            press(clip, 'next');
+            $('#ap-queue-btn').click();
+            assert.deepEqual(queueNames(), labels([first, clip, second]));
+            assert.ok($$('#aq-list-el .aq-item')[1].classList.contains('aq-video'));
+            $('#aq-close').click();
+
+            audio().emit('ended');
+            await tick();
+            assert.equal(trackName(), 'clip.mp4');
+            assert.ok(previewShown(), 'the video plays in the preview');
+            assert.equal(audio().paused, true);
+
+            // The audio element's own events no longer drive the bar.
+            audio().emit('play');
+            assert.equal($('#ap-play-pause').classList.contains('playing'), false);
+
+            videoEl().dispatchEvent(new window.Event('ended'));
+            await settle();
+            assert.equal(trackName(), second.label);
+            assert.equal(previewShown(), false, 'the preview closes for the next track');
+            assert.equal(audio().paused, false);
+        });
+    });
+});
+
+test('video queue: closing the preview pauses, the play button reopens it', async () => {
+    const [clip, next] = videos('vid-close', 'clip.mp4', 'next.mp4');
+    await withPlayer({}, [], async () => {
+        await withVideoMetadata(async () => {
+            const [firstVideo, secondVideo] = list(clip, next);
+            press(firstVideo, 'play');
+            await tick();
+            videoEl().dispatchEvent(new window.Event('play'));
+            $('#pv-bar-close').click();
+            assert.equal(previewShown(), false);
+            assert.equal($('#ap-play-pause').classList.contains('playing'), false);
+            assert.equal(trackName(), firstVideo.label, 'the video stays the current entry');
+
+            $('#ap-play-pause').click();
+            await tick();
+            assert.ok(previewShown());
+            assert.equal(preview.item, firstVideo);
+
+            videoEl().dispatchEvent(new window.Event('ended'));
+            await tick();
+            assert.equal(preview.item, secondVideo, 'the next video replaces it in the open preview');
+            assert.ok(previewShown());
+
+            $('#ap-close-btn').click();
+            assert.equal(previewShown(), false, 'stopping the player closes its video');
+        });
+    });
+});
+
+test('video queue: a video the user opened is left alone by the queue', async () => {
+    const [a, b] = tracks('vid-own', 'a.mp3', 'b.mp3');
+    const [clip] = videos('vid-own', 'clip.mp4');
+    await withPlayer({}, [], async () => {
+        await withVideoMetadata(async () => {
+            const [first, second] = list(a, b, clip).filter(item => item.type === 'aud');
+            press(first, 'play');
+            await settle();
+            clip.$view.find('a')[0].click();
+            await tick();
+            assert.ok(previewShown());
+            $('#ap-next').click();
+            await settle();
+            assert.equal(trackName(), second.label);
+            assert.ok(previewShown(), 'only a video opened by the queue is closed by it');
+            $('#pv-bar-close').click();
+        });
+    });
+});
+
+test('video queue: a preview the user is browsing is not taken over', async () => {
+    const [a] = tracks('vid-busy', 'a.mp3');
+    const [clip] = videos('vid-busy', 'clip.mp4');
+    const [photo] = tracks('vid-busy', 'photo.jpg');
+    await withPlayer({}, [], async () => {
+        await withVideoMetadata(async () => {
+            list(a, clip, photo);
+            press(a, 'play');
+            await settle();
+            press(clip, 'next');
+            photo.$view.find('a')[0].click();
+            await tick();
+            assert.equal(preview.item, photo);
+
+            audio().emit('ended');
+            await tick();
+            assert.equal(trackName(), 'clip.mp4', 'the queue moves on');
+            assert.equal(preview.item, photo, 'the photo stays on screen');
+            assert.equal($('#ap-play-pause').classList.contains('playing'), false);
+
+            $('#pv-bar-close').click();
+            $('#ap-play-pause').click();
+            await tick();
+            assert.equal(preview.item, clip, 'the play button opens the waiting video');
+        });
+    });
+});
+
+test('video queue: a video failing before it is shown still moves the queue on', async () => {
+    const [clip] = videos('vid-broken', 'clip.mp4');
+    const [b] = tracks('vid-broken', 'b.mp3');
+    await withPlayer({}, [], async () => {
+        await withVideoMetadata(async () => {
+            list(clip, b);
+            press(clip, 'play');
+            press(b, 'queue');
+            await tick();
+            await settle();
+            assert.equal(trackName(), 'b.mp3', 'the failure seen once attached skips the video');
+            assert.equal(previewShown(), false);
+        }, 'error');
+    });
+});
+
+test('video queue: the bar shows the new entry time, and video progress counts as playing', async () => {
+    const [a] = tracks('vid-time', 'a.mp3');
+    const [clip] = videos('vid-time', 'clip.mp4');
+    await withPlayer({}, [], async () => {
+        await withVideoMetadata(async () => {
+            list(a, clip);
+            press(a, 'play');
+            await settle();
+            audio().emit('durationchange');
+            assert.equal($('#ap-time-dur').textContent, '3:00');
+
+            press(clip, 'play');
+            await tick();
+            assert.equal($('#ap-time-dur').textContent, '0:00', 'the previous duration is not kept');
+
+            const video = videoEl();
+            Object.defineProperty(video, 'duration', {configurable: true, value: 90});
+            Object.defineProperty(video, 'currentTime', {configurable: true, writable: true, value: 30});
+            Object.defineProperty(video, 'paused', {configurable: true, value: false});
+            video.dispatchEvent(new window.Event('timeupdate'));
+            assert.equal($('#ap-time-dur').textContent, '1:30');
+            assert.equal($('#ap-time-cur').textContent, '0:30');
+            assert.ok($('#ap-play-pause').classList.contains('playing'), 'a play missed while detached is caught up');
+        });
     });
 });
