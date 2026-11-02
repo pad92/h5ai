@@ -203,18 +203,28 @@ Enables previewing and syntax highlighting of text-based files.
 Enables in-browser video playback.
 - `enabled` (default: `true`).
 - `autoplay` (default: `true`): Autoplay the video on preview start.
+- `engine` (default: `""`): The enhanced player's engines, by priority, among `wasm`, `native`, `shaka`, `dashjs` and `hlsjs`; unknown names are ignored. Empty keeps the player's own order, its decoder first, which plays the most formats. `"native wasm"` puts the browser first, which casting needs, with the decoder as a fallback; see below.
 - `types`: Supported video types for preview.
 
 The enhanced player is loaded only in a secure, cross-origin-isolated context.
 Otherwise h5ai immediately uses the native `<video>` element without downloading
 the enhanced-player bundle.
 
-When the browser exposes Remote Playback, the video player offers a cast button
-for devices such as Chromecast. Movi places it in its own controls and prefers
-native playback, with its decoder as a fallback for formats the browser cannot
-play. Safari's AirPlay picker is used when available. Device discovery and
-format support depend on the browser and receiver; a video the receiver cannot
-play may not cast successfully.
+h5ai sends the headers of that context on every page, so over HTTPS (or on
+localhost) the enhanced player is the one Chrome, Edge and Firefox use.
+
+When the browser exposes Remote Playback (Chrome, Edge) or Safari's AirPlay,
+the video player offers a cast button for devices such as Chromecast, while a
+device is reachable. The native player gets it in the preview bar. The enhanced
+player shows it in its own controls only while the browser plays the video
+itself: its own decoder draws on a canvas, which cannot be cast. With the
+default `engine`, that decoder plays first, so the enhanced player rarely
+offers casting; set `"engine": "native wasm"` to cast. The trade-off: every
+file the browser claims to play then goes through it, and a file whose video
+the browser decodes but whose audio it does not (AC3 or DTS in Chrome, for
+instance) may play without sound instead of falling back to the decoder.
+Device discovery and format support depend on the browser and receiver; a
+video the receiver cannot play may not cast successfully.
 
 Subtitle files next to the video are attached when their name is the video's
 name, optionally followed by a suffix after `.`, `_` or `-`: `movie.srt`,

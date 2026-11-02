@@ -582,7 +582,7 @@ test('video preview uses native and isolated-player paths with subtitle tracks',
         await new Promise(resolve => setTimeout(resolve, 10));
         const player = document.querySelector('#pv-content-vid');
         assert.equal(player.tagName.toLowerCase(), 'movi-player');
-        assert.equal(player.getAttribute('engine'), 'native wasm', 'native playback is preferred with Movi as fallback');
+        assert.equal(player.getAttribute('engine'), null, 'Movi keeps its own engine order by default');
         const engineVideo = player.shadowRoot.querySelector('video');
         availability(true);
         assert.equal(player.castControl, undefined, 'the WASM engine leaves the shadow <video> empty: nothing to cast');
@@ -608,6 +608,37 @@ test('video preview uses native and isolated-player paths with subtitle tracks',
         else delete window.crossOriginIsolated;
         if (originalRemote) Object.defineProperty(mediaProto, 'remote', originalRemote);
         else delete mediaProto.remote;
+    }
+});
+
+test('video preview: the engine option orders Movi\'s engines, known names only', async () => {
+    const originalCrossOrigin = Object.getOwnPropertyDescriptor(window, 'crossOriginIsolated');
+    const allsettings = reqlib('core/settings');
+    const savedVid = allsettings['preview-vid'];
+    const movie = Item.get('/engine-folder/movie.mp4');
+    movie.type = 'vid';
+    const engineFor = async value => {
+        allsettings['preview-vid'] = Object.assign({}, savedVid, {engine: value});
+        view.setItems([movie]);
+        movie.$view.find('a')[0].click();
+        await new Promise(resolve => setTimeout(resolve, 10));
+        const player = document.querySelector('#pv-content-vid');
+        assert.equal(player.tagName.toLowerCase(), 'movi-player');
+        const engine = player.getAttribute('engine');
+        document.querySelector('#pv-bar-close').click();
+        return engine;
+    };
+    try {
+        Object.defineProperty(window, 'crossOriginIsolated', {configurable: true, value: true});
+        assert.equal(await engineFor('native wasm'), 'native wasm', 'the browser first, for casting');
+        assert.equal(await engineFor('  native\tnative bogus wasm "><x '), 'native wasm', 'unknown names and repeats are dropped');
+        assert.equal(await engineFor('"><script>'), null, 'nothing valid: Movi\'s own order');
+        assert.equal(await engineFor(''), null);
+        assert.equal(await engineFor(42), null, 'not a string');
+    } finally {
+        allsettings['preview-vid'] = savedVid;
+        if (originalCrossOrigin) Object.defineProperty(window, 'crossOriginIsolated', originalCrossOrigin);
+        else delete window.crossOriginIsolated;
     }
 });
 

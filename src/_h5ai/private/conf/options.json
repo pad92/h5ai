@@ -172,6 +172,7 @@
     "preview-vid": {
         "enabled": true,
         "autoplay": true,
+        "engine": "",
         "types": [
             "vid-mkv",
             "vid-mov",

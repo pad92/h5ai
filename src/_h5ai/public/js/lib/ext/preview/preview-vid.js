@@ -164,6 +164,19 @@ const addMoviCastControl = player => {
     });
 };
 
+// Movi's playback engines, by its own names.
+const MOVI_ENGINES = ['wasm', 'native', 'shaka', 'dashjs', 'hlsjs'];
+
+// The `engine` option as Movi's attribute: known names only, each once, in
+// the given order. '' (the default, or nothing valid) keeps Movi's own
+// order, which plays the most formats.
+const moviEngine = value => {
+    if (typeof value !== 'string') {
+        return '';
+    }
+    return [...new Set(value.trim().split(/\s+/).filter(name => MOVI_ENGINES.includes(name)))].join(' ');
+};
+
 const settings = Object.assign({
     enabled: false,
     autoplay: true,
@@ -288,10 +301,14 @@ const loadNativeVideo = item => {
 // would only add a delay. The labels follow once the metadata is known.
 const loadMoviVideo = item => {
     const $el = dom('<movi-player id="pv-content-vid"/>')
-        .attr('controls', 'controls')
-        // Native-compatible files can use the browser's remote playback; Movi
-        // remains the fallback for formats the browser cannot decode.
-        .attr('engine', 'native wasm');
+        .attr('controls', 'controls');
+    // Read as the video loads. "native wasm" puts the browser first, which
+    // casting needs (addMoviCastControl): an option, as it gives up Movi's
+    // decoding for every file the browser claims to play.
+    const engine = moviEngine((allsettings['preview-vid'] || {}).engine);
+    if (engine) {
+        $el.attr('engine', engine);
+    }
     if (settings.autoplay) {
         $el.attr('autoplay', 'autoplay');
     }
