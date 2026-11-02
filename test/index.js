@@ -72,5 +72,6 @@ require('./tests/unit/ext/playerViz');
 require('./tests/unit/ext/tasksProgress');
 require('./tests/unit/ext/select');
 require('./tests/unit/packageName');
+require('./tests/unit/runTests');
 
 pin_html();
