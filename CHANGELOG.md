@@ -7,6 +7,7 @@
 * **Markdown preview**: images no wider than the preview, and images that cannot load (external ones blocked by the Docker image's Content-Security-Policy, such as README badges, or missing files) are hidden instead of showing a broken icon or their alt text.
 * **Valid HTML once the JavaScript has run**: icons and buttons get an `alt` text (empty when decorative), images waiting for content start from a blank image instead of no `src`, the QR code has an `alt`, the raw-file link only gets `target` together with its `href`, the audio player headings no longer skip levels, and the audio row buttons sit next to the file link instead of inside it.
 * **W3C validation**: `make docker-w3c`, `make docker-test` and the `test:docker` CI job validate the served HTML pages, `styles.css` and the DOM built in headless Chromium (listings, previews, audio player, info page) with a local Nu Html Checker; the README shows the matching badges.
+* **Dependencies** (build and test tooling only): the `glob` override moves to 14.0.3 and a `minimatch` 11.0.4 override is added, fixing GHSA-3g3m-2fjr-6pw4 (glob) and GHSA-g3hv-75wg-m249 (minimatch); `npm audit` reports no vulnerability. Babel 8.0.10, eslint 10.14, globals 17.14, jsdom 30.1.3, marked 18.1.2, movi-player 0.4.1, stylelint 17.16, and the majors `del` 9 and `postcss-less` 7.
 * **Documentation**: the README presents the features with screenshots; build, test and coverage notes move to `doc/development.md`. `make screenshots` regenerates the screenshots from a generated sample share.
 
 ## v1.4.0 - *2026-11-01*
