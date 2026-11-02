@@ -43,3 +43,13 @@ test('image preview reports original and sample load failures', async () => {
     await assert.rejects(loadImage('/photo.raw', null, requestSample, createImage), /unable to load image/);
     await assert.rejects(loadImage('/photo.raw', 1000, requestSample, createImage), /unable to load image sample/);
 });
+
+test('markdown preview hides images that cannot load, such as badges blocked by the CSP', () => {
+    const markdown = render('[![Badge](https://img.shields.io/badge/a-b-blue)](https://example.org) ![Local](shot.webp)', 2, window);
+    const [badge, local] = markdown[0].querySelectorAll('img');
+
+    badge.dispatchEvent(new window.Event('error'));
+
+    assert.ok(badge.classList.contains('pv-md-img-failed'));
+    assert.equal(local.classList.contains('pv-md-img-failed'), false);
+});
