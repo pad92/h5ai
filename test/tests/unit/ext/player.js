@@ -1195,11 +1195,24 @@ const withAudio = async run => {
                 calls,
                 fillStyle: null,
                 createLinearGradient: () => ({addColorStop() {}}),
+                globalAlpha: 1,
                 clearRect() {
                     calls.length = 0;
                 },
                 fillRect(x, y, w, h) {
                     calls.push({x, y, w, h, style: this.fillStyle});
+                },
+                save() {},
+                restore() {},
+                translate() {},
+                rotate() {},
+                scale() {},
+                drawImage(source) {
+                    calls.push({image: source});
+                },
+                createImageData: (w, h) => ({width: w, height: h, data: new Uint8ClampedArray(w * h * 4)}),
+                putImageData(image) {
+                    calls.push({put: image});
                 }
             });
         }
@@ -1239,7 +1252,7 @@ const openLarge = async () => {
     assert.ok(panelOpen());
 };
 const switchTo = mode => {
-    for (let i = 0; i < 3 && store.get('ext/player').visualizer !== mode; i += 1) {
+    for (let i = 0; i < 6 && store.get('ext/player').visualizer !== mode; i += 1) {
         largeCover().click();
     }
     assert.equal(store.get('ext/player').visualizer, mode);
@@ -1309,7 +1322,7 @@ test('visualizer: none in the bar, the large view shows the cover first', async 
     });
 });
 
-test('visualizer: clicks on the cover loop cover, spectrum, oscilloscope, and are remembered', async () => {
+test('visualizer: clicks on the cover loop through every mode, and are remembered', async () => {
     const [a] = tracks('viz-modes', 'a.mp3');
     await withPlayer({}, [], async () => {
         await withAudio(async () => {
@@ -1331,6 +1344,10 @@ test('visualizer: clicks on the cover loop cover, spectrum, oscilloscope, and ar
             assert.equal(columns.length, 151, 'one column per pixel');
             assert.equal(columns[1].h, 151, 'a full swing joins top and bottom');
 
+            ['Plasma', 'Kaleidoscope', 'Vortex'].forEach(name => {
+                largeCover().click();
+                assert.equal(largeCover().getAttribute('title'), `${name} (click to change)`);
+            });
             largeCover().click();
             assert.equal(showsVisualizer(), false, 'back to the cover');
             runFrames(1);
@@ -1338,6 +1355,45 @@ test('visualizer: clicks on the cover loop cover, spectrum, oscilloscope, and ar
             assert.equal(store.get('ext/player').visualizer, 'off');
             largeCover().click();
             assert.equal(store.get('ext/player').visualizer, 'spectrum', 'and around again');
+        });
+    });
+});
+
+test('visualizer: the psychedelic modes draw with the music and rest when paused', async () => {
+    const [a] = tracks('viz-trip', 'a.mp3');
+    await withPlayer({}, [], async () => {
+        await withAudio(async () => {
+            list(a);
+            press(a, 'folder');
+            await settle();
+            await openLarge();
+            const calls = () => recorderOf(largeCanvas()).calls;
+
+            switchTo('plasma');
+            runFrames(2);
+            const put = calls().filter(call => call.put);
+            assert.equal(put.length, 2, 'one plasma image per frame');
+            assert.equal(put[0].put.width, 151, 'on the whole square');
+            assert.ok(put[0].put.data.some(value => value > 0), 'with colours in it');
+            audio().pause();
+            runFrames(1);
+            assert.equal(audioEnv.frames.length, 0, 'paused, the plasma stays still and nothing runs');
+            assert.equal(calls().filter(call => call.put).length, 2, 'not even drawn again');
+
+            ['kaleido', 'vortex'].forEach(mode => {
+                audio().play();
+                switchTo(mode);
+                runFrames(2);
+                assert.ok(calls().some(call => call.image), `${mode}: the last frame comes back as trails`);
+                assert.ok(calls().filter(call => call.w === 2 || call.h >= 1).length > 0, `${mode}: new shapes over them`);
+                audio().pause();
+                runFrames(5);
+                assert.ok(audioEnv.frames.length > 0, `${mode}: the trails fade after the pause`);
+                runFrames(30);
+                assert.equal(audioEnv.frames.length, 0, `${mode}: then nothing runs`);
+                assert.equal(calls().length, 0, `${mode}: on a cleared canvas`);
+            });
+            $('#np-collapse').click();
         });
     });
 });
