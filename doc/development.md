@@ -46,6 +46,22 @@ the default branch updates. That job, like `make coverage`, fails when the
 percentage drops below 90%; set `COVERAGE_MIN` to use another floor.
 
 
+## W3C validation
+
+`make docker-w3c` builds the image and validates what it serves with the
+[Nu Html Checker](https://validator.github.io/validator/), the engine behind
+validator.w3.org, run locally from its Docker image: nothing is published or
+sent to w3.org. `test/docker/test-w3c.sh` fetches the index page, a fallback
+listing (the page text browsers get), the info page and `styles.css` inside
+the h5ai container and pipes them to the checker. Any error fails; notes such
+as the trailing slash on void elements are printed only. `make docker-test`
+and the `test:docker` CI job run the same script, which backs the W3C badges
+of the README.
+
+The check covers the HTML sent by the server, as the online validator does,
+not the DOM the JavaScript builds afterwards.
+
+
 ## Docker image tags
 
 Docker Hub protects tags matching `^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9]+)?$` from

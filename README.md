@@ -7,6 +7,8 @@
 [![Docker pulls][docker-pulls-img]][dockerhub]
 [![Docker stars][docker-stars-img]][dockerhub]
 [![Docker image size][docker-size-img]][dockerhub-tags]
+[![W3C HTML][w3c-html-img]][w3c-check]
+[![W3C CSS][w3c-css-img]][w3c-check]
 
 A file index for Apache httpd, lighttpd, nginx and Angie.
 
@@ -228,3 +230,6 @@ The screenshots use generated sample files.
 [docker-pulls-img]: https://img.shields.io/docker/pulls/pad92/docker-h5ai
 [docker-stars-img]: https://img.shields.io/docker/stars/pad92/docker-h5ai
 [docker-size-img]: https://img.shields.io/docker/image-size/pad92/docker-h5ai/latest
+[w3c-check]: doc/development.md#w3c-validation
+[w3c-html-img]: https://img.shields.io/badge/W3C-HTML-005A9C
+[w3c-css-img]: https://img.shields.io/badge/W3C-CSS-005A9C

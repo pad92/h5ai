@@ -3,6 +3,8 @@
 ## Unreleased
 
 * **License**: `LICENSE` now holds the MIT license of h5ai (Lars Jung), as the README always stated, instead of the license file of the former docker-h5ai repository. The release zip and the Docker image ship it in `_h5ai/LICENSE`.
+* **CSS**: the version banner no longer precedes `@charset "utf-8"` in `styles.css`; a `@charset` that is not the first thing in a style sheet is invalid and ignored by browsers.
+* **W3C validation**: `make docker-w3c`, `make docker-test` and the `test:docker` CI job validate the served HTML pages and `styles.css` with a local Nu Html Checker; the README shows the matching badges.
 * **Documentation**: the README presents the features with screenshots; build, test and coverage notes move to `doc/development.md`. `make screenshots` regenerates the screenshots from a generated sample share.
 
 ## v1.4.0 - *2026-11-01*
