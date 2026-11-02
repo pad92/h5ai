@@ -194,7 +194,8 @@ const createPlayer = ({audioTypes, videoTypes}) => {
     };
 
     // Loads the queue's current entry; `shouldPlay` false leaves it paused.
-    const loadCurrent = (shouldPlay = true) => {
+    // `takeOver`: the user started it, so a video replaces an open preview.
+    const loadCurrent = (shouldPlay = true, takeOver = false) => {
         const item = queue.current;
         if (!item) {
             return;
@@ -211,7 +212,7 @@ const createPlayer = ({audioTypes, videoTypes}) => {
         renderQueue();
         updateNowPlaying();
 
-        const {started, promise} = engine.load(item, shouldPlay);
+        const {started, promise} = engine.load(item, shouldPlay, takeOver);
         persist();
         if (!promise) {
             playRequested = started;
@@ -232,12 +233,12 @@ const createPlayer = ({audioTypes, videoTypes}) => {
             });
     };
 
-    const goTo = (item, shouldPlay = true) => {
+    const goTo = (item, shouldPlay = true, takeOver = false) => {
         if (!item) {
             return false;
         }
         queue.select(item);
-        loadCurrent(shouldPlay);
+        loadCurrent(shouldPlay, takeOver);
         return true;
     };
 
@@ -252,16 +253,18 @@ const createPlayer = ({audioTypes, videoTypes}) => {
         persist();
     };
 
-    const jumpTo = item => goTo(item);
+    // The user's own moves: a video they lead to replaces an open preview,
+    // unlike the queue moving on at the end of an entry or after a failure.
+    const jumpTo = item => goTo(item, true, true);
 
-    const next = () => goTo(queue.next(true));
+    const next = () => goTo(queue.next(true), true, true);
 
     const previous = () => {
         const media = engine.media();
         if (media && media.currentTime > RESTART_THRESHOLD) {
             media.currentTime = 0;
         } else {
-            goTo(queue.previous());
+            goTo(queue.previous(), true, true);
         }
     };
 
@@ -301,7 +304,7 @@ const createPlayer = ({audioTypes, videoTypes}) => {
         covers.release(queue.entries);
         failedInARow = 0;
         queue.replace(entries, item);
-        loadCurrent(shouldPlay);
+        loadCurrent(shouldPlay, true);
     };
 
     // The entry alone: Play next and Add to queue build a queue around it.

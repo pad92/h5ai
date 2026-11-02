@@ -868,6 +868,67 @@ test('video queue: a preview the user is browsing is not taken over', async () =
     });
 });
 
+test('video queue: an explicit play opens the waiting video over the preview', async () => {
+    const [a] = tracks('vid-play', 'a.mp3');
+    const [clip] = videos('vid-play', 'clip.mp4');
+    const [photo] = tracks('vid-play', 'photo.jpg');
+    await withPlayer({}, [], async () => {
+        await withVideoMetadata(async () => {
+            list(a, clip, photo);
+            press(a, 'folder');
+            await settle();
+            press(clip, 'next');
+            photo.$view.find('a')[0].click();
+            await tick();
+            audio().emit('ended');
+            await tick();
+            assert.equal(preview.item, photo, 'the queue moving on leaves the photo');
+
+            $('#ap-play-pause').click();
+            await tick();
+            assert.equal(preview.item, clip, 'the play button asks for the video');
+            assert.ok(videoEl());
+            $('#ap-close-btn').click();
+        });
+    });
+});
+
+test('video queue: next and the queue replace a preview with their video', async () => {
+    const [a] = tracks('vid-moves', 'a.mp3');
+    const [clip] = videos('vid-moves', 'clip.mp4');
+    const [photo] = tracks('vid-moves', 'photo.jpg');
+    await withPlayer({}, [], async () => {
+        await withVideoMetadata(async () => {
+            list(a, clip, photo);
+            const browsePhoto = async () => {
+                photo.$view.find('a')[0].click();
+                await tick();
+                assert.equal(preview.item, photo);
+            };
+            press(a, 'folder');
+            await settle();
+            press(clip, 'next');
+
+            await browsePhoto();
+            $('#ap-next').click();
+            await tick();
+            assert.equal(preview.item, clip, 'the next button');
+            assert.ok(videoEl());
+
+            $('#pv-bar-close').click();
+            $('#ap-queue-btn').click();
+            $$('#aq-list-el .aq-item')[0].click();
+            await settle();
+            assert.equal(trackName(), a.label);
+            await browsePhoto();
+            $$('#aq-list-el .aq-item')[1].click();
+            await tick();
+            assert.equal(preview.item, clip, 'a click in the queue');
+            $('#ap-close-btn').click();
+        });
+    });
+});
+
 test('video queue: a video failing before it is shown still moves the queue on', async () => {
     const [clip] = videos('vid-broken', 'clip.mp4');
     const [b] = tracks('vid-broken', 'b.mp3');
