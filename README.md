@@ -210,7 +210,7 @@ To build from source, run the tests or regenerate the screenshots, see
 
 ## License
 
-MIT, copyright (c) 2020 Lars Jung. See [LICENSE](LICENSE).
+MIT, copyright (c) 2020 Lars Jung for h5ai and (c) 2019 OurContainers for the Docker packaging. See [LICENSE](LICENSE).
 
 
 ## References

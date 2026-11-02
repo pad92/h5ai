@@ -27,7 +27,7 @@
     * `make docker-w3c`, `make docker-test` and CI validate the served HTML, the CSS and the rendered DOM with a local Nu Html Checker.
     * `make screenshots` regenerates the README screenshots; build and test notes move to `doc/development.md`.
     * The `glob` and `minimatch` overrides fix GHSA-3g3m-2fjr-6pw4 and GHSA-g3hv-75wg-m249, the build tools are updated, and the scanners move to Grype 0.121.0 and Syft 1.55.0.
-* **License**: `LICENSE` is now h5ai's MIT license, shipped in the zip and the image as `_h5ai/LICENSE`.
+* **License**: `LICENSE` is h5ai's MIT license, with Lars Jung's notice next to the one of the former docker-h5ai repository, and ships in the zip and the image as `_h5ai/LICENSE`.
 
 ## v1.4.0 - *2026-11-01*
 
