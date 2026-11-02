@@ -318,16 +318,14 @@ const createVisualizer = ({audio, onModeChange}) => {
     function switchTo(value) {
         mode = value;
         clear();
-        surfaces.forEach(surface => {
-            resetTrip(surface);
-            surface.canvas.parentNode.setAttribute('title', describe());
-            surface.canvas.parentNode.setAttribute('aria-label', describe());
-        });
+        surfaces.forEach(resetTrip);
         schedule();
     }
 
-    // `button`: holds the canvas and changes the mode on click. `bars` 3-pixel
-    // bars of `rows` pixels; `isShown()`: whether to draw it now.
+    // `button`: holds the canvas and changes the mode on click; its owner
+    // names it from `label`, and only once it is a button: a label on a plain
+    // element is invalid HTML. `bars` 3-pixel bars of `rows` pixels;
+    // `isShown()`: whether to draw it now.
     const addSurface = (button, {bars, rows, isShown}) => {
         const canvas = button.querySelector('canvas');
         const width = bars * BAR_STEP - 1;
@@ -346,9 +344,6 @@ const createVisualizer = ({audio, onModeChange}) => {
         };
         resetTrip(surface);
         surfaces.push(surface);
-        // Shown by the player only where Web Audio exists.
-        button.setAttribute('title', describe());
-        button.setAttribute('aria-label', describe());
         button.addEventListener('click', () => {
             if (!isSupported()) {
                 return;

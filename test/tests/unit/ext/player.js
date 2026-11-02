@@ -127,6 +127,13 @@ const list = (...items) => {
 const labels = items => items.map(item => item.label);
 const press = (item, action) => item.$view.find(`.ap-row-${action}`)[0].click();
 
+// The W3C check of the rendered pages (test:docker) rejects an aria-label
+// on a div without a role; the player's markup is mounted at load.
+test('player markup: no aria-label on a div without a role', () => {
+    const offending = $$('div[aria-label]').filter(el => !el.getAttribute('role')).map(el => el.id || el.className);
+    assert.deepEqual(offending, []);
+});
+
 test('audio covers: ID3 v2.2 PIC and v2.4 APIC pictures become object URLs', async () => {
     const [v22, v24, mime] = tracks('aud-id3', 'v22.mp3', 'v24.mp3', 'mime.mp3');
     const covers = {

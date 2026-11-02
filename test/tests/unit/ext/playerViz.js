@@ -57,6 +57,8 @@ test('visualizer: a new one shows the cover, and a click loops through every mod
         cover.appendChild(document.createElement('canvas'));
         visualizer.addSurface(cover, {bars: 2, rows: 7, isShown: () => false});
         assert.equal(cover.querySelector('canvas').width, 7, 'two 3-pixel bars and their gap');
+        assert.equal(cover.getAttribute('aria-label'), null, 'no label on a plain element: invalid HTML');
+        assert.equal(cover.getAttribute('title'), null);
         MODES.forEach(() => cover.click());
         assert.deepEqual(changes, ['spectrum', 'scope', 'plasma', 'kaleido', 'vortex', 'off']);
         assert.equal(visualizer.label, 'Cover (click to change)');
