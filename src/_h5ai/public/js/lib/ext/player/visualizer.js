@@ -49,22 +49,38 @@ const createVisualizer = ({audio, onModeChange}) => {
     let last = 0;
     const surfaces = [];
 
+    // Only while a display is shown: the view reduced, nothing is drawn, so
+    // nothing is computed either; opening it calls refresh().
     const schedule = () => {
-        if (!rafId && analyser && mode !== 'off' && isSupported()) {
+        if (!rafId && analyser && mode !== 'off' && isSupported() && surfaces.some(surface => surface.isShown())) {
             rafId = win().requestAnimationFrame(frame); // eslint-disable-line no-use-before-define
         }
     };
 
     // Connects the track to an analyser once the audio context runs: the
-    // track would go silent through a suspended one. Asked again on each
-    // play, so a context the browser held back starts with a later click.
+    // track would go silent through a suspended one. Only once a mode is
+    // chosen: the connection cannot be undone, and until then the track
+    // plays outside Web Audio. Asked again on each play and mode click, so
+    // a context the browser held back starts with a later click, and one
+    // it suspended later (a call, a locked screen) resumes.
     const activate = () => {
-        if (analyser || !isSupported()) {
+        if (mode === 'off' || !isSupported()) {
             return;
         }
         try {
             if (!context) {
                 context = new (AudioContextClass())();
+                context.addEventListener?.('statechange', () => {
+                    if (isPlaying && context.state !== 'running') {
+                        context.resume().catch(() => null);
+                    }
+                });
+            }
+            if (analyser) {
+                if (context.state !== 'running') {
+                    context.resume().catch(() => null);
+                }
+                return;
             }
             const connect = () => {
                 if (analyser || context.state !== 'running') {
@@ -349,6 +365,10 @@ const createVisualizer = ({audio, onModeChange}) => {
                 return;
             }
             switchTo(viz.nextMode(mode, prefersReducedMotion()));
+            // The click lets the browser start the audio context.
+            if (isPlaying) {
+                activate();
+            }
             onModeChange(mode);
         });
     };

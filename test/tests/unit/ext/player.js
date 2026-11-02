@@ -1295,9 +1295,22 @@ const withAudio = async run => {
             this.state = audioEnv.startState;
             this.sampleRate = 48000;
             this.destination = {};
+            this.listeners = [];
+            this.resumed = 0;
             audioEnv.contexts.push(this);
         }
+        addEventListener(type, fn) {
+            if (type === 'statechange') {
+                this.listeners.push(fn);
+            }
+        }
+        // What the browser does on a call or a locked screen.
+        suspendBy(state) {
+            this.state = state;
+            this.listeners.forEach(fn => fn());
+        }
         resume() {
+            this.resumed += 1;
             if (!audioEnv.resumes) {
                 return Promise.reject(new Error('NotAllowedError'));
             }
@@ -1409,9 +1422,68 @@ test('visualizer: a held-back audio context never takes the track', async () => 
             list(a);
             press(a, 'folder');
             await settle();
+            await openLarge();
+            switchTo('off');
+            largeCover().click();
+            await settle();
             assert.equal(audioEnv.contexts.length, 1);
             assert.deepEqual(audioEnv.sources, [], 'not connected: the track keeps its sound');
             assert.equal(audioEnv.frames.length, 0, 'nothing to draw');
+        });
+    });
+});
+
+test('visualizer: without a mode chosen, the track never goes through Web Audio', async () => {
+    const [a] = tracks('viz-unused', 'a.mp3');
+    await withPlayer({}, [], async () => {
+        await withAudio(async () => {
+            audioEnv.resumes = true;
+            // The player is shared by the tests: the cover, as on a first visit.
+            store.put('ext/player', {visualizer: 'off'});
+            playerExt.restoreSaved();
+            const contexts = audioEnv.contexts.length;
+            const sources = audioEnv.sources.length;
+            list(a);
+            press(a, 'folder');
+            await settle();
+            audio().pause();
+            audio().play();
+            await settle();
+            assert.equal(audioEnv.contexts.length, contexts, 'no audio context at all');
+            assert.equal(audioEnv.sources.length, sources);
+        });
+    });
+});
+
+test('visualizer: a context suspended after connecting resumes', async () => {
+    const [a] = tracks('viz-resume', 'a.mp3');
+    await withPlayer({}, [], async () => {
+        await withAudio(async () => {
+            audioEnv.resumes = true;
+            list(a);
+            press(a, 'folder');
+            await settle();
+            await openLarge();
+            switchTo('spectrum');
+            await settle();
+            const context = audioEnv.contexts[audioEnv.contexts.length - 1];
+            const sources = audioEnv.sources.filter(el => el === audio()).length;
+            assert.equal(sources, 1, 'connected');
+
+            context.suspendBy('interrupted');
+            await settle();
+            assert.equal(context.state, 'running', 'resumed while the track plays');
+
+            audio().pause();
+            await settle();
+            context.suspendBy('suspended');
+            assert.equal(context.state, 'suspended', 'left alone while paused');
+            const before = context.resumed;
+            audio().play();
+            await settle();
+            assert.ok(context.resumed > before, 'the next play resumes it');
+            assert.equal(context.state, 'running');
+            assert.equal(audioEnv.sources.filter(el => el === audio()).length, 1, 'connected once only');
         });
     });
 });
@@ -1424,10 +1496,11 @@ test('visualizer: the spectrum follows the sound, falls when paused, and stops',
             list(a);
             press(a, 'folder');
             await settle();
-            assert.deepEqual(audioEnv.sources, [audio()], 'a later click starts the context and connects the track');
-            assert.equal(audioEnv.contexts.length, 1, 'one context for the page');
             await openLarge();
             switchTo('spectrum');
+            await settle();
+            assert.deepEqual(audioEnv.sources, [audio()], 'choosing a mode connects the track');
+            assert.equal(audioEnv.contexts.length, 1, 'one context for the page');
 
             runFrames(2);
             const bars = recorderOf(largeCanvas()).calls.filter(call => call.w === 3 && call.h > 1);
@@ -1595,6 +1668,14 @@ test('visualizer: only for tracks, and drawn in the large view while it is open'
                 recorderOf(largeCanvas()).calls.length = 0;
                 runFrames(2);
                 assert.equal(recorderOf(largeCanvas()).calls.length, 0, 'nothing drawn once reduced');
+                assert.equal(audioEnv.frames.length, 0, 'and no frame requested while it plays');
+
+                $('#ap-cover-gradient').click();
+                assert.ok(audioEnv.frames.length > 0, 'opening the view again draws again');
+                runFrames(1);
+                assert.ok(recorderOf(largeCanvas()).calls.length > 0);
+                $('#np-collapse').click();
+                runFrames(2);
 
                 press(clip, 'folder');
                 await tick();
