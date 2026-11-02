@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.4.1 - *Unreleased*
 
 * **License**: `LICENSE` now holds the MIT license of h5ai (Lars Jung), as the README always stated, instead of the license file of the former docker-h5ai repository. The release zip and the Docker image ship it in `_h5ai/LICENSE`.
 * **CSS**: the version banner no longer precedes `@charset "utf-8"` in `styles.css`; a `@charset` that is not the first thing in a style sheet is invalid and ignored by browsers.
