@@ -40,7 +40,12 @@ const close = () => {
     if (isOpen()) {
         document.querySelector('#pv-bar-close').click();
     }
-    preview.setControlType('default');
+};
+
+// Loads like the video extension: each item switches to the video keys.
+const videoLoad = async item => {
+    preview.setControlType('vid');
+    return dom('<div class="pv-controls"></div>').text(item.label);
 };
 
 const key = (init, target = window) => {
@@ -101,9 +106,23 @@ test('preview keys: typing in a form field does not drive the preview', async ()
     }
 });
 
+test('preview keys: a preview opened after a video gets the default keys back', async () => {
+    await open('pvc-after-video', videoLoad);
+    close();
+    assert.equal(preview.controlsType, 'vid');
+    const items = await open('pvc-after-other');
+    try {
+        const space = key({key: ' ', keyCode: 32});
+        await flush();
+        assert.equal(space.defaultPrevented, true, 'space steps again');
+        assert.equal(preview.item, items[1]);
+    } finally {
+        close();
+    }
+});
+
 test('preview keys: video controls step with comma and period and leave space to the player', async () => {
-    const items = await open('pvc-video');
-    preview.setControlType('vid');
+    const items = await open('pvc-video', videoLoad);
     try {
         key({key: 'ArrowRight', keyCode: 39});
         await flush();

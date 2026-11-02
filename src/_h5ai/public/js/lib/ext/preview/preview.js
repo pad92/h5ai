@@ -358,6 +358,9 @@ Session.prototype = {
                 });
                 dom('#pv-container').hide().clr();
                 showSpinner(true, item.thumbRational || item.icon, 200);
+                // Each item starts from the default keys: the video loader
+                // sets its own again, other types must not inherit them.
+                setControlType('default');
             })
             .then(() => this.load(item))
             // delay for testing
