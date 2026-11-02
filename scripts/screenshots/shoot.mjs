@@ -79,6 +79,12 @@ const SHOTS = [
     {name: 'preview-code', path: '/Projects/', size: [1280, 760], theme: 'dark', act: c => c.click(item('backup.py'))},
     {name: 'preview-audio', path: '/Music/Night%20Drive/', size: [1280, 760], theme: 'dark',
         act: c => c.click(item('01 - Neon Avenue.mp3'))},
+    {name: 'now-playing', path: '/Music/Night%20Drive/', size: [1280, 760], theme: 'dark',
+        act: async c => {
+            await c.click(item('01 - Neon Avenue.mp3'));
+            await c.networkIdle();
+            await c.click('#ap-cover-gradient');
+        }},
     {name: 'preview-video', path: '/Videos/', size: [1280, 760], theme: 'dark', act: c => c.click(item('Mandelbrot zoom.mp4'))},
     {name: 'search', path: '/', size: [1280, 600],
         act: async c => {

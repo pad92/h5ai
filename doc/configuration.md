@@ -165,7 +165,11 @@ When `preview-vid` is enabled, video rows get the same three buttons and videos 
 
 A file the browser reports it cannot play (WMA, RealAudio and MIDI, and AIFF outside Safari) keeps its plain link and stays out of the queue. A file that fails during playback is marked in the bar, and the queue moves on to the next one.
 
-The cover shown in the bar comes from the file's server thumbnail, then from the MP3's ID3 tag, then from an image named `cover`, `folder`, `front`, `album`, `albumart` or `poster` in the same folder.
+The cover shown in the bar comes from the file's server thumbnail, then from the picture embedded in the file (MP3 ID3 tag, FLAC picture block), then from an image named `cover`, `folder`, `front`, `album`, `albumart` or `poster` in the same folder.
+
+For a track, a click on the bar's cover (or Enter on it) opens the now playing view above the listing: the cover in full over a blurred copy of it, then the title, artist, album, year, genre and track number read from the file's tags (ID3 for MP3, Vorbis comments for FLAC), and the duration, format, average bit rate, size and file name. Missing tags fall back to the file name and the folder. The view follows the queue, and the bar stays below it with the controls. The button at its top left, Escape or another click on the cover reduce it. A video has no such view: it plays in the preview.
+
+Tracks also get a visualizer in the style of the first Winamp releases, in the bar (Winamp's own 76x16 pixels, doubled; hidden on a bar narrower than 1000 pixels) and larger in the now playing view: a spectrum analyser of 19 or 38 log-spaced bands from 40 Hz to 16 kHz, with falling peaks, in the classic skin's colours, or an oscilloscope. A click on it cycles spectrum, oscilloscope and off; the browser keeps the choice, and the default is off when the system asks for reduced motion. It reads the sound through a Web Audio analyser, which needs the browser's audio context: that starts with the first play after a click, and until it does the track plays without visualizer. It costs little: the frequency analysis runs in the browser's native code, the canvases hold a few thousand pixels, at most 30 frames a second are drawn, and nothing runs while paused, in a hidden tab, switched off, or during a video.
 
 ##### Playing the queue in an external player
 

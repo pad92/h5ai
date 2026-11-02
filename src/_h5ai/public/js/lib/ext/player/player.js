@@ -8,9 +8,12 @@ const {createEngine} = require('./engine');
 const {canPlay} = require('./formats');
 const covers = require('./covers');
 const session = require('./session');
+const nowPlaying = require('./nowplaying');
+const {createVisualizer, isSupported: hasVisualizer} = require('./visualizer');
 const memory = require('./memory');
 const playlist = require('./playlist');
 const view = require('./view');
+const metadata = require('./metadata');
 
 const REPEAT_OFF = 0;
 const REPEAT_QUEUE = 1;
@@ -25,6 +28,7 @@ const SAVE_INTERVAL = 5000;
 const createPlayer = ({audioTypes, videoTypes}) => {
     const queue = createQueue();
     let engine = null;
+    let visualizer = null;
     // The entry loaded into the engine; null once stopped.
     let loaded = null;
     let isPlaying = false;
@@ -44,6 +48,60 @@ const createPlayer = ({audioTypes, videoTypes}) => {
 
     const coverFor = item => covers.coverFor(item, isVideo(item));
 
+    const isTrackLoaded = () => !!loaded && !isVideo(loaded);
+
+    // The large view of the loaded track: what is known now, then the tags
+    // and the full cover once the file was read.
+    const renderNowPlaying = () => {
+        const item = loaded;
+        const media = engine.media();
+        const duration = media && media.duration;
+        const show = result => nowPlaying.render({
+            item,
+            tags: result ? result.tags : {},
+            coverUrl: result ? covers.largeCoverFor(item) : coverFor(item),
+            background: view.gradientFor(item.label),
+            duration
+        });
+        show(metadata.known(item));
+        metadata.read(item).then(result => {
+            if (item === loaded && nowPlaying.isOpen()) {
+                show(result);
+            }
+        });
+    };
+
+    const syncExpandable = () => {
+        view.setExpandable(isTrackLoaded(), isTrackLoaded() && nowPlaying.isOpen());
+        view.setVisualizerShown(hasVisualizer() && isTrackLoaded());
+        visualizer.refresh();
+    };
+
+    const toggleNowPlaying = () => {
+        if (nowPlaying.isOpen()) {
+            nowPlaying.close();
+            return;
+        }
+        if (isTrackLoaded()) {
+            renderNowPlaying();
+            nowPlaying.open();
+            syncExpandable();
+        }
+    };
+
+    // Follows the queue while open: a new track replaces the view, a video
+    // or a stop closes it.
+    const updateNowPlaying = () => {
+        if (nowPlaying.isOpen()) {
+            if (isTrackLoaded()) {
+                renderNowPlaying();
+            } else {
+                nowPlaying.close();
+            }
+        }
+        syncExpandable();
+    };
+
     // Kept in the browser, so a new page or a reload picks up where it was.
     const persist = () => {
         savedAt = Date.now();
@@ -56,7 +114,8 @@ const createPlayer = ({audioTypes, videoTypes}) => {
             lastVolume,
             muted: audio.muted,
             shuffle: queue.isShuffled,
-            repeat
+            repeat,
+            visualizer: visualizer.mode
         });
     };
 
@@ -73,6 +132,11 @@ const createPlayer = ({audioTypes, videoTypes}) => {
         view.setPlaying(playing);
         view.markListing(loaded, playing);
         session.setPlaying(playing);
+        // A play follows a click, so the audio context may start now.
+        if (playing && isTrackLoaded()) {
+            visualizer.activate();
+        }
+        visualizer.setPlaying(playing && isTrackLoaded());
     };
 
     // Shows `url` once it loads, or the next best cover, or the gradient.
@@ -136,6 +200,7 @@ const createPlayer = ({audioTypes, videoTypes}) => {
         session.setEntry(item, null);
         showCover(item);
         renderQueue();
+        updateNowPlaying();
 
         const {started, promise} = engine.load(item, shouldPlay);
         persist();
@@ -174,6 +239,7 @@ const createPlayer = ({audioTypes, videoTypes}) => {
         setPlaying(false);
         view.setError(false);
         view.hideBar();
+        updateNowPlaying();
         persist();
     };
 
@@ -203,6 +269,9 @@ const createPlayer = ({audioTypes, videoTypes}) => {
         if (media && !media.paused) {
             engine.pause();
             return;
+        }
+        if (isTrackLoaded()) {
+            visualizer.activate();
         }
         engine.play()
             .then(() => {
@@ -325,6 +394,9 @@ const createPlayer = ({audioTypes, videoTypes}) => {
         const media = engine.media();
         if (media && media.duration) {
             view.setDuration(media.duration);
+            if (nowPlaying.isOpen()) {
+                renderNowPlaying();
+            }
         }
     };
 
@@ -399,6 +471,9 @@ const createPlayer = ({audioTypes, videoTypes}) => {
         showMuted();
         repeat = state.repeat;
         view.setRepeat(repeat);
+        if (state.visualizer) {
+            visualizer.setMode(state.visualizer);
+        }
         queue.setShuffle(state.shuffle);
         view.setShuffle(state.shuffle);
 
@@ -457,7 +532,22 @@ const createPlayer = ({audioTypes, videoTypes}) => {
             queueToggled: renderQueue,
             exportQueue,
             clear,
-            close: clear
+            close: clear,
+            toggleNowPlaying
+        });
+        nowPlaying.mount({close: syncExpandable});
+
+        // Winamp's own size for the bar, 76x16; twice the bars in the large view.
+        visualizer = createVisualizer({audio: engine.audio, onModeChange: persist});
+        visualizer.addSurface(global.window.document.getElementById('ap-viz'), {
+            bars: 19,
+            rows: 16,
+            isShown: () => isTrackLoaded() && view.isBarShown()
+        });
+        visualizer.addSurface(global.window.document.getElementById('np-viz'), {
+            bars: 38,
+            rows: 40,
+            isShown: () => isTrackLoaded() && nowPlaying.isOpen()
         });
 
         session.bindActions({

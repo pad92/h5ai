@@ -42,6 +42,7 @@ const BAR_TPL = `
             <p class="ap-track-name" id="ap-track-name-el">No Track</p>
             <p class="ap-track-folder" id="ap-track-folder-el">Unknown Folder</p>
         </div>
+        <button class="ap-viz hidden" id="ap-viz"><canvas></canvas></button>
     </div>
     <div class="ap-controls-container">
         <div class="ap-control-buttons">
@@ -147,6 +148,8 @@ const showBar = () => {
     base.$root.addCls('ap-bar-visible');
 };
 
+const isBarShown = () => dom('#audio-player-bar').hasCls('active');
+
 const hideBar = () => {
     dom('#audio-player-bar').rmCls('active');
     base.$root.rmCls('ap-bar-visible');
@@ -216,6 +219,36 @@ const setMutedIcon = isMuted => {
         dom('#ap-volume-btn').addCls('muted');
     } else {
         dom('#ap-volume-btn').rmCls('muted');
+    }
+};
+
+// The bar's cover opens the large view of a track: a button then, plain for
+// a video.
+const setExpandable = (isExpandable, isExpanded) => {
+    const $cover = dom('#ap-cover-gradient');
+    if (isExpandable) {
+        $cover.addCls('ap-cover-expandable')
+            .attr('role', 'button')
+            .attr('tabindex', '0')
+            .attr('title', isExpanded ? 'Reduce' : 'Show now playing')
+            .attr('aria-label', isExpanded ? 'Reduce' : 'Show now playing')
+            .attr('aria-expanded', isExpanded ? 'true' : 'false');
+    } else {
+        $cover.rmCls('ap-cover-expandable')
+            .rmAttr('role')
+            .rmAttr('tabindex')
+            .rmAttr('title')
+            .rmAttr('aria-label')
+            .rmAttr('aria-expanded');
+    }
+};
+
+// The bar's visualizer, for a track only.
+const setVisualizerShown = isShown => {
+    if (isShown) {
+        dom('#ap-viz').show();
+    } else {
+        dom('#ap-viz').hide();
     }
 };
 
@@ -328,12 +361,24 @@ const listedItems = accepts => compact(dom('#items .item').map(el => el._item &&
 
 // `on`: {togglePlay, next, previous, toggleShuffle, cycleRepeat,
 // seek(percent), previewSeek(percent) -> time or null, setVolume(volume),
-// toggleMute, queueToggled, exportQueue, clear, close}.
+// toggleMute, queueToggled, exportQueue, clear, close, toggleNowPlaying}.
 const mount = on => {
     base.$root.app(BAR_TPL);
     base.$root.app(QUEUE_TPL);
 
     dom('#ap-play-pause').on('click', on.togglePlay);
+    const $cover = dom('#ap-cover-gradient');
+    $cover.on('click', () => {
+        if ($cover.hasCls('ap-cover-expandable')) {
+            on.toggleNowPlaying();
+        }
+    });
+    $cover.on('keydown', ev => {
+        if ($cover.hasCls('ap-cover-expandable') && (ev.key === 'Enter' || ev.key === ' ')) {
+            ev.preventDefault();
+            on.toggleNowPlaying();
+        }
+    });
     dom('#ap-next').on('click', on.next);
     dom('#ap-prev').on('click', on.previous);
     dom('#ap-shuffle').on('click', on.toggleShuffle);
@@ -379,6 +424,7 @@ module.exports = {
     isSeeking: () => isSeeking,
     showBar,
     hideBar,
+    isBarShown,
     setEntry,
     setError,
     setPlaying,
@@ -389,6 +435,9 @@ module.exports = {
     resetProgress,
     setVolume,
     setMutedIcon,
+    setExpandable,
+    setVisualizerShown,
+    gradientFor,
     showCover,
     showCoverFallback,
     renderQueue,

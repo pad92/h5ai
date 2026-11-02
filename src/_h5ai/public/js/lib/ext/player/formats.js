@@ -21,9 +21,6 @@ const MIME_BY_EXT = {
     wma: 'audio/x-ms-wma'
 };
 
-// Only MP3 files carry an ID3v2 tag at their start.
-const ID3_EXTS = ['mp3', 'mpa'];
-
 const getExt = item => {
     const match = (/\.([a-z0-9]+)$/i).exec(item.label || '');
     return match ? match[1].toLowerCase() : '';
@@ -35,9 +32,7 @@ const canPlay = (media, item) => {
     return !mime || media.canPlayType(mime) !== '';
 };
 
-const mayHaveId3 = item => ID3_EXTS.includes(getExt(item));
-
 module.exports = {
-    canPlay,
-    mayHaveId3
+    getExt,
+    canPlay
 };

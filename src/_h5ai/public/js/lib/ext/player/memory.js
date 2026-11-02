@@ -6,6 +6,7 @@ const STORE_KEY = 'ext/player';
 // A longer saved queue is cut: the state is read on every page load.
 const MAX_ENTRIES = 5000;
 const REPEAT_MODES = [0, 1, 2];
+const VISUALIZER_MODES = ['spectrum', 'scope', 'off'];
 
 // A path of this site: `//host/...` would point to another one.
 const isHref = value => typeof value === 'string' && value.startsWith('/') && !value.startsWith('//');
@@ -42,7 +43,8 @@ const load = () => {
         lastVolume: isUnit(raw.lastVolume) && raw.lastVolume > 0 ? raw.lastVolume : null,
         muted: raw.muted === true,
         shuffle: raw.shuffle === true,
-        repeat: REPEAT_MODES.includes(raw.repeat) ? raw.repeat : 0
+        repeat: REPEAT_MODES.includes(raw.repeat) ? raw.repeat : 0,
+        visualizer: VISUALIZER_MODES.includes(raw.visualizer) ? raw.visualizer : null
     };
 };
 
