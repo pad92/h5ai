@@ -9,6 +9,7 @@ const {canPlay} = require('./formats');
 const covers = require('./covers');
 const session = require('./session');
 const nowPlaying = require('./nowplaying');
+const {createVisualizer, isSupported: hasVisualizer} = require('./visualizer');
 const memory = require('./memory');
 const playlist = require('./playlist');
 const view = require('./view');
@@ -27,6 +28,7 @@ const SAVE_INTERVAL = 5000;
 const createPlayer = ({audioTypes, videoTypes}) => {
     const queue = createQueue();
     let engine = null;
+    let visualizer = null;
     // The entry loaded into the engine; null once stopped.
     let loaded = null;
     let isPlaying = false;
@@ -45,6 +47,8 @@ const createPlayer = ({audioTypes, videoTypes}) => {
     const isTrack = item => !!item && includes(audioTypes, item.type) && canPlay(engine.audio, item);
 
     const coverFor = item => covers.coverFor(item, isVideo(item));
+
+    const isTrackLoaded = () => !!loaded && !isVideo(loaded);
 
     // The large view of the loaded track: what is known now, then the tags
     // and the full cover once the file was read.
@@ -68,8 +72,9 @@ const createPlayer = ({audioTypes, videoTypes}) => {
     };
 
     const syncExpandable = () => {
-        const isTrackLoaded = !!loaded && !isVideo(loaded);
-        view.setExpandable(isTrackLoaded, isTrackLoaded && nowPlaying.isOpen());
+        view.setExpandable(isTrackLoaded(), isTrackLoaded() && nowPlaying.isOpen());
+        view.setVisualizerShown(hasVisualizer() && isTrackLoaded());
+        visualizer.refresh();
     };
 
     const toggleNowPlaying = () => {
@@ -77,7 +82,7 @@ const createPlayer = ({audioTypes, videoTypes}) => {
             nowPlaying.close();
             return;
         }
-        if (loaded && !isVideo(loaded)) {
+        if (isTrackLoaded()) {
             renderNowPlaying();
             nowPlaying.open();
             syncExpandable();
@@ -88,7 +93,7 @@ const createPlayer = ({audioTypes, videoTypes}) => {
     // or a stop closes it.
     const updateNowPlaying = () => {
         if (nowPlaying.isOpen()) {
-            if (loaded && !isVideo(loaded)) {
+            if (isTrackLoaded()) {
                 renderNowPlaying();
             } else {
                 nowPlaying.close();
@@ -109,7 +114,8 @@ const createPlayer = ({audioTypes, videoTypes}) => {
             lastVolume,
             muted: audio.muted,
             shuffle: queue.isShuffled,
-            repeat
+            repeat,
+            visualizer: visualizer.mode
         });
     };
 
@@ -126,6 +132,11 @@ const createPlayer = ({audioTypes, videoTypes}) => {
         view.setPlaying(playing);
         view.markListing(loaded, playing);
         session.setPlaying(playing);
+        // A play follows a click, so the audio context may start now.
+        if (playing && isTrackLoaded()) {
+            visualizer.activate();
+        }
+        visualizer.setPlaying(playing && isTrackLoaded());
     };
 
     // Shows `url` once it loads, or the next best cover, or the gradient.
@@ -258,6 +269,9 @@ const createPlayer = ({audioTypes, videoTypes}) => {
         if (media && !media.paused) {
             engine.pause();
             return;
+        }
+        if (isTrackLoaded()) {
+            visualizer.activate();
         }
         engine.play()
             .then(() => {
@@ -457,6 +471,9 @@ const createPlayer = ({audioTypes, videoTypes}) => {
         showMuted();
         repeat = state.repeat;
         view.setRepeat(repeat);
+        if (state.visualizer) {
+            visualizer.setMode(state.visualizer);
+        }
         queue.setShuffle(state.shuffle);
         view.setShuffle(state.shuffle);
 
@@ -519,6 +536,19 @@ const createPlayer = ({audioTypes, videoTypes}) => {
             toggleNowPlaying
         });
         nowPlaying.mount({close: syncExpandable});
+
+        // Winamp's own size for the bar, 76x16; twice the bars in the large view.
+        visualizer = createVisualizer({audio: engine.audio, onModeChange: persist});
+        visualizer.addSurface(global.window.document.getElementById('ap-viz'), {
+            bars: 19,
+            rows: 16,
+            isShown: () => isTrackLoaded() && view.isBarShown()
+        });
+        visualizer.addSurface(global.window.document.getElementById('np-viz'), {
+            bars: 38,
+            rows: 40,
+            isShown: () => isTrackLoaded() && nowPlaying.isOpen()
+        });
 
         session.bindActions({
             play: () => !isPlaying && togglePlay(),

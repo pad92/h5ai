@@ -27,6 +27,7 @@ const TPL = `
             <p class="np-artist" id="np-artist"></p>
             <p class="np-album" id="np-album"></p>
             <dl class="np-details" id="np-details"></dl>
+            <button class="np-viz" id="np-viz"><canvas></canvas></button>
         </div>
     </div>
 </div>`;

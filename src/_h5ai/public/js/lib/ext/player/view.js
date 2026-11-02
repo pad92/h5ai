@@ -42,6 +42,7 @@ const BAR_TPL = `
             <p class="ap-track-name" id="ap-track-name-el">No Track</p>
             <p class="ap-track-folder" id="ap-track-folder-el">Unknown Folder</p>
         </div>
+        <button class="ap-viz hidden" id="ap-viz"><canvas></canvas></button>
     </div>
     <div class="ap-controls-container">
         <div class="ap-control-buttons">
@@ -147,6 +148,8 @@ const showBar = () => {
     base.$root.addCls('ap-bar-visible');
 };
 
+const isBarShown = () => dom('#audio-player-bar').hasCls('active');
+
 const hideBar = () => {
     dom('#audio-player-bar').rmCls('active');
     base.$root.rmCls('ap-bar-visible');
@@ -237,6 +240,15 @@ const setExpandable = (isExpandable, isExpanded) => {
             .rmAttr('title')
             .rmAttr('aria-label')
             .rmAttr('aria-expanded');
+    }
+};
+
+// The bar's visualizer, for a track only.
+const setVisualizerShown = isShown => {
+    if (isShown) {
+        dom('#ap-viz').show();
+    } else {
+        dom('#ap-viz').hide();
     }
 };
 
@@ -412,6 +424,7 @@ module.exports = {
     isSeeking: () => isSeeking,
     showBar,
     hideBar,
+    isBarShown,
     setEntry,
     setError,
     setPlaying,
@@ -423,6 +436,7 @@ module.exports = {
     setVolume,
     setMutedIcon,
     setExpandable,
+    setVisualizerShown,
     gradientFor,
     showCover,
     showCoverFallback,

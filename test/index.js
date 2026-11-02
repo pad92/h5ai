@@ -68,6 +68,7 @@ require('./tests/unit/ext/previewImage');
 require('./tests/unit/ext/player');
 require('./tests/unit/ext/playerQueue');
 require('./tests/unit/ext/playerTags');
+require('./tests/unit/ext/playerViz');
 require('./tests/unit/ext/tasksProgress');
 require('./tests/unit/ext/select');
 require('./tests/unit/packageName');

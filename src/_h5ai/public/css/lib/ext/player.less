@@ -1061,3 +1061,67 @@ body[data-theme="dark"] .ap-item-actions .ap-row-btn {
         transition: none;
     }
 }
+
+// Winamp-style visualizers: a few pixels scaled up without smoothing, on the
+// black of the skin's display.
+.ap-viz,
+.np-viz {
+    display: block;
+    padding: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    background: #000;
+    cursor: pointer;
+    line-height: 0;
+
+    canvas {
+        display: block;
+        image-rendering: pixelated;
+    }
+
+    &:focus-visible {
+        outline: 2px solid #64b5f6;
+        outline-offset: 2px;
+    }
+
+    &.hidden {
+        display: none;
+    }
+}
+
+#audio-player-bar .ap-track-info .ap-viz {
+    flex-shrink: 0;
+    margin-left: 16px;
+
+    canvas {
+        // Twice Winamp's 75x16.
+        width: 150px;
+        height: 32px;
+    }
+}
+
+#player-now-playing .np-viz {
+    width: 100%;
+    max-width: 460px;
+    margin-top: 26px;
+    box-sizing: border-box;
+    background: rgba(0, 0, 0, 0.55);
+
+    canvas {
+        width: 100%;
+        height: auto;
+    }
+}
+
+// Room for the controls first on a narrow bar.
+@media (max-width: 1000px) {
+    #audio-player-bar .ap-track-info .ap-viz {
+        display: none;
+    }
+}
+
+@media (max-width: 760px) {
+    #player-now-playing .np-viz {
+        margin: 22px auto 0;
+    }
+}

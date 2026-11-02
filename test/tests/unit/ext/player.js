@@ -1117,3 +1117,196 @@ test('audio covers: a FLAC picture becomes the cover', async () => {
         assert.equal($('#ap-cover-img').getAttribute('src'), 'blob:1');
     });
 });
+
+// Web Audio, animation frames and 2D canvases, which jsdom lacks. `audioEnv`
+// says how the next audio context starts and what the analyser hears.
+const audioEnv = {startState: 'running', resumes: true, hidden: false, contexts: [], sources: [], frames: [], recorders: new Map(), level: 255};
+const recorderOf = canvas => audioEnv.recorders.get(canvas);
+const withAudio = async run => {
+    const saved = {
+        AudioContext: window.AudioContext,
+        requestAnimationFrame: window.requestAnimationFrame,
+        getContext: window.HTMLCanvasElement.prototype.getContext,
+        hidden: Object.getOwnPropertyDescriptor(document, 'hidden')
+    };
+    // jsdom reports a hidden page, where the visualizer rightly stays idle.
+    Object.defineProperty(document, 'hidden', {configurable: true, get: () => audioEnv.hidden});
+    window.AudioContext = class {
+        constructor() {
+            this.state = audioEnv.startState;
+            this.sampleRate = 48000;
+            this.destination = {};
+            audioEnv.contexts.push(this);
+        }
+        resume() {
+            if (!audioEnv.resumes) {
+                return Promise.reject(new Error('NotAllowedError'));
+            }
+            this.state = 'running';
+            return Promise.resolve();
+        }
+        createMediaElementSource(el) {
+            audioEnv.sources.push(el);
+            return {connect() {}};
+        }
+        createAnalyser() {
+            return {
+                fftSize: 0,
+                get frequencyBinCount() {
+                    return this.fftSize / 2;
+                },
+                connect() {},
+                // Loud bass, silence above.
+                getByteFrequencyData: arr => {
+                    arr.fill(0);
+                    arr.fill(audioEnv.level, 0, 8);
+                },
+                getByteTimeDomainData: arr => arr.forEach((unused, idx) => {
+                    arr[idx] = idx % 2 ? 255 : 0;
+                })
+            };
+        }
+    };
+    window.requestAnimationFrame = fn => {
+        audioEnv.frames.push(fn);
+        return audioEnv.frames.length;
+    };
+    window.HTMLCanvasElement.prototype.getContext = function getContext() {
+        if (!audioEnv.recorders.has(this)) {
+            const calls = [];
+            audioEnv.recorders.set(this, {
+                calls,
+                fillStyle: null,
+                createLinearGradient: () => ({addColorStop() {}}),
+                clearRect() {
+                    calls.length = 0;
+                },
+                fillRect(x, y, w, h) {
+                    calls.push({x, y, w, h, style: this.fillStyle});
+                }
+            });
+        }
+        return audioEnv.recorders.get(this);
+    };
+    try {
+        await run();
+    } finally {
+        window.AudioContext = saved.AudioContext;
+        window.requestAnimationFrame = saved.requestAnimationFrame;
+        window.HTMLCanvasElement.prototype.getContext = saved.getContext;
+        if (saved.hidden) {
+            Object.defineProperty(document, 'hidden', saved.hidden);
+        } else {
+            delete document.hidden;
+        }
+        // Pending frames are kept: a browser always delivers a requested one.
+    }
+};
+let frameTime = 1000;
+// Runs the pending animation frames, `count` times 50 ms apart.
+const runFrames = (count = 1) => {
+    for (let i = 0; i < count; i += 1) {
+        frameTime += 50;
+        const now = frameTime;
+        audioEnv.frames.splice(0).forEach(fn => fn(now));
+    }
+};
+const barCanvas = () => $('#ap-viz canvas');
+
+test('visualizer: a held-back audio context never takes the track', async () => {
+    const [a] = tracks('viz-held', 'a.mp3');
+    await withPlayer({}, [], async () => {
+        await withAudio(async () => {
+            audioEnv.startState = 'suspended';
+            audioEnv.resumes = false;
+            list(a);
+            press(a, 'play');
+            await settle();
+            assert.equal(audioEnv.contexts.length, 1);
+            assert.deepEqual(audioEnv.sources, [], 'not connected: the track keeps its sound');
+            assert.equal(audioEnv.frames.length, 0, 'nothing to draw');
+            assert.equal($('#ap-viz').classList.contains('hidden'), false, 'the place is there for a later start');
+        });
+    });
+});
+
+test('visualizer: the spectrum follows the sound, falls when paused, and stops', async () => {
+    const [a] = tracks('viz-live', 'a.mp3');
+    await withPlayer({}, [], async () => {
+        await withAudio(async () => {
+            audioEnv.resumes = true;
+            list(a);
+            press(a, 'play');
+            await settle();
+            assert.deepEqual(audioEnv.sources, [audio()], 'a later click starts the context and connects the track');
+            assert.equal(audioEnv.contexts.length, 1, 'one context for the page');
+
+            runFrames(2);
+            const bars = recorderOf(barCanvas()).calls.filter(call => call.w === 3 && call.h > 1);
+            assert.ok(bars.length > 0, 'bars drawn');
+            assert.equal(bars[0].x, 0, 'the bass bar is lit');
+            assert.equal(bars[0].h, 16, 'a full-scale bass fills the 16 rows');
+            assert.ok(bars.every(call => call.x % 4 === 0 && call.x < 76), 'Winamp layout: 19 bars, 4 pixels apart');
+
+            audio().pause();
+            runFrames(1);
+            assert.ok(audioEnv.frames.length > 0, 'still falling after the pause');
+            runFrames(60);
+            assert.equal(audioEnv.frames.length, 0, 'at rest: no frame requested any more');
+            assert.equal(recorderOf(barCanvas()).calls.length, 0, 'an empty display');
+        });
+    });
+});
+
+test('visualizer: a click cycles spectrum, oscilloscope and off, and is remembered', async () => {
+    const [a] = tracks('viz-modes', 'a.mp3');
+    await withPlayer({}, [], async () => {
+        await withAudio(async () => {
+            list(a);
+            press(a, 'play');
+            await settle();
+            const button = $('#ap-viz');
+            assert.equal(button.getAttribute('title'), 'Spectrum analyser (click to change)');
+
+            button.click();
+            assert.equal(button.getAttribute('title'), 'Oscilloscope (click to change)');
+            assert.equal($('#np-viz').getAttribute('title'), 'Oscilloscope (click to change)', 'both displays share the mode');
+            runFrames(2);
+            const columns = recorderOf(barCanvas()).calls;
+            assert.equal(columns.length, 75, 'one column per pixel');
+            assert.equal(columns[1].h, 16, 'a full swing joins top and bottom');
+
+            button.click();
+            runFrames(1);
+            assert.equal(audioEnv.frames.length, 0, 'off: no frame at all');
+            assert.equal(store.get('ext/player').visualizer, 'off');
+            button.click();
+            assert.equal(store.get('ext/player').visualizer, 'spectrum');
+        });
+    });
+});
+
+test('visualizer: only for tracks, and drawn in the large view while it is open', async () => {
+    const [a] = tracks('viz-video', 'a.mp3');
+    const [clip] = videos('viz-video', 'clip.mp4');
+    await withPlayer({}, [], async () => {
+        await withAudio(async () => {
+            await withVideoMetadata(async () => {
+                list(a, clip);
+                press(a, 'play');
+                await settle();
+                $('#ap-cover-gradient').click();
+                await settle();
+                runFrames(2);
+                const large = recorderOf($('#np-viz canvas')).calls.filter(call => call.w === 3 && call.h > 1);
+                assert.ok(large.length > 0, 'the large view draws too');
+                assert.equal(large[0].h, 40, 'on its 40 rows');
+
+                press(clip, 'play');
+                await tick();
+                assert.ok($('#ap-viz').classList.contains('hidden'), 'no visualizer for a video');
+                $('#pv-bar-close').click();
+            });
+        });
+    });
+});
