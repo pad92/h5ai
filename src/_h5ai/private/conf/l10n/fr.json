@@ -73,6 +73,7 @@
     "playNext": "Lire ensuite",
     "addToQueue": "Ajouter à la file",
     "removeFromQueue": "Retirer de la file",
+    "moveInQueue": "Glisser, ou utiliser les flèches, pour déplacer",
     "nowPlaying": "En cours de lecture",
     "showNowPlaying": "Afficher la lecture en cours",
     "reduce": "Réduire",

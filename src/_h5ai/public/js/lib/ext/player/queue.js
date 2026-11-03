@@ -110,11 +110,33 @@ const createQueue = () => {
         return current;
     };
 
+    // Moves `entry` to position `index` of the play order: the queue's own
+    // order, or the shuffled one while shuffle is on, which leaves the
+    // queue's order for when shuffle goes off. False if nothing moved.
+    const move = (entry, index) => {
+        const seq = sequence();
+        const from = seq.indexOf(entry);
+        if (from === -1 || !Number.isInteger(index)) {
+            return false;
+        }
+        const to = Math.max(0, Math.min(index, seq.length - 1));
+        if (to === from) {
+            return false;
+        }
+        seq.splice(from, 1);
+        seq.splice(to, 0, entry);
+        return true;
+    };
+
     const clear = () => replace([]);
 
     return {
         get entries() {
             return entries.slice(0);
+        },
+        // The entries in the order they play.
+        get sequence() {
+            return sequence().slice(0);
         },
         get current() {
             return current;
@@ -132,6 +154,7 @@ const createQueue = () => {
         },
         add,
         insertNext,
+        move,
         remove,
         replace,
         clear,

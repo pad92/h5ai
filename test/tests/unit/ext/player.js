@@ -368,6 +368,139 @@ test('audio queue: the drawer jumps to and removes tracks', async () => {
     });
 });
 
+const handleOf = idx => $$('#aq-list-el .aq-item-handle')[idx];
+const key = (el, name) => el.dispatchEvent(new window.KeyboardEvent('keydown', {key: name, bubbles: true, cancelable: true}));
+const pointer = (target, type, clientY) => target.dispatchEvent(new window.PointerEvent(type, {bubbles: true, cancelable: true, button: 0, clientY}));
+// jsdom has no layout: each row is 40px high, at its place in the list.
+const layOutRows = () => {
+    const rows = $('#aq-list-el');
+    [...rows.children].forEach(row => {
+        row.getBoundingClientRect = () => {
+            const top = [...rows.children].indexOf(row) * 40;
+            return {top, bottom: top + 40, height: 40};
+        };
+    });
+    rows.parentNode.getBoundingClientRect = () => ({top: 0, bottom: 400, height: 400});
+};
+const savedQueue = () => reqlib('core/store').get('ext/player').queue;
+
+test('audio queue: the drawer is a card with the track count, closed by Escape', async () => {
+    await withPlayer({}, [], async () => {
+        const [x] = list(...tracks('aud-card', 'a.mp3', 'b.mp3', 'c.mp3'));
+        press(x, 'folder');
+        await settle();
+        assert.equal($('#aq-count').textContent, '3', 'counted while closed too');
+        $('#ap-queue-btn').click();
+        assert.equal($('#audio-queue-panel').getAttribute('role'), 'dialog');
+        assert.equal($('#aq-list-el .aq-item.active').getAttribute('aria-current'), 'true');
+
+        let reached = false;
+        const spy = () => { reached = true; };
+        window.addEventListener('keydown', spy);
+        key(handleOf(1), 'Escape');
+        window.removeEventListener('keydown', spy);
+        assert.equal($('#audio-queue-panel').classList.contains('active'), false);
+        assert.equal(document.activeElement, $('#ap-queue-btn'), 'the focus goes back to the queue button');
+        assert.equal(reached, false, 'Escape stops at the drawer: an open preview keeps its own');
+    });
+});
+
+test('audio queue: the keyboard moves and removes rows, and the queue is saved', async () => {
+    await withPlayer({}, [], async () => {
+        const [x, y, z] = list(...tracks('aud-keys', 'a.mp3', 'b.mp3', 'c.mp3'));
+        press(x, 'folder');
+        await settle();
+        $('#ap-queue-btn').click();
+
+        let reached = 0;
+        const spy = () => { reached += 1; };
+        window.addEventListener('keydown', spy);
+        try {
+            handleOf(0).focus();
+            key(handleOf(0), 'ArrowDown');
+            assert.deepEqual(queueNames(), labels([y, x, z]));
+            assert.equal(document.activeElement, handleOf(1), 'the focus follows the moved row');
+            assert.deepEqual(savedQueue(), [y.absHref, x.absHref, z.absHref], 'saved');
+
+            key(handleOf(1), 'End');
+            assert.deepEqual(queueNames(), labels([y, z, x]));
+            key(handleOf(2), 'ArrowDown');
+            assert.deepEqual(queueNames(), labels([y, z, x]), 'the last row stays last');
+            key(handleOf(2), 'Home');
+            assert.deepEqual(queueNames(), labels([x, y, z]));
+            key(handleOf(0), 'ArrowUp');
+            assert.deepEqual(queueNames(), labels([x, y, z]), 'the first row stays first');
+            assert.equal(reached, 0, 'the keys stop at the handle: an open preview does not move');
+
+            key(handleOf(1), 'Delete');
+            assert.deepEqual(queueNames(), labels([x, z]));
+            assert.equal(document.activeElement, handleOf(1), 'the focus goes to the row taking its place');
+            assert.equal(trackName(), x.label, 'the current track keeps playing');
+        } finally {
+            window.removeEventListener('keydown', spy);
+        }
+    });
+});
+
+test('audio queue: rows are dragged by their handle; a cancelled drag puts the row back', async () => {
+    await withPlayer({}, [], async () => {
+        const [x, y, z] = list(...tracks('aud-drag', 'a.mp3', 'b.mp3', 'c.mp3'));
+        press(x, 'folder');
+        await settle();
+        $('#ap-queue-btn').click();
+
+        layOutRows();
+        pointer(handleOf(0), 'pointerdown', 20);
+        assert.equal($('#aq-list-el .aq-item').classList.contains('aq-dragging'), true);
+        pointer(document, 'pointermove', 61);
+        assert.deepEqual(queueNames(), labels([y, x, z]), 'past the middle of the next row');
+        pointer(document, 'pointermove', 115);
+        assert.deepEqual(queueNames(), labels([y, z, x]));
+        assert.deepEqual(savedQueue(), [x.absHref, y.absHref, z.absHref], 'nothing changes before the release');
+        pointer(document, 'pointerup', 115);
+        assert.deepEqual(queueNames(), labels([y, z, x]));
+        assert.deepEqual(savedQueue(), [y.absHref, z.absHref, x.absHref]);
+        assert.equal($$('#aq-list-el .aq-dragging').length, 0);
+
+        layOutRows();
+        pointer(handleOf(2), 'pointerdown', 100);
+        pointer(document, 'pointermove', 5);
+        assert.deepEqual(queueNames(), labels([x, y, z]));
+        pointer(document, 'pointercancel', 5);
+        assert.deepEqual(queueNames(), labels([y, z, x]), 'cancelled: back in its place');
+        assert.deepEqual(savedQueue(), [y.absHref, z.absHref, x.absHref]);
+
+        pointer(document, 'pointermove', 5);
+        assert.deepEqual(queueNames(), labels([y, z, x]), 'the drag is over: the pointer moves nothing');
+        handleOf(0).click();
+        assert.equal(trackName(), x.label, 'a click on a handle does not jump to its track');
+    });
+});
+
+test('audio queue: while shuffled, the drawer lists and reorders the play order', async () => {
+    await withPlayer({}, [], async () => {
+        const [x, y, z, w] = list(...tracks('aud-shuffled', 'a.mp3', 'b.mp3', 'c.mp3', 'd.mp3'));
+        press(x, 'folder');
+        await settle();
+        $('#ap-queue-btn').click();
+
+        // Math.random() 0 deals the others as z, w, y after the current track.
+        Math.random = () => 0;
+        $('#ap-shuffle').click();
+        assert.deepEqual(queueNames(), labels([x, z, w, y]), 'the order they will play in');
+
+        key(handleOf(3), 'Home');
+        key(handleOf(0), 'ArrowDown');
+        assert.deepEqual(queueNames(), labels([x, y, z, w]));
+        $('#ap-next').click();
+        await settle();
+        assert.equal(trackName(), y.label, 'next follows the reordered play order');
+
+        $('#ap-shuffle').click();
+        assert.deepEqual(queueNames(), labels([x, y, z, w]), 'shuffle off: the queue order');
+    });
+});
+
 test('audio transport: prev, next and shuffle move through the queue', async () => {
     await withPlayer({}, [], async () => {
         const [x, y, z] = list(...tracks('aud-transport', 'a.mp3', 'b.mp3', 'c.mp3'));

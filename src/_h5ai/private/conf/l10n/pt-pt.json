@@ -73,6 +73,7 @@
     "playNext": "Reproduzir a seguir",
     "addToQueue": "Adicionar à fila",
     "removeFromQueue": "Remover da fila",
+    "moveInQueue": "Arraste ou utilize as setas para mover",
     "nowPlaying": "A reproduzir",
     "showNowPlaying": "Mostrar o que está a reproduzir",
     "reduce": "Reduzir",

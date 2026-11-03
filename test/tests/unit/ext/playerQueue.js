@@ -97,3 +97,47 @@ test('player queue: entries added while shuffled join the order', () => {
     assert.equal(queue.current, a, 'a new queue keeps shuffle on, from its first entry');
     assert.equal(queue.isShuffled, true);
 });
+
+test('player queue: move puts an entry at a position of the play order', () => {
+    const [a, b, c, d, e] = entries('a', 'b', 'c', 'd', 'e');
+    const queue = createQueue();
+    queue.replace([a, b, c, d], b);
+
+    assert.equal(queue.move(a, 2), true);
+    assert.deepEqual(names(queue.entries), ['b', 'c', 'a', 'd'], 'down');
+    assert.equal(queue.move(d, 0), true);
+    assert.deepEqual(names(queue.entries), ['d', 'b', 'c', 'a'], 'up, to the first place');
+    assert.equal(queue.move(d, 99), true);
+    assert.deepEqual(names(queue.entries), ['b', 'c', 'a', 'd'], 'past the end: the last place');
+    assert.equal(queue.move(b, -3), false, 'before the start: the first place, where it already is');
+
+    assert.equal(queue.move(c, 1), false, 'its own place: nothing moves');
+    assert.equal(queue.move(e, 0), false, 'an entry not queued');
+    assert.equal(queue.move(a, 1.5), false, 'not a position');
+    assert.deepEqual(names(queue.entries), ['b', 'c', 'a', 'd']);
+
+    assert.equal(queue.current, b, 'the current entry stays current');
+    queue.move(b, 3);
+    assert.equal(queue.current, b);
+    assert.equal(queue.next(false), null, 'moved last, nothing follows it');
+    assert.equal(queue.previous(), d);
+});
+
+test('player queue: while shuffled, move changes the play order only', () => {
+    const [a, b, c, d] = entries('a', 'b', 'c', 'd');
+    const queue = createQueue();
+    queue.replace([a, b, c, d], a);
+    // Math.random() 0 deals the others reversed after the current entry.
+    withRandom(0, () => queue.setShuffle(true));
+    assert.deepEqual(names(queue.sequence), ['a', 'c', 'd', 'b']);
+
+    assert.equal(queue.move(b, 1), true);
+    assert.deepEqual(names(queue.sequence), ['a', 'b', 'c', 'd']);
+    assert.equal(queue.next(false), b, 'next follows the new order');
+    assert.deepEqual(names(queue.entries), ['a', 'b', 'c', 'd'], 'the queue order is untouched');
+
+    queue.move(d, 0);
+    assert.deepEqual(names(queue.sequence), ['d', 'a', 'b', 'c']);
+    queue.setShuffle(false);
+    assert.deepEqual(names(queue.sequence), ['a', 'b', 'c', 'd'], 'off again, the queue order is back');
+});

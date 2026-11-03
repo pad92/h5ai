@@ -24,7 +24,10 @@ const ICONS = {
     repeat: 'M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z',
     loud: 'M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z',
     muted: 'M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.21.05-.42.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z',
-    queue: 'M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z'
+    queue: 'M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z',
+    exportQueue: 'M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z',
+    clearQueue: 'M15 16h4v2h-4zm0-8h7v2h-7zm0 4h6v2h-6zM3 18c0 1.1.9 2 2 2h6c1.1 0 2-.9 2-2V8H3v10zM14 5h-3l-1-1H6L5 5H2v2h12z',
+    drag: 'M11 18c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2zm-2-8c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0-6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm6 4c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z'
 };
 
 const svg = (path, attrs = '') => `<svg viewBox="0 0 24 24" ${attrs} fill="currentColor"><path d="${path}"/></svg>`;
@@ -83,14 +86,16 @@ const BAR_TPL = `
     </div>
 </div>`;
 
+// A card above the bar's queue button, not a full-height drawer: the
+// listing stays in view while the queue is open.
 const QUEUE_TPL = `
-<div class="audio-queue-panel" id="audio-queue-panel">
+<div class="audio-queue-panel" id="audio-queue-panel" role="dialog" aria-labelledby="aq-title">
     <div class="aq-header">
-        <h2 class="l10n-playQueue">Play Queue</h2>
+        <h2 id="aq-title"><span class="l10n-playQueue">Play Queue</span> <span class="aq-count" id="aq-count"></span></h2>
         <div class="aq-header-actions">
-            <button class="aq-btn-export l10n-exportQueue l10n_title-exportQueueHint" id="aq-export" title="Save the queue as a playlist for VLC, MPC or another player" disabled="disabled">Export</button>
-            <button class="aq-btn-clear l10n-clearQueue" id="aq-clear">Clear</button>
-            <button class="aq-btn-close l10n_aria-closeQueue" id="aq-close" aria-label="Close queue">&times;</button>
+            <button class="aq-btn-export l10n_title-exportQueueHint l10n_aria-exportQueue" id="aq-export" title="Save the queue as a playlist for VLC, MPC or another player" aria-label="Export" disabled="disabled">${svg(ICONS.exportQueue)}</button>
+            <button class="aq-btn-clear l10n_title-clearQueue l10n_aria-clearQueue" id="aq-clear" title="Clear" aria-label="Clear">${svg(ICONS.clearQueue)}</button>
+            <button class="aq-btn-close l10n_title-closeQueue l10n_aria-closeQueue" id="aq-close" title="Close queue" aria-label="Close queue">${crossSvg()}</button>
         </div>
     </div>
     <div class="aq-list-container">
@@ -255,18 +260,100 @@ const showCoverFallback = (item, isVideo) => {
     dom('#ap-cover-gradient').css({background: gradientFor(item.label)});
 };
 
+// The row of `item` in the open drawer, or null.
+const queueRows = () => [...global.window.document.querySelectorAll('#aq-list-el .aq-item')];
+const rowOf = item => queueRows().find(el => el._aqItem === item) || null;
+
+// After a keyboard move or removal the drawer is rebuilt: the focus goes
+// back to the handle of the moved row, or of the row now at `index`.
+const focusHandle = (item, index) => {
+    const rows = queueRows();
+    const row = item ? rowOf(item) : rows[Math.min(index, rows.length - 1)];
+    const handle = row && row.querySelector('.aq-item-handle');
+    if (handle) {
+        handle.focus();
+    }
+};
+
+// Drags the row with the pointer (mouse, pen or finger). The row moves in
+// the list as the pointer passes the middle of its neighbours; the queue
+// changes once, on release. Followed on the document: a finger leaves the
+// handle at once.
+const dragRow = (ev, li, item, from, onMove) => {
+    if (ev.button > 0) {
+        return;
+    }
+    ev.preventDefault();
+    const doc = global.window.document;
+    const list = li.parentNode;
+    const container = list.parentNode;
+    li.classList.add('aq-dragging');
+    list.classList.add('aq-sorting');
+
+    const follow = e => {
+        const before = [...list.children].filter(row => row !== li).find(row => {
+            const box = row.getBoundingClientRect();
+            return e.clientY < box.top + box.height / 2;
+        });
+        if (before) {
+            if (li.nextSibling !== before) {
+                list.insertBefore(li, before);
+            }
+        } else if (list.lastChild !== li) {
+            list.appendChild(li);
+        }
+        // Near an edge, the list scrolls to reach the rows out of view.
+        const box = container.getBoundingClientRect();
+        if (e.clientY < box.top + 24) {
+            container.scrollTop -= 12;
+        } else if (e.clientY > box.bottom - 24) {
+            container.scrollTop += 12;
+        }
+    };
+    const end = e => {
+        doc.removeEventListener('pointermove', follow);
+        doc.removeEventListener('pointerup', end);
+        doc.removeEventListener('pointercancel', end);
+        li.classList.remove('aq-dragging');
+        list.classList.remove('aq-sorting');
+        if (e.type === 'pointercancel') {
+            li.remove();
+            list.insertBefore(li, list.children[from] || null);
+            return;
+        }
+        onMove(item, [...list.children].indexOf(li));
+    };
+    doc.addEventListener('pointermove', follow);
+    doc.addEventListener('pointerup', end);
+    doc.addEventListener('pointercancel', end);
+};
+
+// The arrow keys move a row by one, Home and End to either end, Delete
+// removes it.
+const MOVE_KEYS = {
+    ArrowUp: from => from - 1,
+    ArrowDown: from => from + 1,
+    Home: () => 0,
+    End: (from, count) => count - 1
+};
+
 // The drawer is rebuilt only while it is open: opening it renders it again.
-// `opts`: {current, isVideo(item), coverFor(item), onSelect(item), onRemove(item)}.
+// `entries` in play order. `opts`: {current, isVideo(item), coverFor(item),
+// onSelect(item), onRemove(item), onMove(item, index)}.
 const renderQueue = (entries, opts) => {
     const $list = dom('#aq-list-el').clr();
     dom('#aq-export').prop('disabled', entries.length === 0);
+    dom('#aq-clear').prop('disabled', entries.length === 0);
+    dom('#aq-count').text(entries.length ? String(entries.length) : '');
     if (!isQueueOpen()) {
         return;
     }
-    entries.forEach(item => {
+    entries.forEach((item, index) => {
         const isVideo = opts.isVideo(item);
+        const isCurrent = item === opts.current;
         const $li = dom(`
-            <li class="aq-item${item === opts.current ? ' active' : ''}${isVideo ? ' aq-video' : ''}">
+            <li class="aq-item${isCurrent ? ' active' : ''}${isVideo ? ' aq-video' : ''}"${isCurrent ? ' aria-current="true"' : ''}>
+                <button class="aq-item-handle l10n_title-moveInQueue l10n_aria-moveInQueue" title="Drag, or use the arrow keys, to move" aria-label="Drag, or use the arrow keys, to move">${svg(ICONS.drag)}</button>
                 <div class="aq-item-cover" style="background: ${gradientFor(item.label)}">${svg(isVideo ? ICONS.film : ICONS.note, 'class="aq-cover-fallback"')}</div>
                 <div class="aq-item-details">
                     <p class="aq-item-name"></p>
@@ -274,6 +361,7 @@ const renderQueue = (entries, opts) => {
                 </div>
                 <button class="aq-item-remove l10n_title-removeFromQueue l10n_aria-removeFromQueue" title="Remove from queue" aria-label="Remove from queue">${crossSvg()}</button>
             </li>`);
+        $li[0]._aqItem = item;
         i18n.apply($li);
         $li.find('.aq-item-name').text(item.label);
         $li.find('.aq-item-folder').text(folderLabel(item));
@@ -291,7 +379,7 @@ const renderQueue = (entries, opts) => {
         }
 
         $li.on('click', ev => {
-            if (!ev.target.closest('.aq-item-remove')) {
+            if (!ev.target.closest('.aq-item-remove, .aq-item-handle')) {
                 opts.onSelect(item);
             }
         });
@@ -300,6 +388,29 @@ const renderQueue = (entries, opts) => {
             ev.preventDefault();
             opts.onRemove(item);
         });
+        $li.find('.aq-item-handle')
+            .on('pointerdown', ev => dragRow(ev, $li[0], item, index, opts.onMove))
+            .on('keydown', ev => {
+                // The preview listens to the arrow keys on the window.
+                if (ev.key === 'Delete') {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    opts.onRemove(item);
+                    focusHandle(null, index);
+                    return;
+                }
+                if (!MOVE_KEYS[ev.key]) {
+                    return;
+                }
+                ev.preventDefault();
+                ev.stopPropagation();
+                const to = MOVE_KEYS[ev.key](index, entries.length);
+                if (to < 0 || to >= entries.length) {
+                    return;
+                }
+                opts.onMove(item, to);
+                focusHandle(item);
+            });
         $list.app($li);
     });
 };
@@ -404,6 +515,15 @@ const mount = on => {
         on.queueToggled();
     });
     dom('#aq-close').on('click', () => setQueueOpen(false));
+    // Escape closes the drawer and gives the focus back to its button,
+    // without reaching an open preview or the large view below.
+    dom('#audio-queue-panel').on('keydown', ev => {
+        if (ev.key === 'Escape') {
+            ev.stopPropagation();
+            setQueueOpen(false);
+            dom('#ap-queue-btn')[0].focus();
+        }
+    });
     dom('#aq-export').on('click', on.exportQueue);
     dom('#aq-clear').on('click', on.clear);
     dom('#ap-close-btn').on('click', () => {

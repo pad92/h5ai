@@ -73,6 +73,7 @@
     "playNext": "次に再生",
     "addToQueue": "キューに追加",
     "removeFromQueue": "キューから削除",
+    "moveInQueue": "ドラッグまたは矢印キーで移動",
     "nowPlaying": "再生中",
     "showNowPlaying": "再生中の曲を表示",
     "reduce": "縮小",

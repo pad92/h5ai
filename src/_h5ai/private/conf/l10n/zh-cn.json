@@ -73,6 +73,7 @@
     "playNext": "下一首播放",
     "addToQueue": "添加到队列",
     "removeFromQueue": "从队列中移除",
+    "moveInQueue": "拖动或使用方向键移动",
     "nowPlaying": "正在播放",
     "showNowPlaying": "显示正在播放",
     "reduce": "缩小",
