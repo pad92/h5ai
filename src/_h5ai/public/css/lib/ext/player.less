@@ -422,6 +422,73 @@
     }
 }
 
+// On a narrow screen the three parts no longer get a third of the width
+// each: the title takes what is left, the volume goes (phones have their
+// own buttons) and the progress becomes a line along the top of the bar.
+@media (max-width: 760px) {
+    #audio-player-bar {
+        padding: 0 10px;
+        gap: 8px;
+
+        .ap-track-info {
+            width: auto;
+            min-width: 0;
+            flex: 1 1 auto;
+
+            .ap-track-cover {
+                width: 40px;
+                height: 40px;
+                margin-right: 10px;
+            }
+        }
+
+        .ap-controls-container {
+            width: auto;
+            min-width: 0;
+            flex: 0 0 auto;
+
+            .ap-control-buttons {
+                gap: 2px;
+                margin-bottom: 0;
+            }
+
+            .ap-progress-bar-container {
+                position: absolute;
+                top: -6px;
+                left: 0;
+                right: 0;
+                gap: 0;
+
+                .ap-time-current,
+                .ap-time-duration {
+                    display: none;
+                }
+            }
+        }
+
+        .ap-extra-controls {
+            width: auto;
+            min-width: 0;
+            flex: 0 0 auto;
+            gap: 2px;
+
+            .ap-volume-container {
+                display: none;
+            }
+        }
+    }
+}
+
+// Below 400px, shuffle and repeat give their room to the title.
+@media (max-width: 399px) {
+    #audio-player-bar .ap-controls-container .ap-control-buttons {
+        .ap-btn-shuffle,
+        .ap-btn-repeat {
+            display: none;
+        }
+    }
+}
+
 body[data-theme="dark"] #audio-player-bar {
     background: rgba(26, 26, 26, 0.8);
     border-top-color: rgba(255, 255, 255, 0.08);
