@@ -13,17 +13,17 @@ const settings = Object.assign({
 const overlayTpl =
         `<div id="pv-overlay">
             <div id="pv-container"></div>
-            <div id="pv-spinner"><img class="back" src="${resource.blankImage}" alt=""/><img class="spinner" src="${resource.image('spinner')}" alt="loading"/></div>
+            <div id="pv-spinner"><img class="back" src="${resource.blankImage}" alt=""/><img class="spinner l10n_alt-loading" src="${resource.image('spinner')}" alt="loading"/></div>
             <div id="pv-prev-area" class="hof"><img src="${resource.image('preview-prev')}" alt=""/></div>
             <div id="pv-next-area" class="hof"><img src="${resource.image('preview-next')}" alt=""/></div>
             <div id="pv-bottombar" class="clearfix hof">
                 <ul id="pv-buttons">
-                    <li id="pv-bar-close" class="bar-right bar-button"><img src="${resource.image('preview-close')}" alt="close"/></li>
-                    <li id="pv-bar-raw" class="bar-right"><a class="bar-button"><img src="${resource.image('preview-raw')}" alt="raw"/></a></li>
-                    <li id="pv-bar-fullscreen" class="bar-right bar-button"><img src="${resource.image('preview-fullscreen')}" alt="fullscreen"/></li>
-                    <li id="pv-bar-next" class="bar-right bar-button"><img src="${resource.image('preview-next')}" alt="next"/></li>
+                    <li id="pv-bar-close" class="bar-right bar-button"><img class="l10n_alt-close" src="${resource.image('preview-close')}" alt="close"/></li>
+                    <li id="pv-bar-raw" class="bar-right"><a class="bar-button"><img class="l10n_alt-raw" src="${resource.image('preview-raw')}" alt="raw"/></a></li>
+                    <li id="pv-bar-fullscreen" class="bar-right bar-button"><img class="l10n_alt-fullscreen" src="${resource.image('preview-fullscreen')}" alt="fullscreen"/></li>
+                    <li id="pv-bar-next" class="bar-right bar-button"><img class="l10n_alt-next" src="${resource.image('preview-next')}" alt="next"/></li>
                     <li id="pv-bar-idx" class="bar-right bar-label"></li>
-                    <li id="pv-bar-prev" class="bar-right bar-button"><img src="${resource.image('preview-prev')}" alt="previous"/></li>
+                    <li id="pv-bar-prev" class="bar-right bar-button"><img class="l10n_alt-previous" src="${resource.image('preview-prev')}" alt="previous"/></li>
                 </ul>
             </div>
         </div>`;

@@ -16,7 +16,7 @@ const crumbTpl =
             <span class="label"></span>
         </a>`;
 const pageHintTpl =
-        `<img class="hint" src="${resource.icon('folder-page')}" alt="has index page"/>`;
+        `<img class="hint l10n_alt-indexPage" src="${resource.icon('folder-page')}" alt="has index page"/>`;
 
 
 const createHtml = item => {

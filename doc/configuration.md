@@ -383,7 +383,12 @@ Here is an example translation file layout:
 }
 ```
 
+The example shows the first keys only: `en.json` lists all of them, for the listing, the sidebar, the previews and the audio player.
+
 - **`dateFormat`**: Defines the date/time display pattern (using tokens like `YYYY`, `MM`, `DD`, `HH`, `mm`).
-- **Other keys**: Standard translations used across the toolbar, sidebar, and headers.
+- **`%s`**: Some strings take a value, such as `vizSwitch` (`"%s (click to change)"`), where `%s` is the name of the current visualizer. Keep it in the translation.
+- **Other keys**: Standard translations used across the toolbar, sidebar, previews and player.
+
+A key missing from a language file is shown in English. German, Spanish, French, Italian, Japanese, Dutch, Polish, Brazilian and European Portuguese, Russian, and simplified and traditional Chinese translate every key; the other languages translate part of them.
 
 To add a new language translation, create a new file named `<code>.json` in the `l10n/` directory, translate the keys, and reference it via the `"l10n"` extension settings in `options.json`.

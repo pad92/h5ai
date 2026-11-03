@@ -6,17 +6,18 @@
 // cheap: the FFT runs natively, the canvas is a few thousand pixels scaled up
 // without smoothing, and nothing runs while paused, hidden, back on the cover
 // or on a video.
+const i18n = require('../../core/i18n');
 const viz = require('./vizmath');
 
 const {MODES, PSYCHEDELIC} = viz;
 // "off" shows the cover, where the cycle starts and ends.
 const MODE_LABELS = {
-    spectrum: 'Spectrum analyser',
-    scope: 'Oscilloscope',
-    plasma: 'Plasma',
-    kaleido: 'Kaleidoscope',
-    vortex: 'Vortex',
-    off: 'Cover'
+    spectrum: 'vizSpectrum',
+    scope: 'vizScope',
+    plasma: 'vizPlasma',
+    kaleido: 'vizKaleido',
+    vortex: 'vizVortex',
+    off: 'vizCover'
 };
 const FRAME_MS = 1000 / 30;
 // Each bar is 3 pixels wide with a 1-pixel gap, as in Winamp's 76x16 area.
@@ -308,7 +309,7 @@ const createVisualizer = ({audio, onModeChange}) => {
         }
     }
 
-    const describe = () => `${MODE_LABELS[mode]} (click to change)`;
+    const describe = () => i18n.t('vizSwitch', i18n.t(MODE_LABELS[mode]));
 
     function resetTrip(surface) {
         surface.trip = Object.assign(viz.createTrip(), {rest: 0, drawn: false});

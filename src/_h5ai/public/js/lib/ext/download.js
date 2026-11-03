@@ -13,7 +13,7 @@ const settings = Object.assign({
 }, allsettings.download);
 const tpl =
         `<div id="download" class="tool">
-            <img src="${resource.image('download')}" alt="download"/>
+            <img class="l10n_alt-download" src="${resource.image('download')}" alt="download"/>
         </div>`;
 let selectedItems = [];
 let $download;

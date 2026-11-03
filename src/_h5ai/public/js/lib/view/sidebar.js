@@ -12,7 +12,7 @@ const storekey = 'sidebarIsVisible';
 const sidebarTpl = '<div id="sidebar"></div>';
 const toggleTpl =
         `<div id="sidebar-toggle" class="tool">
-            <img alt="sidebar"/>
+            <img class="l10n_alt-sidebar" alt="sidebar"/>
         </div>`;
 
 

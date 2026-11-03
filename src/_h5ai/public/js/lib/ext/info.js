@@ -4,6 +4,7 @@ const event = require('../core/event');
 const format = require('../core/format');
 const resource = require('../core/resource');
 const allsettings = require('../core/settings');
+const i18n = require('../core/i18n');
 const store = require('../core/store');
 
 
@@ -37,7 +38,7 @@ const settingsTpl =
         `<div class="block">
             <h1 class="l10n-info">Info</h1>
             <div id="view-info" class="button view">
-                <img src="${resource.image('info-toggle')}" alt="view-info"/>
+                <img class="l10n_alt-info" src="${resource.image('info-toggle')}" alt="Info"/>
             </div>
         </div>`;
 const storekey = 'ext/info';
@@ -118,7 +119,8 @@ const update = item => {
             quiet: 1
         });
         // kjua creates the img without alt, which HTML requires.
-        qrImage.setAttribute('alt', 'QR code of the link');
+        qrImage.setAttribute('alt', i18n.t('qrCode'));
+        qrImage.classList.add('l10n_alt-qrCode');
         $qrcode.clr().app(qrImage);
     }
 };

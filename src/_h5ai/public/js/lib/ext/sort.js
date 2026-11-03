@@ -13,7 +13,7 @@ const settings = Object.assign({
     folders: 0
 }, allsettings.sort);
 const storekey = 'ext/sort';
-const tpl = `<img src="${resource.image('sort')}" class="sort" alt="sort order"/>`;
+const tpl = `<img src="${resource.image('sort')}" class="sort l10n_alt-sortOrder" alt="sort order"/>`;
 
 const getTypeOrder = item => item.isFolder() ? settings.folders : 1;
 const columnProps = {0: 'label', 1: 'time', 2: 'size'};

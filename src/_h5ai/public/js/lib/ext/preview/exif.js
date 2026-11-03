@@ -1,4 +1,5 @@
 const {escapeHtml} = require('../../util');
+const i18n = require('../../core/i18n');
 
 const formatShutterSpeed = exposureTime => {
     if (!exposureTime) {
@@ -110,7 +111,8 @@ const buildExifHtml = (tags, label) => {
     const date = formatDateTime(tags.DateTimeOriginal);
     const gpsLink = getGPSLink(tags);
     const lens = tags.LensModel || tags.Lens || null;
-    let html = '<div class="exif-header">Photo Details</div>';
+    const {t} = i18n;
+    let html = `<div class="exif-header l10n-photoDetails">${escapeHtml(t('photoDetails'))}</div>`;
     html += `<div class="exif-item"><span class="exif-icon">📄</span><span class="exif-value">${escapeHtml(label)}</span></div>`;
     if (camera) {
         html += `<div class="exif-item"><span class="exif-icon">📷</span><span class="exif-value">${escapeHtml(camera)}</span></div>`;
@@ -122,18 +124,18 @@ const buildExifHtml = (tags, label) => {
         html += `<div class="exif-item"><span class="exif-icon">📅</span><span class="exif-value">${escapeHtml(date)}</span></div>`;
     }
     if (gpsLink) {
-        html += `<div class="exif-item"><span class="exif-icon">📍</span><span class="exif-value"><a href="${escapeHtml(gpsLink)}" target="_blank">View on Google Maps</a></span></div>`;
+        html += `<div class="exif-item"><span class="exif-icon">📍</span><span class="exif-value"><a href="${escapeHtml(gpsLink)}" target="_blank" class="l10n-viewOnMap">${escapeHtml(t('viewOnMap'))}</a></span></div>`;
     }
     if (focalLength || aperture || shutterSpeed || iso) {
         html += '<div class="exif-grid">';
         if (focalLength) {
-            html += `<div class="exif-grid-item"><span class="exif-grid-label">Focal</span><span class="exif-grid-value">${focalLength}</span></div>`;
+            html += `<div class="exif-grid-item"><span class="exif-grid-label l10n-focal">${escapeHtml(t('focal'))}</span><span class="exif-grid-value">${focalLength}</span></div>`;
         }
         if (aperture) {
-            html += `<div class="exif-grid-item"><span class="exif-grid-label">Aperture</span><span class="exif-grid-value">${aperture}</span></div>`;
+            html += `<div class="exif-grid-item"><span class="exif-grid-label l10n-aperture">${escapeHtml(t('aperture'))}</span><span class="exif-grid-value">${aperture}</span></div>`;
         }
         if (shutterSpeed) {
-            html += `<div class="exif-grid-item"><span class="exif-grid-label">Shutter</span><span class="exif-grid-value">${shutterSpeed}</span></div>`;
+            html += `<div class="exif-grid-item"><span class="exif-grid-label l10n-shutter">${escapeHtml(t('shutter'))}</span><span class="exif-grid-value">${shutterSpeed}</span></div>`;
         }
         if (iso) {
             html += `<div class="exif-grid-item"><span class="exif-grid-label">ISO</span><span class="exif-grid-value">${iso}</span></div>`;

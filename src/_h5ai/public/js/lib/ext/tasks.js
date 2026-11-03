@@ -21,8 +21,8 @@ const TASKS = [
     {id: 'thumbs', label: 'taskThumbs', text: 'thumbnails'}
 ];
 const tpl =
-        `<div id="tasks" class="tool" role="status" tabindex="0" aria-label="tasks in progress">
-            <img src="${resource.image('tasks')}" alt="tasks"/>
+        `<div id="tasks" class="tool l10n_aria-tasks" role="status" tabindex="0" aria-label="tasks in progress">
+            <img src="${resource.image('tasks')}" alt=""/>
         </div>`;
 const panelTpl = `<div id="tasks-panel" class="hidden">${TASKS.map(task =>
     `<div class="task hidden" data-task="${task.id}">

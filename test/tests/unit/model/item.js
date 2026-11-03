@@ -997,21 +997,30 @@ test('localization selects a language and updates translated labels and date for
     const originalRequest = server.request;
     server.request = async () => ({l10n: {fr: {
         isoCode: 'fr', lang: 'français', dateFormat: 'DD/MM/YYYY', name: 'Nom',
-        download: 'télécharger'
+        download: 'télécharger', shuffle: 'Aléatoire'
     }}});
+    const i18n = reqlib('core/i18n');
+    const button = document.createElement('button');
+    button.className = 'l10n_title-shuffle';
+    document.body.appendChild(button);
     try {
         reqlib('ext/l10n');
         reqlib('core/event').pub('view.changed', [], []);
         await new Promise(resolve => setTimeout(resolve, 0));
         assert.equal(document.querySelector('.l10n-name').textContent, 'Nom');
         assert.equal(document.querySelector('.l10n_ph-search').getAttribute('placeholder'), 'search');
+        assert.equal(button.getAttribute('title'), 'Aléatoire', 'titles follow the language');
+        assert.equal(i18n.t('download'), 'télécharger', 'strings built in code follow the language');
         const selector = document.querySelector('#langs');
         assert.equal(selector.value, 'fr');
         selector.value = 'en';
         selector.dispatchEvent(new window.Event('change', {bubbles: true}));
         await Promise.resolve();
         assert.equal(document.querySelector('.l10n-name').textContent, 'Name');
+        assert.equal(button.getAttribute('title'), 'Shuffle');
+        assert.equal(i18n.t('download'), 'download');
     } finally {
+        button.remove();
         server.request = originalRequest;
     }
 });

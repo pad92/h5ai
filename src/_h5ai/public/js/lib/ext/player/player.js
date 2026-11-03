@@ -585,6 +585,13 @@ const createPlayer = ({audioTypes, videoTypes}) => {
             }
         };
         event.sub('preview.content', (item, el) => setVideoShown(!!el && el.id === 'pv-content-vid'));
+        // The cover's label is built from strings, not marked in the page;
+        // a closed view gets it again when it opens.
+        event.sub('l10n.changed', () => {
+            if (nowPlaying.isOpen()) {
+                nowPlaying.setSwitchable(hasVisualizer(), visualizer.label);
+            }
+        });
         event.sub('preview.exit', () => setVideoShown(false));
 
         session.bindActions({

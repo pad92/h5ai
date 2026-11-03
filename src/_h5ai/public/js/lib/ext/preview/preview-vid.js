@@ -1,12 +1,12 @@
 const {dom} = require('../../util');
 const allsettings = require('../../core/settings');
 const event = require('../../core/event');
+const i18n = require('../../core/i18n');
 const {addUnloadFn} = require('../../util/media');
 const preview = require('./preview');
 
 const CAST_ICON = '<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><path d="M1 18v3h3c0-1.66-1.34-3-3-3zm0-4v2c2.76 0 5 2.24 5 5h2c0-3.87-3.13-7-7-7zm0-4v2c4.97 0 9 4.03 9 9h2c0-6.08-4.92-11-11-11zm21-7H2c-1.1 0-2 .9-2 2v3h2V5h20v14h-9v2h9c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg>';
 
-const CAST_LABEL = 'Cast to a device';
 const MOVI_CAST_ID = 'h5ai-cast';
 
 // The browser owns device discovery and casting; h5ai only shows a button
@@ -78,7 +78,7 @@ const beforeUnload = (el, fn) => {
 
 // Native <video>: a button in the preview bar, next to the other bar buttons.
 const addCastButton = el => {
-    const $button = dom(`<li id="pv-bar-cast" class="bar-right bar-button hidden" role="button" tabindex="0" aria-label="${CAST_LABEL}" title="${CAST_LABEL}"/>`)
+    const $button = i18n.apply(dom('<li id="pv-bar-cast" class="bar-right bar-button hidden l10n_title-castToDevice l10n_aria-castToDevice" role="button" tabindex="0"/>'))
         .html(CAST_ICON);
     const cast = watchCastTargets(el, available => {
         if (available) {
@@ -131,7 +131,7 @@ const addMoviCastControl = player => {
         if (show) {
             player.addControl({
                 id: MOVI_CAST_ID,
-                label: CAST_LABEL,
+                label: i18n.t('castToDevice'),
                 icon: CAST_ICON,
                 // Movi's documented spot for a cast button: the top corner while
                 // watching, and a named row in the context menu.
@@ -233,7 +233,7 @@ const findSubtitleTracks = item => {
         tracks.push({
             src: child.absHref,
             format: match[2].toLowerCase(),
-            label: suffix ? suffix.toUpperCase() : 'Subtitles',
+            label: suffix ? suffix.toUpperCase() : i18n.t('subtitles'),
             // No language is guessed for an unsuffixed file.
             srclang: langMatch ? langMatch[1].toLowerCase() : ''
         });

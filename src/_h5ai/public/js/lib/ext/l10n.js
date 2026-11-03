@@ -2,6 +2,7 @@ const {each, isStr, dom} = require('../util');
 const server = require('../server');
 const event = require('../core/event');
 const format = require('../core/format');
+const i18n = require('../core/i18n');
 const langs = require('../core/langs');
 const allsettings = require('../core/settings');
 const store = require('../core/store');
@@ -12,32 +13,6 @@ const settings = Object.assign({
     lang: 'en',
     useBrowserLang: true
 }, allsettings.l10n);
-const defaultTranslations = {
-    isoCode: 'en',
-    lang: 'english',
-
-    dateFormat: 'YYYY-MM-DD HH:mm',
-    details: 'details',
-    download: 'download',
-    empty: 'empty',
-    files: 'files',
-    filter: 'filter',
-    folders: 'folders',
-    grid: 'grid',
-    icons: 'icons',
-    language: 'Language',
-    lastModified: 'Last modified',
-    name: 'Name',
-    noMatch: 'no match',
-    parentDirectory: 'Parent Directory',
-    search: 'search',
-    size: 'Size',
-    taskRefresh: 'folder sizes',
-    taskThumbs: 'thumbnails',
-    taskWarmer: 'cache warming',
-    tree: 'Tree',
-    view: 'View'
-};
 const blockTpl =
         `<div class="block">
             <h1 class="l10n-language">Language</h1>
@@ -47,8 +22,10 @@ const blockTpl =
         </div>`;
 const optionTpl = '<option/>';
 const storekey = 'ext/l10n';
+// Each language holds only its own strings: i18n.set() falls back to the
+// English defaults for the keys a language lacks.
 const loaded = {
-    en: Object.assign({}, defaultTranslations)
+    en: {isoCode: 'en'}
 };
 let currentLang = loaded.en;
 
@@ -62,11 +39,10 @@ const update = lang => {
     dom('#langs option').rmAttr(sel).rmProp(sel);
     dom('#langs .' + currentLang.isoCode).attr(sel, '').prop(sel, true);
 
-    each(currentLang, (value, key) => {
-        dom('.l10n-' + key).text(value);
-        dom('.l10n_ph-' + key).attr('placeholder', value);
-    });
-    format.setDefaultDateFormat(currentLang.dateFormat);
+    // The date format first: i18n.set() announces the change to listeners
+    // that may format dates.
+    format.setDefaultDateFormat(currentLang.dateFormat || i18n.defaults.dateFormat);
+    i18n.set(currentLang);
 
     dom('#items .item').each(el => {
         dom(el).find('.date').text(format.formatDate(el._item.time));
@@ -79,13 +55,9 @@ const loadLanguage = isoCode => {
     }
 
     return server.request({action: 'get', l10n: [isoCode]}).then(response => {
-        loaded[isoCode] = Object.assign({},
-            defaultTranslations,
-            response.l10n && response.l10n[isoCode],
-            {isoCode}
-        );
+        loaded[isoCode] = Object.assign({}, response.l10n && response.l10n[isoCode], {isoCode});
         return loaded[isoCode];
-    }).catch(() => Object.assign({}, defaultTranslations, {isoCode}));
+    }).catch(() => ({isoCode}));
 };
 
 const localize = (languages, isoCode, useBrowserLang) => {

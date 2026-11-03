@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+* **Translations**: the whole interface follows the chosen language, including tooltips, button labels for screen readers, the previews, the photo details, the audio player and the error notifications, and a language change updates them at once. German, Spanish, French, Italian, Japanese, Dutch, Polish, Brazilian and European Portuguese, Russian, and simplified and traditional Chinese translate every string; in the other languages the new strings read in English. `doc/configuration.md` describes the `%s` placeholder.
 * **Hidden files**: the default `view.hidden` list now also hides the metadata that Windows, macOS, Linux, Synology and QNAP leave in shared folders: `Thumbs.db`, `desktop.ini`, `$RECYCLE.BIN`, `System Volume Information`, `Icon\r`, `__MACOSX`, `lost+found`, `@eaDir`, `#recycle`, `#snapshot`, `@Recycle` and `@Recently-Snapshot`. `robots.txt` and `ads.txt` are now anchored: they used to hide any name containing them, such as `downloads.txt` or `uploads.txt`. A mounted `options.json` keeps its own list; copy the new entries into it.
 * **Thumbnails**:
     * Two requests for the same thumbnail at once, typically the page and the cache warmer started by the first visit, no longer make one of them answer without a thumbnail. A thumbnail was written in place, then given the date of its source: in between, the other request took it for stale and deleted it. It is now written to a temporary file that is renamed once dated.

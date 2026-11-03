@@ -140,7 +140,7 @@ const load = item => {
 
 const init = () => {
     if (settings.enabled) {
-        $infoBtn = dom(`<li id="pv-bar-info" class="bar-right bar-button"><img src="${resource.image('info-toggle')}" alt="photo details"/></li>`)
+        $infoBtn = dom(`<li id="pv-bar-info" class="bar-right bar-button"><img class="l10n_alt-photoDetails" src="${resource.image('info-toggle')}" alt="Photo Details"/></li>`)
             .hide()
             .appTo('#pv-buttons');
 

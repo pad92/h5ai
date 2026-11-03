@@ -16,7 +16,7 @@ const settings = Object.assign({
 }, allsettings.search);
 const tpl =
         `<div id="search" class="tool">
-            <img src="${resource.image('search')}" alt="search"/>
+            <img class="l10n_alt-search" src="${resource.image('search')}" alt="search"/>
             <input class="l10n_ph-search" type="text" value="search"/>
         </div>`;
 let inputIsVisible = false;
