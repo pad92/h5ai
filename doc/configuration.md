@@ -38,7 +38,7 @@ Customize the general look and feel of the index page.
 | `fastBrowsing` | `boolean` | `true` | Uses the HTML5 History API to navigate folders without reloading the whole page. |
 | `fonts` | `array` | `["Ubuntu", ...]` | Font family names for normal text. Ubuntu ships self-hosted (no `fonts.googleapis.com` request); other names fall back to whatever the browser/OS provides. |
 | `fontsMono` | `array` | `["Ubuntu Mono", ...]` | Font family names for monospace text. Ubuntu Mono ships self-hosted; other names fall back to whatever the browser/OS provides. |
-| `hidden` | `array` | `["^\\.", "^_h5ai", "robots.txt", "ads.txt"]` | Regular expressions matching files/directories that should be hidden from the index. The defaults hide dot-prefixed names, `_h5ai`, and names matching `robots.txt` or `ads.txt`; other names beginning with `_` remain visible unless you add a matching pattern. |
+| `hidden` | `array` | `["^\\.", "^_h5ai", ...]` | Regular expressions (PCRE) matching files and folders to leave out of listings, search, archives and thumbnails. Each pattern is tested against the name and against the URL path, so anchor it with `^...$` to match a whole name: `ads.txt` alone would also hide `downloads.txt`. Prefix it with `(?i)` to ignore case. The defaults hide dot-prefixed names, `_h5ai`, `robots.txt`, `ads.txt`, and the metadata that operating systems and NAS systems leave in shared folders (see below). Other names beginning with `_` remain visible unless you add a matching pattern. Hiding is not access control: the web server still serves a hidden file to anyone who knows its URL. |
 | `hideFolders` | `boolean` | `false` | Hides all folders from the main file listing. |
 | `hideIf403` | `boolean` | `true` | Hides files/folders that are unreadable by the web server (avoiding 403 Forbidden errors). |
 | `hideParentFolder` | `boolean` | `false` | Hides the link to navigate to the parent folder. |
@@ -51,13 +51,26 @@ Customize the general look and feel of the index page.
 | `unmanaged` | `array` | `["index.html", ...]` | If a folder contains any of these files, h5ai will not manage it, allowing default index pages to load instead. |
 | `unmanagedInNewWindow` | `boolean` | `false` | Opens unmanaged folder links in a new window/tab. |
 
+The default `hidden` list covers:
+
+| Source | Names |
+| :--- | :--- |
+| Windows | `Thumbs.db`, `ehthumbs.db`, `ehthumbs_vista.db`, `desktop.ini`, `$RECYCLE.BIN`, `System Volume Information` (any case for the first four) |
+| macOS | `.DS_Store`, `._*` files (dot-prefixed), `Icon\r` (custom folder icon), `__MACOSX` (left by ZIP extraction) |
+| Linux | `lost+found` |
+| Synology | `@eaDir` (indexing thumbnails), `#recycle`, `#snapshot` |
+| QNAP | `.@__thumb` (dot-prefixed), `@Recycle`, `@Recently-Snapshot` |
+
+A custom `options.json` replaces the whole list: copy the default entries
+into it before adding your own.
+
 ### Cache options (`cache`)
 
 Configure automatic background cache warming (for pre-generating thumbnails and calculating folder sizes persistently).
 
 | Key | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `warmAtStartup` | `boolean` | `false` | If `true`, triggers the cache warmer script in the background on request if it has not run recently. Keep disabled on large trees unless cache warming is scheduled deliberately. |
+| `warmAtStartup` | `boolean` | `true` | If `true`, a request starts the cache warmer in the background when it has not run for `warmInterval` seconds. The warmer walks the whole share, creates every missing thumbnail and computes folder sizes, so the first run on a large share keeps the CPU and the disks busy for a while, and each later run reads the whole tree again. Set it to `false` to keep disks idle, and run the warmer from a scheduled task instead (see below). |
 | `warmInterval` | `number` | `86400` | The execution interval in seconds for the background cache warmer (default is 24 hours). |
 
 Older releases named these options `warm_at_startup` and `warm_interval`; those names are still read when the new ones are absent.
@@ -80,8 +93,8 @@ Each extension under `options.json` can be enabled or disabled and has specific 
 
 #### `autorefresh`
 Automatically refreshes the current folder contents at a defined interval.
-- `enabled` (default: `false`): Enable autorefresh.
-- `interval` (default: `5000`): Refresh interval in milliseconds (minimum is `1000`).
+- `enabled` (default: `true`): Enable autorefresh.
+- `interval` (default: `5000`): Refresh interval in milliseconds (minimum is `1000`). A page in a background tab sends no request; it refreshes once when it becomes visible again, if a refresh was due.
 
 #### `crumb`
 Shows a clickable breadcrumb navigation at the top of the page.
@@ -134,8 +147,9 @@ Shows an informational sidebar displaying file/folder details on hover or select
 - `enabled` (default: `true`).
 - `show` (default: `false`): Shows the sidebar by default for first-time visitors.
 - `qrcode` (default: `true`): Generates and displays a QR code for the hovered/selected file URL.
-- `qrFill` (default: `"#999"`): QR code fill color.
+- `qrFill` (default: `"#212121"`): QR code fill color.
 - `qrBack` (default: `"#fff"`): QR code background color.
+- `qrFillDark`, `qrBackDark` (default: `"#212121"`, `"#e0e0e0"`): the same colors in the dark theme. Keep dark modules on a light background in both themes: many scanners do not read inverted codes.
 
 #### `l10n`
 Configures localization and language preferences.
@@ -146,7 +160,7 @@ Configures localization and language preferences.
 #### `piwik-analytics`
 Integrates Piwik (Matomo) tracking code.
 - `enabled` (default: `false`).
-- `baseURL` (default: `"some/url"`): The base URL to the Piwik instance, without protocol.
+- `baseURL` (default: `""`): The base URL to the Piwik instance, without protocol.
 - `idSite` (default: `1`): The site ID configured in Piwik.
 
 #### `preview-aud`
@@ -260,7 +274,7 @@ Defines default sorting criteria.
 #### `tasks`
 Shows a spinning gear in the toolbar while the cache warmer, the folder size refresh worker or the thumbnails of the current page are running. Hovering over it, or focusing it with the keyboard, lists each task with its progress and the estimated time left.
 The server tasks are estimated from their previous run, so a first run shows neither a percentage nor a time left. Every visitor sees these tasks, but never a file name or path.
-- `enabled` (default: `false`).
+- `enabled` (default: `true`).
 - `interval` (default: `3000`): polling interval in milliseconds while a server task runs (minimum `1000`).
 - `idleInterval` (default: `30000`): polling interval in milliseconds while no server task runs. A page in a background tab sends no request and checks again when it becomes visible.
 
@@ -269,7 +283,7 @@ Generates preview thumbnails for images, videos, and document files.
 > [!NOTE]
 > For document/video thumbnails, the server requires helper binaries (e.g., `ffmpeg`, `magick`) as listed in the requirements. The `_h5ai/private/cache` directory must also be writable by the web server.
 - `enabled` (default: `true`).
-- `img`: Array of image types to generate thumbnails for.
+- `img`: Array of image types to generate thumbnails for. SVG has none: the bundled ImageMagick policy disables that coder, and the listing shows the SVG icon instead. HEIC/HEIF needs ImageMagick built with libheif (the Docker image includes it), JPEG XL needs libjxl.
 - `mov`: Array of video types to generate thumbnails for.
 - `doc`: Array of document types to generate thumbnails for (e.g. PDF).
 - `ar`: Array of archive types to generate thumbnails for.

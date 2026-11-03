@@ -25,8 +25,20 @@
         "hidden": [
             "^\\.",
             "^_h5ai",
-            "robots.txt",
-            "ads.txt"
+            "^robots\\.txt$",
+            "^ads\\.txt$",
+            "(?i)^(eh)?thumbs(_vista)?\\.db$",
+            "(?i)^desktop\\.ini$",
+            "(?i)^\\$recycle\\.bin$",
+            "^System Volume Information$",
+            "^Icon\\r$",
+            "^__MACOSX$",
+            "^lost\\+found$",
+            "^@eaDir$",
+            "^#recycle$",
+            "^#snapshot$",
+            "^@Recycle$",
+            "^@Recently-Snapshot$"
         ],
         "hideFolders": false,
         "hideIf403": true,
@@ -97,10 +109,10 @@
         "enabled": true,
         "show": false,
         "qrcode": true,
-        "qrFill": "#999",
+        "qrFill": "#212121",
         "qrBack": "#fff",
-        "qrFillDark": "#fff",
-        "qrBackDark": "#212121"
+        "qrFillDark": "#212121",
+        "qrBackDark": "#e0e0e0"
     },
     "l10n": {
         "enabled": true,
@@ -109,7 +121,7 @@
     },
     "piwik-analytics": {
         "enabled": false,
-        "baseURL": "some/url",
+        "baseURL": "",
         "idSite": 1
     },
     "preview-aud": {
@@ -124,10 +136,13 @@
         "size": 1000,
         "types": [
             "img",
+            "img-avif",
             "img-bmp",
             "img-gif",
+            "img-heic",
             "img-ico",
             "img-jpg",
+            "img-jxl",
             "img-png",
             "img-raw",
             "img-svg",
@@ -155,7 +170,6 @@
             "txt-less": 3,
             "txt-license": 1,
             "txt-log": 1,
-            "txt-makefile": 1,
             "txt-md": 2,
             "txt-py": 3,
             "txt-rb": 3,
@@ -211,35 +225,42 @@
     "thumbnails": {
         "enabled": true,
         "img": [
+            "img",
+            "img-avif",
             "img-bmp",
             "img-gif",
+            "img-heic",
             "img-ico",
             "img-jpg",
+            "img-jxl",
             "img-png",
             "img-raw",
-            "img-svg",
             "img-tiff",
             "img-webp"
         ],
         "mov": [
+            "vid",
             "vid-avi",
-            "vid-mkv",
             "vid-flv",
-            "vid-swf",
+            "vid-mkv",
             "vid-mov",
             "vid-mp4",
             "vid-mpg",
+            "vid-rm",
+            "vid-swf",
+            "vid-ts",
+            "vid-vob",
             "vid-webm",
-            "vid-wmv",
-            "vid-ts"
+            "vid-wmv"
         ],
         "doc": [
             "x-pdf",
             "x-ps"
         ],
         "ar": [
-            "ar-zip",
-            "ar-rar"
+            "ar-cbr",
+            "ar-rar",
+            "ar-zip"
         ],
         "aud": [
             "aud"

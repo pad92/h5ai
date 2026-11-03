@@ -205,6 +205,7 @@ docker-test: docker-build
 	docker rm -f h5ai-test-noauth
 	sh test/docker/test-php-tar.sh $(TEST_IMAGE) $(TEST_HOST)
 	sh test/docker/test-document-thumbs.sh $(TEST_IMAGE) $(TEST_HOST)
+	sh test/docker/test-media-thumbs.sh $(TEST_IMAGE) $(TEST_HOST)
 	sh test/docker/test-w3c.sh $(TEST_IMAGE)
 	@echo "Testing container with basic authentication..."
 	$(TEST_RUN) --name h5ai-test-auth -e ENV_U=admin -e ENV_P=secret $(TEST_IMAGE)

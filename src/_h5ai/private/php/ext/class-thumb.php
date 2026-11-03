@@ -29,12 +29,18 @@ class Thumb {
     // Seek position, in seconds, when a video's duration cannot be probed.
     private const FALLBACK_SEEK = '0.1';
 
+    // Image types exif_imagetype() does not recognize: XPM, camera RAW (only
+    // the TIFF-based ones are), HEIC/HEIF and JPEG XL. Imagick decodes them,
+    // so the EXIF sniffing in capture_img() must not reject them. SVG has no
+    // server thumbnail: conf/magick/policy.xml disables that coder.
+    private const EXIF_BLIND_TYPES = ['img', 'img-heic', 'img-jxl', 'img-raw', 'img-webp'];
+
     public const HANDLED_TYPES = [
-        'img' => ['img', 'img-bmp', 'img-jpg', 'img-gif', 'img-png', 'img-raw', 'img-tiff', 'img-svg', 'img-webp'],
-        'mov' => ['vid-mp4', 'vid-webm', 'vid-rm', 'vid-mpg', 'vid-avi', 'vid-mkv', 'vid-mov'],
+        'img' => ['img', 'img-avif', 'img-bmp', 'img-heic', 'img-ico', 'img-jpg', 'img-jxl', 'img-gif', 'img-png', 'img-raw', 'img-tiff', 'img-webp'],
+        'mov' => ['vid', 'vid-mp4', 'vid-webm', 'vid-rm', 'vid-mpg', 'vid-avi', 'vid-mkv', 'vid-mov', 'vid-ts', 'vid-vob', 'vid-wmv'],
         'doc' => ['x-ps', 'x-pdf'],
         'swf' => ['vid-swf', 'vid-flv'],
-        'ar-zip' => ['ar', 'ar-zip', 'ar-cbr'],
+        'ar-zip' => ['ar-zip', 'ar-cbr'],
         'ar-rar' => ['ar-rar'],
         'aud' => ['aud'],
         'file' => ['file'],
@@ -246,14 +252,30 @@ class Thumb {
         return $thumb_href;
     }
 
-    // A new thumbnail takes the mtime of its source: thumb() serves it while
-    // both match. Its source is recorded for prune_orphans().
+    // Records the source of a new thumbnail for prune_orphans().
     private function stamp(?string $thumb_href): ?string {
         if ($thumb_href !== null) {
-            @touch($this->thumb_path, (int) $this->mtime);
             $this->db->record_source($this->source_hash, $this->source_path);
         }
         return $thumb_href;
+    }
+
+    // A file next to the thumbnail, outside the thumb-*.webp names.
+    private function temp_thumb_path(): string {
+        return $this->thumb_path . '.' . bin2hex(random_bytes(6)) . '.tmp';
+    }
+
+    // Moves a written thumbnail into place with the mtime of its source,
+    // which thumb() compares to tell a current thumbnail from a stale one.
+    // Writing in place left a window where another request or the cache
+    // warmer saw a half-written file, or one without that mtime, took it as
+    // stale and deleted it under the writer, which then answered null.
+    private function publish(string $tmp): bool {
+        if (!is_file($tmp) || !@touch($tmp, (int) $this->mtime) || !@rename($tmp, $this->thumb_path)) {
+            @unlink($tmp);
+            return false;
+        }
+        return true;
     }
 
     // Caches a corrected type or a capture error for this source.
@@ -270,7 +292,9 @@ class Thumb {
             return null;
         }
         $this->image->thumb($width, $height);
-        $this->image->save_dest_webp($this->thumb_path, 80);
+        $tmp = $this->temp_thumb_path();
+        $this->image->save_dest_webp($tmp, 80);
+        $this->publish($tmp);
 
         if ($this->thumb_path !== null && file_exists($this->thumb_path)) {
             return $this->thumb_href;
@@ -330,7 +354,12 @@ class Thumb {
     }
 
     private function capture_img(): bool|string {
-        if ($this->setup->get('HAS_PHP_EXIF') && !in_array($this->type->name, ['img-raw', 'img-svg', 'img-webp'], true)) {
+        // The image preview asks for a sample with the generic "img" type:
+        // the file name tells the actual format.
+        $type = $this->type->name === 'img'
+            ? $this->context->get_type_matcher()->type_of_name(basename($this->source_path))
+            : $this->type->name;
+        if ($this->setup->get('HAS_PHP_EXIF') && !in_array($type, self::EXIF_BLIND_TYPES, true)) {
             $exiftype = exif_imagetype($this->source_path);
             if (!$exiftype) {
                 return false;
@@ -459,6 +488,7 @@ class Thumb {
         }
 
         if (is_string($source) && class_exists('Imagick')) {
+            $tmp = null;
             try {
                 $im = new \Imagick();
                 $im->setResourceLimit(\Imagick::RESOURCETYPE_MEMORY, 128 * 1024 * 1024);
@@ -492,12 +522,16 @@ class Thumb {
                 $im->setImageFormat('webp');
                 $im->setImageCompressionQuality(80);
                 $im->stripImage();
-                $im->writeImage($this->thumb_path);
+                $tmp = $this->temp_thumb_path();
+                $written = $im->writeImage($tmp);
                 $im->clear();
                 $im->destroy();
                 fclose($capture_data);
-                return true;
+                return $written && $this->publish($tmp);
             } catch (\Exception) {
+                if ($tmp !== null) {
+                    @unlink($tmp);
+                }
                 // fall through to GD
             }
         }

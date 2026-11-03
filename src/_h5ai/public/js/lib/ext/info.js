@@ -11,7 +11,12 @@ const settings = Object.assign({
     enabled: false,
     show: false,
     qrcode: true,
-    qrColor: '#999'
+    // Dark modules on a light background in both themes: many scanners do
+    // not read inverted codes.
+    qrFill: '#212121',
+    qrBack: '#fff',
+    qrFillDark: '#212121',
+    qrBackDark: '#e0e0e0'
 }, allsettings.info);
 const tpl =
         `<div id="info">
@@ -101,8 +106,8 @@ const update = item => {
     if (settings.qrcode) {
         const loc = global.window.location;
         const theme = document.body && document.body.getAttribute && document.body.getAttribute('data-theme');
-        const qFill = theme === 'dark' ? settings.qrFillDark || '#fff' : settings.qrFill || '#999';
-        const qBack = theme === 'dark' ? settings.qrBackDark || '#212121' : settings.qrBack || '#fff';
+        const qFill = theme === 'dark' ? settings.qrFillDark : settings.qrFill;
+        const qBack = theme === 'dark' ? settings.qrBackDark : settings.qrBack;
         const qrImage = kjua({
             render: 'image',
             size: 200,

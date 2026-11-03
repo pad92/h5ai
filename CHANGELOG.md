@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+* **Hidden files**: the default `view.hidden` list now also hides the metadata that Windows, macOS, Linux, Synology and QNAP leave in shared folders: `Thumbs.db`, `desktop.ini`, `$RECYCLE.BIN`, `System Volume Information`, `Icon\r`, `__MACOSX`, `lost+found`, `@eaDir`, `#recycle`, `#snapshot`, `@Recycle` and `@Recently-Snapshot`. `robots.txt` and `ads.txt` are now anchored: they used to hide any name containing them, such as `downloads.txt` or `uploads.txt`. A mounted `options.json` keeps its own list; copy the new entries into it.
+* **Thumbnails**:
+    * Two requests for the same thumbnail at once, typically the page and the cache warmer started by the first visit, no longer make one of them answer without a thumbnail. A thumbnail was written in place, then given the date of its source: in between, the other request took it for stale and deleted it. It is now written to a temporary file that is renamed once dated.
+    * ICO, WMV and MTS/M2TS files get the thumbnails the default options already asked for; the server had no handler for them. AVIF, HEIC/HEIF, JPEG XL, XPM, VOB, RealMedia, OGV and 3GP get thumbnails too, and so do comic books (`.cbz`, `.cbr`), which the README announced but the options left out. The Docker image adds `imagemagick-heic` for HEIC (about 4 MiB).
+    * SVG is no longer requested: the ImageMagick policy disables that coder, so the request could never succeed.
+    * The image preview's server copy, used when the browser cannot decode a file, now works for HEIC, JPEG XL and XPM; the EXIF check rejected them before Imagick could read them.
+* **File types**: AVIF, HEIC/HEIF and JPEG XL open in the image preview. New audio extensions (`.aac`, `.m4b`, `.mka`, `.oga`, `.opus`, `.weba`), video ones (`.3gp`, `.3g2`, `.ogv`) and text ones (`.nfo`, `.srt`, `.vtt`). `README`, `LICENSE`, `COPYING`, `AUTHORS` and `INSTALL` without extension get the text preview their `preview-txt` styles were meant for. The MIME fragments used to identify a misnamed file are fixed: WMV (`video/x-ms-wmv`), MOV (`video/quicktime`), and gzip files are no longer taken for ZIP archives.
+* **Autorefresh**: a page in a background tab no longer refreshes its folder every 5 seconds; it refreshes once when it is shown again.
+* **QR code**: dark modules on a light background in both themes (`#212121` on `#fff`, and on `#e0e0e0` in the dark theme). The dark theme drew light modules on a dark background, which many scanners do not read, and the light theme used a pale grey.
+* **Default options**: `piwik-analytics.baseURL` is empty instead of the placeholder `some/url`, and the unused `txt-makefile` style is gone (`Makefile` is a script). `doc/configuration.md` now gives the shipped defaults of `cache.warmAtStartup`, `autorefresh.enabled` and `tasks.enabled` (all `true`), and describes what the cache warmer costs on a large share.
+* **Documentation**: `doc/installation.md` deploys the Docker image on Synology, QNAP, Unraid, TrueNAS SCALE, OpenMediaVault and Portainer.
+
 ## v1.5.1 - *2026-11-02*
 
 The `v1.5.0` tag points to the same code, but its build still reported version 1.4.1. This release only fixes the version number.

@@ -51,7 +51,7 @@ A click opens the file in an overlay; the arrow keys move to the next one.
 | | |
 | --- | --- |
 | ![Image preview](doc/screenshots/preview-image.webp) | ![Markdown preview](doc/screenshots/preview-markdown.webp) |
-| **Images**: JPEG, PNG, WebP, GIF, SVG, TIFF, BMP, with EXIF details for photos. | **Markdown** rendered, plus plain text, CSV and logs. |
+| **Images**: JPEG, PNG, WebP, AVIF, GIF, SVG, TIFF, BMP, plus HEIC, JPEG XL and camera RAW through a server-made copy, with EXIF details for photos. | **Markdown** rendered, plus plain text, CSV and logs. |
 | ![Source code preview](doc/screenshots/preview-code.webp) | ![Video preview](doc/screenshots/preview-video.webp) |
 | **Source code** highlighted: Python, JavaScript, TypeScript, Go, Rust, C/C++, SQL and more. | **Video**: MP4, WebM, MKV, MOV and MPEG, in a built-in player. |
 
@@ -132,8 +132,8 @@ See the [changelog](CHANGELOG.md) for the details of each release.
 ### Docker (recommended)
 
 The [`pad92/docker-h5ai`][dockerhub] image bundles Angie, PHP 8.4 and every
-thumbnail tool (ImageMagick with Ghostscript, ffmpeg, the PHP image
-extensions), supervised by s6-overlay.
+thumbnail tool (ImageMagick with Ghostscript and HEIC support, ffmpeg, the PHP
+image extensions), supervised by s6-overlay.
 
 ```bash
 # Protect the whole site with a password
@@ -154,7 +154,9 @@ A [`docker-compose.yml`](docker-compose.yml) example is included. It reads
 | `REAL_IP_FROM` | unset | Comma-separated CIDRs of trusted reverse proxies, to log and rate-limit the real client address. |
 | `REAL_IP_HEADER` | `X-Forwarded-For` | Header holding the client address when `REAL_IP_FROM` is set. |
 
-See [doc/administration.md](doc/administration.md) for the admin password and
+See [doc/installation.md](doc/installation.md) for step-by-step setups on
+Synology, QNAP, Unraid, TrueNAS SCALE, OpenMediaVault and Portainer, and
+[doc/administration.md](doc/administration.md) for the admin password and
 the diagnostic page.
 
 ### On your own web server

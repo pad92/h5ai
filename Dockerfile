@@ -63,7 +63,8 @@ ENV S6_CMD_WAIT_FOR_SERVICES_MAXTIME=30000
 ENV H5AI_ROOT_PATH=/share
 
 # Only extensions actually used by the h5ai PHP code are installed:
-# exif/gd/imagick (thumbnails), ghostscript (PDF/PostScript thumbnails through
+# exif/gd/imagick (thumbnails), imagemagick-heic (HEIC/HEIF photos from
+# phones, through libheif), ghostscript (PDF/PostScript thumbnails through
 # ImageMagick, about 20 MiB compressed), fileinfo (download mimetypes), mbstring,
 # session, sqlite3 (CacheDB uses the SQLite3 class, not PDO), zip
 # (ZipArchive) plus the tar/zip CLIs for packaged downloads.
@@ -73,6 +74,7 @@ RUN apk upgrade --no-cache && apk add --no-cache \
     ffmpeg \
     ghostscript \
     imagemagick \
+    imagemagick-heic \
     imagemagick-raw \
     libraw \
     php84 \
