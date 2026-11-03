@@ -18,7 +18,7 @@ final class CapturePipelineTest extends H5aiTestCase {
         $this->fakeTools(['convert' => "printf 'not an image'", 'ffmpeg' => "printf 'not an image'"]);
         $this->context = $this->context(
             ['thumbnails' => ['enabled' => true]],
-            ['HAS_PHP_FILEINFO' => extension_loaded('fileinfo'), 'HAS_CMD_CONVERT' => true, 'HAS_CMD_FFMPEG' => true],
+            ['HAS_PHP_FILEINFO' => extension_loaded('fileinfo'), 'HAS_CMD_CONVERT' => true, 'HAS_CMD_GS' => true, 'HAS_CMD_FFMPEG' => true],
             ['x-pdf' => ['glob' => ['*.pdf']], 'vid-mp4' => ['glob' => ['*.mp4'], 'mime' => ['video/mp4']]],
         );
     }
@@ -38,7 +38,7 @@ final class CapturePipelineTest extends H5aiTestCase {
         $this->fakeTools(['magick' => "printf 'not an image'"]);
         $context = $this->context(
             ['thumbnails' => ['enabled' => true]],
-            ['HAS_CMD_MAGICK' => true, 'HAS_CMD_CONVERT' => true],
+            ['HAS_CMD_MAGICK' => true, 'HAS_CMD_CONVERT' => true, 'HAS_CMD_GS' => true],
             ['x-pdf' => ['glob' => ['*.pdf']]],
         );
         (new Thumb($context, $this->root('doc.pdf'), 'x-pdf'))->thumb(320, 240);
@@ -48,6 +48,67 @@ final class CapturePipelineTest extends H5aiTestCase {
             $this->toolLog('magick'),
             'operators must follow the input image for ImageMagick 7',
         );
+    }
+
+    // poppler's pdftoppm renders the first page of a PDF without Ghostscript.
+    // When it fails, ImageMagick still gets the file, for hosts that have
+    // Ghostscript; PostScript only ever goes to ImageMagick.
+    public function testPdfsAreRenderedWithPdftoppmFirst(): void {
+        $this->fakeTools(['pdftoppm' => "printf 'not an image'", 'magick' => "printf 'not an image'"]);
+        $this->write($this->root('doc.ps'), "%!PS-Adobe-3.0\n");
+        $context = $this->context(
+            ['thumbnails' => ['enabled' => true]],
+            ['HAS_CMD_PDFTOPPM' => true, 'HAS_CMD_MAGICK' => true, 'HAS_CMD_GS' => true],
+            ['x-pdf' => ['glob' => ['*.pdf']], 'x-ps' => ['glob' => ['*.ps']]],
+        );
+
+        (new Thumb($context, $this->root('doc.pdf'), 'x-pdf'))->thumb(320, 240);
+        self::assertSame(
+            '-f 1 -l 1 -singlefile -scale-to 1600 -jpeg -jpegopt quality=90 ' . $this->root('doc.pdf') . "\n",
+            $this->toolLog('pdftoppm'),
+            'the first page goes to stdout as a JPEG',
+        );
+        self::assertSame(1, $this->toolRuns('magick'), 'a failed pdftoppm falls back to ImageMagick');
+
+        $this->clearToolLogs();
+        (new Thumb($context, $this->root('doc.ps'), 'x-ps'))->thumb(320, 240);
+        self::assertSame(0, $this->toolRuns('pdftoppm'), 'pdftoppm does not read PostScript');
+        self::assertSame(1, $this->toolRuns('magick'));
+    }
+
+    // A page rendered by pdftoppm is the thumbnail: ImageMagick is not run.
+    #[RequiresPhpExtension('gd')]
+    public function testAPdftoppmPageIsTheThumbnail(): void {
+        $page = imagecreatetruecolor(32, 32);
+        ob_start();
+        imagejpeg($page);
+        $jpeg = $this->write($this->tmp . '/page.jpg', (string) ob_get_clean());
+        $this->fakeTools(['pdftoppm' => 'cat ' . escapeshellarg($jpeg), 'magick' => "printf 'not an image'"]);
+        $context = $this->context(
+            ['thumbnails' => ['enabled' => true]],
+            ['HAS_CMD_PDFTOPPM' => true, 'HAS_CMD_MAGICK' => true, 'HAS_CMD_GS' => true, 'HAS_PHP_WEBP' => function_exists('imagewebp')],
+            ['x-pdf' => ['glob' => ['*.pdf']]],
+        );
+        self::assertNotNull((new Thumb($context, $this->root('doc.pdf'), 'x-pdf'))->thumb(320, 240));
+        self::assertSame(1, $this->toolRuns('pdftoppm'));
+        self::assertSame(0, $this->toolRuns('magick'));
+    }
+
+    // ImageMagick reads PDF and PostScript through Ghostscript: without `gs`
+    // (the Docker image) it is not run at all, and a pdftoppm the probe did
+    // not find is not run either.
+    public function testWithoutGhostscriptImageMagickIsNotRun(): void {
+        $this->fakeTools(['pdftoppm' => "printf 'not an image'", 'magick' => "printf 'not an image'"]);
+        $this->write($this->root('doc.ps'), "%!PS-Adobe-3.0\n");
+        $context = $this->context(
+            ['thumbnails' => ['enabled' => true]],
+            ['HAS_CMD_PDFTOPPM' => false, 'HAS_CMD_MAGICK' => true, 'HAS_CMD_GS' => false],
+            ['x-pdf' => ['glob' => ['*.pdf']], 'x-ps' => ['glob' => ['*.ps']]],
+        );
+        self::assertNull((new Thumb($context, $this->root('doc.pdf'), 'x-pdf'))->thumb(320, 240));
+        self::assertNull((new Thumb($context, $this->root('doc.ps'), 'x-ps'))->thumb(320, 240));
+        self::assertSame(0, $this->toolRuns('pdftoppm'), 'pdftoppm runs only when the probe found it');
+        self::assertSame(0, $this->toolRuns('magick'), 'ImageMagick cannot read PDF or PostScript without gs');
     }
 
     // Fakes an ffmpeg that extracts a plain $color cover from any audio file.

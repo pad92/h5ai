@@ -38,7 +38,7 @@ Customize the general look and feel of the index page.
 | `fastBrowsing` | `boolean` | `true` | Uses the HTML5 History API to navigate folders without reloading the whole page. |
 | `fonts` | `array` | `["Ubuntu", ...]` | Font family names for normal text. Ubuntu ships self-hosted (no `fonts.googleapis.com` request); other names fall back to whatever the browser/OS provides. |
 | `fontsMono` | `array` | `["Ubuntu Mono", ...]` | Font family names for monospace text. Ubuntu Mono ships self-hosted; other names fall back to whatever the browser/OS provides. |
-| `hidden` | `array` | `["^\\.", "^_h5ai", "robots.txt", "ads.txt"]` | Regular expressions matching files/directories that should be hidden from the index. The defaults hide dot-prefixed names, `_h5ai`, and names matching `robots.txt` or `ads.txt`; other names beginning with `_` remain visible unless you add a matching pattern. |
+| `hidden` | `array` | `["^\\.", "^_h5ai", ...]` | Regular expressions (PCRE) matching files and folders to leave out of listings, search, archives and thumbnails. Each pattern is tested against the name and against the URL path, so anchor it with `^...$` to match a whole name: `ads.txt` alone would also hide `downloads.txt`. Prefix it with `(?i)` to ignore case. The defaults hide dot-prefixed names, `_h5ai`, `robots.txt`, `ads.txt`, and the metadata that operating systems and NAS systems leave in shared folders (see below). Other names beginning with `_` remain visible unless you add a matching pattern. Hiding is not access control: the web server still serves a hidden file to anyone who knows its URL. |
 | `hideFolders` | `boolean` | `false` | Hides all folders from the main file listing. |
 | `hideIf403` | `boolean` | `true` | Hides files/folders that are unreadable by the web server (avoiding 403 Forbidden errors). |
 | `hideParentFolder` | `boolean` | `false` | Hides the link to navigate to the parent folder. |
@@ -46,10 +46,23 @@ Customize the general look and feel of the index page.
 | `modes` | `array` | `["details", "grid", "icons"]` | Enabled view modes. The first one is the default. If only one is specified, the selector is hidden. The user's selection is stored in browser local storage. |
 | `modeToggle` | `boolean`/`string` | `false` | Shows a toggle button for view modes in the toolbar. Can be `"next"`. |
 | `setParentFolderLabels`| `boolean` | `true` | Shows the actual parent folder name instead of just "Parent Folder". |
-| `sizes` | `array` | `[20, 40, ...]` | List of selectable icon/row sizes. The first one is the default. If only one is specified, the selector is hidden. The user's selection is stored in browser local storage. |
+| `sizes` | `array` | `[20, 40, ...]` | List of selectable icon/row sizes. The smallest one is the default. If only one is specified, the selector is hidden. The user's selection is stored in browser local storage. |
 | `theme` | `string` | `"default"` | Name of the folder under `_h5ai/public/images/themes` to use for file icons. |
 | `unmanaged` | `array` | `["index.html", ...]` | If a folder contains any of these files, h5ai will not manage it, allowing default index pages to load instead. |
 | `unmanagedInNewWindow` | `boolean` | `false` | Opens unmanaged folder links in a new window/tab. |
+
+The default `hidden` list covers:
+
+| Source | Names |
+| :--- | :--- |
+| Windows | `Thumbs.db`, `ehthumbs.db`, `ehthumbs_vista.db`, `desktop.ini`, `$RECYCLE.BIN`, `System Volume Information` (any case for the first four) |
+| macOS | `.DS_Store`, `._*` files (dot-prefixed), `Icon\r` (custom folder icon), `__MACOSX` (left by ZIP extraction) |
+| Linux | `lost+found` |
+| Synology | `@eaDir` (indexing thumbnails), `#recycle`, `#snapshot` |
+| QNAP | `.@__thumb` (dot-prefixed), `@Recycle`, `@Recently-Snapshot` |
+
+A custom `options.json` replaces the whole list: copy the default entries
+into it before adding your own.
 
 ### Cache options (`cache`)
 
@@ -57,7 +70,7 @@ Configure automatic background cache warming (for pre-generating thumbnails and 
 
 | Key | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `warmAtStartup` | `boolean` | `false` | If `true`, triggers the cache warmer script in the background on request if it has not run recently. Keep disabled on large trees unless cache warming is scheduled deliberately. |
+| `warmAtStartup` | `boolean` | `true` | If `true`, a request starts the cache warmer in the background when it has not run for `warmInterval` seconds. The warmer walks the whole share, creates every missing thumbnail and computes folder sizes, so the first run on a large share keeps the CPU and the disks busy for a while, and each later run reads the whole tree again. Set it to `false` to keep disks idle, and run the warmer from a scheduled task instead (see below). |
 | `warmInterval` | `number` | `86400` | The execution interval in seconds for the background cache warmer (default is 24 hours). |
 
 Older releases named these options `warm_at_startup` and `warm_interval`; those names are still read when the new ones are absent.
@@ -80,8 +93,8 @@ Each extension under `options.json` can be enabled or disabled and has specific 
 
 #### `autorefresh`
 Automatically refreshes the current folder contents at a defined interval.
-- `enabled` (default: `false`): Enable autorefresh.
-- `interval` (default: `5000`): Refresh interval in milliseconds (minimum is `1000`).
+- `enabled` (default: `true`): Enable autorefresh.
+- `interval` (default: `5000`): Refresh interval in milliseconds (minimum is `1000`). A page in a background tab sends no request; it refreshes once when it becomes visible again, if a refresh was due.
 
 #### `crumb`
 Shows a clickable breadcrumb navigation at the top of the page.
@@ -122,7 +135,7 @@ Allows the user to filter the files displayed in the current folder using a text
 #### `foldersize`
 Calculates and displays the sizes of directories.
 > [!WARNING]
-> This operation can significantly slow down directory loading speeds, especially on large folders.
+> Listings never wait for a folder size: they show the cached ones, and a background worker measures the rest. On large or slow storage, that worker and the cache warmer can still put a heavy load on the disks.
 - `enabled` (default: `true`).
 - `type` (default: `"shell-du"`): Can be `"php"` (slow, adds up sizes of files recursively in PHP) or `"shell-du"` (uses command line `du`, faster but still potentially expensive).
 - `backgroundTimeout` (default: `900`, maximum: `3600`): Maximum runtime in seconds of the `du` passes started by the CLI cache warmer and the background refresh worker. The cache warmer measures the whole share with a single `du` pass, so this limit must cover a full pass. No php-fpm limit applies to these workers, and cutting a genuinely large tree short would leave it permanently uncached and retried on every pass. Raise it if a full pass over your share needs longer.
@@ -134,8 +147,9 @@ Shows an informational sidebar displaying file/folder details on hover or select
 - `enabled` (default: `true`).
 - `show` (default: `false`): Shows the sidebar by default for first-time visitors.
 - `qrcode` (default: `true`): Generates and displays a QR code for the hovered/selected file URL.
-- `qrFill` (default: `"#999"`): QR code fill color.
+- `qrFill` (default: `"#212121"`): QR code fill color.
 - `qrBack` (default: `"#fff"`): QR code background color.
+- `qrFillDark`, `qrBackDark` (default: `"#212121"`, `"#e0e0e0"`): the same colors in the dark theme. Keep dark modules on a light background in both themes: many scanners do not read inverted codes.
 
 #### `l10n`
 Configures localization and language preferences.
@@ -146,7 +160,7 @@ Configures localization and language preferences.
 #### `piwik-analytics`
 Integrates Piwik (Matomo) tracking code.
 - `enabled` (default: `false`).
-- `baseURL` (default: `"some/url"`): The base URL to the Piwik instance, without protocol.
+- `baseURL` (default: `""`): The base URL to the Piwik instance, without protocol.
 - `idSite` (default: `1`): The site ID configured in Piwik.
 
 #### `preview-aud`
@@ -169,7 +183,7 @@ The cover shown in the bar comes from the file's server thumbnail, then from the
 
 For a track, a click on the bar's cover (or Enter on it) opens the now playing view over the whole page: the cover in full over a blurred copy of it, then the title, artist, album, year, genre and track number read from the file's tags (ID3 for MP3, Vorbis comments for FLAC), and the duration, format, average bit rate, size and file name. Missing tags fall back to the file name and the folder. The view follows the queue. The player is either large or small: the view takes the bar's controls in at its bottom, and the bar's own cover and title are hidden while it is open. The button at its top left or Escape reduce it. A video has no such view: it plays in the preview, and while a video is shown there the track pauses and the bar hides until the preview closes or shows something else.
 
-Tracks also get a visualizer in the style of the first Winamp releases, in the now playing view, in place of the large cover: a spectrum analyser of 38 log-spaced bands from 40 Hz to 16 kHz, with falling peaks, in the classic skin's colours, or an oscilloscope, drawn on a square of 151 pixels scaled up without smoothing. Three psychedelic modes follow them: a plasma of sine waves, a kaleidoscope of the spectrum mirrored into eight sectors, and a vortex of the wave bent into a ring, the last two over trails of their previous frames, turned and zoomed. The music speeds their colours and their motion up but never changes their brightness, so a beat swells instead of flashing; when the system asks for reduced motion, they are left out of the cycle. A click on the cover (or Enter on it) cycles cover, spectrum, oscilloscope, plasma, kaleidoscope and vortex, then back to the cover. The view opens on the cover, and the browser keeps the choice. The bar has no visualizer. It reads the sound through a Web Audio analyser, which needs the browser's audio context: that starts with the first play after a click, and until it does the track plays without visualizer. It costs little: the frequency analysis runs in the browser's native code, the canvas holds about 23,000 pixels, at most 30 frames a second are drawn, and nothing runs while paused, in a hidden tab, with the cover shown or the view reduced, or during a video.
+Tracks also get a visualizer in the style of the first Winamp releases, in the now playing view, in place of the large cover: a spectrum analyser of 38 log-spaced bands from 40 Hz to 16 kHz, with falling peaks, in the classic skin's colours, or an oscilloscope, drawn on a square of 151 pixels scaled up without smoothing. Three psychedelic modes follow them: a plasma of sine waves, a kaleidoscope of the spectrum mirrored into eight sectors, and a vortex of the wave bent into a ring, the last two over trails of their previous frames, turned and zoomed. The music speeds their colours and their motion up but never changes their brightness, so a beat swells instead of flashing; when the system asks for reduced motion, they are left out of the cycle. A click on the cover (or Enter on it) cycles cover, spectrum, oscilloscope, plasma, kaleidoscope and vortex, then back to the cover. The view opens on the cover, and the browser keeps the choice. The bar has no visualizer. It reads the sound through a Web Audio analyser, connected the first time a mode other than the cover is chosen: until then the track does not go through Web Audio at all. The analyser needs the browser's audio context, which starts with a click; until it does, the track plays without visualizer, and a context the browser suspends later (a call, a locked screen) is resumed while the track plays and on the next play. It costs little: the frequency analysis runs in the browser's native code, the canvas holds about 23,000 pixels, at most 30 frames a second are drawn, and nothing runs while paused, in a hidden tab, with the cover shown or the view reduced, or during a video.
 
 ##### Playing the queue in an external player
 
@@ -260,7 +274,7 @@ Defines default sorting criteria.
 #### `tasks`
 Shows a spinning gear in the toolbar while the cache warmer, the folder size refresh worker or the thumbnails of the current page are running. Hovering over it, or focusing it with the keyboard, lists each task with its progress and the estimated time left.
 The server tasks are estimated from their previous run, so a first run shows neither a percentage nor a time left. Every visitor sees these tasks, but never a file name or path.
-- `enabled` (default: `false`).
+- `enabled` (default: `true`).
 - `interval` (default: `3000`): polling interval in milliseconds while a server task runs (minimum `1000`).
 - `idleInterval` (default: `30000`): polling interval in milliseconds while no server task runs. A page in a background tab sends no request and checks again when it becomes visible.
 
@@ -269,7 +283,7 @@ Generates preview thumbnails for images, videos, and document files.
 > [!NOTE]
 > For document/video thumbnails, the server requires helper binaries (e.g., `ffmpeg`, `magick`) as listed in the requirements. The `_h5ai/private/cache` directory must also be writable by the web server.
 - `enabled` (default: `true`).
-- `img`: Array of image types to generate thumbnails for.
+- `img`: Array of image types to generate thumbnails for. SVG has none: the bundled ImageMagick policy disables that coder, and the listing shows the SVG icon instead. HEIC/HEIF needs ImageMagick built with libheif (the Docker image includes it), JPEG XL needs libjxl.
 - `mov`: Array of video types to generate thumbnails for.
 - `doc`: Array of document types to generate thumbnails for (e.g. PDF).
 - `ar`: Array of archive types to generate thumbnails for.
@@ -306,30 +320,23 @@ Shows a collapsible directory tree sidebar on the left.
 
 Located at [types.json](../src/_h5ai/private/conf/types.json).
 
-This file configures how **h5ai** classifies files. It is a JSON dictionary mapping a generic type name (used by CSS styling and previews) to an array of filename glob patterns.
+This file configures how **h5ai** classifies files. It is a JSON dictionary mapping a generic type name (used by CSS styling and previews) to an object with a `glob` array of filename patterns and, optionally, a `mime` array of MIME types. An entry without a `glob` array matches no file.
 
 ### Customizing types
 
 You can add custom file extensions to existing categories or define new file type groupings.
 
-For example, to configure Markdown files to be previewed as text-markdown, make sure `*.md` is in the `"txt-md"` array:
+For example, to configure Markdown files to be previewed as text-markdown, make sure `*.md` is in the `glob` array of `"txt-md"`:
 ```json
-"txt-md": [
-    "*.markdown",
-    "*.md"
-]
+"txt-md": {"glob": ["*.markdown", "*.md"]}
 ```
 
-To configure configurations like `.env` or `.yaml` to render as scripts:
+To configure files like `.env` or `.yaml` to render as scripts:
 ```json
-"txt-script": [
-    "*.conf",
-    "*.ini",
-    "*.yaml",
-    "*.yml",
-    ".gitignore"
-]
+"txt-script": {"glob": ["*.conf", "*.ini", "*.yaml", "*.yml", "*.env", ".gitignore"]}
 ```
+
+An entry replaces the shipped one as a whole: the shipped `txt-script` lists more patterns, so copy them over to keep them.
 
 ## 3. Localization (`l10n/` directory)
 
@@ -369,7 +376,12 @@ Here is an example translation file layout:
 }
 ```
 
+The example shows the first keys only: `en.json` lists all of them, for the listing, the sidebar, the previews and the audio player.
+
 - **`dateFormat`**: Defines the date/time display pattern (using tokens like `YYYY`, `MM`, `DD`, `HH`, `mm`).
-- **Other keys**: Standard translations used across the toolbar, sidebar, and headers.
+- **`%s`**: Some strings take a value, such as `vizSwitch` (`"%s (click to change)"`), where `%s` is the name of the current visualizer. Keep it in the translation.
+- **Other keys**: Standard translations used across the toolbar, sidebar, previews and player.
+
+A key missing from a language file is shown in English. German, Spanish, French, Italian, Japanese, Dutch, Polish, Brazilian and European Portuguese, Russian, and simplified and traditional Chinese translate every key; the other languages translate part of them.
 
 To add a new language translation, create a new file named `<code>.json` in the `l10n/` directory, translate the keys, and reference it via the `"l10n"` extension settings in `options.json`.

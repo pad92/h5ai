@@ -80,8 +80,9 @@ The `_h5ai/private/` directory contains configuration, password hashes and
 caches with filesystem paths. It must not be reachable over HTTP.
 
 * Apache 2.4 applies the bundled `_h5ai/.htaccess` deny rule and grants access
-  back only under `_h5ai/public/`. The virtual host must allow these access
-  directives with `AllowOverride AuthConfig` (or `AllowOverride All`).
+  back only under `_h5ai/public/`. The same file also sets headers, MIME types,
+  caching and options, so the virtual host needs `AllowOverride All`: with
+  `AuthConfig` alone, Apache answers 500.
 * nginx must include [`server/nginx.conf`](server/nginx.conf) in its server block.
 * Angie must include [`server/angie.conf`](server/angie.conf) in its server block.
 * lighttpd must include [`server/lighttpd.conf`](server/lighttpd.conf).
@@ -138,12 +139,12 @@ h5ai caches the command-line tools it finds in `_h5ai/private/cache/cmds.json`. 
 ### Commands
 
 * **Video thumbnails**: Verifies command line program `ffmpeg` or `avconv` is installed on the host, and shows the one h5ai uses (`ffmpeg` first). Required to capture frame previews from videos.
-* **Document thumbnails**: Shows the tool h5ai uses for PDF and PostScript files, and verifies hardened ImageMagick is installed: `magick` (ImageMagick 7), or `convert` on ImageMagick 6 hosts. h5ai uses `magick` whenever it is available. Rendering PDF and PostScript files also needs Ghostscript (`gs`), which this check does not detect; the Docker image includes it. GraphicsMagick is available only as an explicit compatibility fallback with `thumbnails.allowGraphicsMagick`; it does not use the bundled security policy.
+* **Document thumbnails**: Shows the tools h5ai uses for PDF and PostScript files, in the order it tries them. `pdftoppm` (poppler) renders PDF. Hardened ImageMagick, `magick` (ImageMagick 7) or `convert` on ImageMagick 6 hosts, renders PostScript and the PDF files `pdftoppm` cannot read; it is listed only when Ghostscript (`gs`) is installed too, since ImageMagick needs it for both formats. The Docker image ships `pdftoppm` and no Ghostscript, so it shows `pdftoppm` and renders no PostScript. GraphicsMagick is available only as an explicit compatibility fallback with `thumbnails.allowGraphicsMagick`; it does not use the bundled security policy.
 
 > [!NOTE]
 > **Media-processor hardening (SSRF/LFI).** Because thumbnails are generated from user-supplied files, h5ai applies defense-in-depth against crafted media that tries to make the processor reach the network or read arbitrary local files:
 > - `ffmpeg`/`avconv` are invoked with `-protocol_whitelist file,crypto,data`, blocking remote (e.g. HLS/concat/playlist) fetches.
-> - A restrictive ImageMagick policy is shipped at `_h5ai/private/conf/magick/policy.xml` and activated via the `MAGICK_CONFIGURE_PATH` environment variable (set automatically; it applies to the Imagick PHP extension and to `magick`/`convert`). It disables risky coders (`URL`, `HTTPS`, `MSL`, `SVG`, `MVG`, `EPHEMERAL`, ...) and external delegates, with one exception: `PDF`/PostScript stay readable and the Ghostscript delegate stays enabled so the documented `doc` thumbnails keep working. GraphicsMagick `gm` does not read this policy and is therefore disabled by default. Do not enable it or relax the policy unless you fully trust every file served. You can verify the ImageMagick policy with `MAGICK_CONFIGURE_PATH=/path/to/_h5ai/private/conf/magick magick -list policy`.
+> - A restrictive ImageMagick policy is shipped at `_h5ai/private/conf/magick/policy.xml` and activated via the `MAGICK_CONFIGURE_PATH` environment variable (set automatically; it applies to the Imagick PHP extension and to `magick`/`convert`). It disables risky coders (`URL`, `HTTPS`, `MSL`, `SVG`, `MVG`, `EPHEMERAL`, ...) and external delegates, with one exception: `PDF`/PostScript stay readable and the Ghostscript delegate stays enabled, so `doc` thumbnails work on hosts that install Ghostscript. The Docker image has none and renders PDF with `pdftoppm`. GraphicsMagick `gm` does not read this policy and is therefore disabled by default. Do not enable it or relax the policy unless you fully trust every file served. You can verify the ImageMagick policy with `MAGICK_CONFIGURE_PATH=/path/to/_h5ai/private/conf/magick magick -list policy`.
 
 * **tar / zip**: Check if system commands `tar` and `zip` are available. Recommended for fast packaged downloads.
 * **du**: Checks if system command `du` is available. Required if foldersize calculation type is set to `"shell-du"` in `options.json`.

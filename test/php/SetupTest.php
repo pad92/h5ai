@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 // Setup fails loudly and keeps its command cache (cmds.json) current.
 final class SetupTest extends H5aiTestCase {
-    private const ALL_CMDS = ['command', 'which', 'where', 'avconv', 'avprobe', 'convert', 'du', 'ffmpeg', 'ffprobe', 'gm', 'magick', 'tar', 'zip'];
+    private const ALL_CMDS = ['command', 'which', 'where', 'avconv', 'avprobe', 'convert', 'du', 'ffmpeg', 'ffprobe', 'gm', 'gs', 'magick', 'pdftoppm', 'tar', 'zip'];
 
     private ReflectionClass $class;
 

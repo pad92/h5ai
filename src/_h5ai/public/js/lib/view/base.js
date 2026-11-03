@@ -17,7 +17,7 @@ const init = () => {
                 <div id="toolbar"></div>
                 <div id="flowbar"></div>
                 <a id="backlink" href="https://github.com/pad92/h5ai/" title="${backlinkTitle}">
-                    <div>powered by h5ai</div>
+                    <div class="l10n-poweredBy">powered by h5ai</div>
                     <div>${versionText}</div>
                 </a>
             </div>`;

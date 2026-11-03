@@ -5,6 +5,7 @@
 // cover swaps it for the visualizer, and so on in a loop.
 const {dom} = require('../../util');
 const format = require('../../core/format');
+const i18n = require('../../core/i18n');
 const resource = require('../../core/resource');
 const base = require('../../view/base');
 const {getExt} = require('./formats');
@@ -13,9 +14,9 @@ const NOTE_ICON = 'M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 
 const COLLAPSE_ICON = 'M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z';
 
 const TPL = `
-<div id="player-now-playing" class="np-panel" role="region" aria-label="Now playing" inert="inert">
+<div id="player-now-playing" class="np-panel l10n_aria-nowPlaying" role="region" aria-label="Now playing" inert="inert">
     <div class="np-backdrop" id="np-backdrop"></div>
-    <button class="np-collapse" id="np-collapse" title="Reduce" aria-label="Reduce">
+    <button class="np-collapse l10n_title-reduce l10n_aria-reduce" id="np-collapse" title="Reduce" aria-label="Reduce">
         <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><path d="${COLLAPSE_ICON}"/></svg>
     </button>
     <div class="np-content">
@@ -25,7 +26,7 @@ const TPL = `
             <canvas class="np-viz-canvas" id="np-viz-canvas"></canvas>
         </div>
         <div class="np-info">
-            <p class="np-kicker">Now playing</p>
+            <p class="np-kicker l10n-nowPlaying">Now playing</p>
             <h2 class="np-title" id="np-title"></h2>
             <p class="np-artist" id="np-artist"></p>
             <p class="np-album" id="np-album"></p>
@@ -98,18 +99,18 @@ const render = ({item, tags, coverUrl, background, duration}) => {
     setText('#np-album', [tags.album || folder, tags.year].filter(Boolean).join(' · '));
 
     const rows = [
-        ['Genre', tags.genre],
-        ['Track', tags.track && formatTrack(tags.track)],
-        ['Album artist', tags.albumArtist !== tags.artist && tags.albumArtist],
-        ['Duration', formatDuration(duration)],
-        ['Format', getExt(item).toUpperCase()],
-        ['Bit rate', formatBitrate(item.size, duration)],
-        ['Size', format.formatSize(item.size)],
-        ['File', item.label]
+        ['genre', tags.genre],
+        ['track', tags.track && formatTrack(tags.track)],
+        ['albumArtist', tags.albumArtist !== tags.artist && tags.albumArtist],
+        ['duration', formatDuration(duration)],
+        ['format', getExt(item).toUpperCase()],
+        ['bitRate', formatBitrate(item.size, duration)],
+        ['size', format.formatSize(item.size)],
+        ['file', item.label]
     ].filter(([, value]) => value);
     const $details = dom('#np-details').clr();
-    rows.forEach(([term, value]) => {
-        $details.app(dom('<dt/>').text(term));
+    rows.forEach(([key, value]) => {
+        $details.app(i18n.mark(dom('<dt/>'), key, ['text']));
         $details.app(dom('<dd/>').text(value));
     });
 
@@ -166,6 +167,7 @@ const close = () => {
 const mount = on => {
     onClose = on.close;
     base.$root.app(TPL);
+    i18n.apply(dom('#player-now-playing'));
     dom('#np-collapse').on('click', close);
     const $cover = dom('#np-cover');
     $cover.on('keydown', ev => {

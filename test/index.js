@@ -47,6 +47,7 @@ require('./tests/unit/core/format');
 require('./tests/unit/core/location');
 require('./tests/unit/core/locationNavigation');
 require('./tests/unit/core/store-resource');
+require('./tests/unit/core/i18n');
 require('./tests/unit/model/item');
 require('./tests/unit/util/naturalCmp');
 require('./tests/unit/util/parsePattern');
@@ -72,5 +73,6 @@ require('./tests/unit/ext/playerViz');
 require('./tests/unit/ext/tasksProgress');
 require('./tests/unit/ext/select');
 require('./tests/unit/packageName');
+require('./tests/unit/runTests');
 
 pin_html();

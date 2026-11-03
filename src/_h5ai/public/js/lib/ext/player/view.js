@@ -6,6 +6,7 @@
 // The ids and classes keep their audio-era names (audio-player-bar, ap-*,
 // aq-*): custom style sheets may target them.
 const {dom, compact} = require('../../util');
+const i18n = require('../../core/i18n');
 const resource = require('../../core/resource');
 const base = require('../../view/base');
 
@@ -30,66 +31,66 @@ const svg = (path, attrs = '') => `<svg viewBox="0 0 24 24" ${attrs} fill="curre
 const crossSvg = size => `<svg viewBox="0 0 24 24"${size ? ` width="${size}" height="${size}"` : ''} fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
 const sized = size => `width="${size}" height="${size}"`;
 
-const REPEAT_LABELS = ['Repeat (Off)', 'Repeat (Queue)', 'Repeat (Song)'];
+const REPEAT_KEYS = ['repeatOff', 'repeatQueue', 'repeatTrack'];
 
 const BAR_TPL = `
 <div id="audio-player-bar">
     <div class="ap-track-info">
         <div class="ap-track-cover" id="ap-cover-gradient">
-            <img class="ap-cover-img hidden" id="ap-cover-img" src="${resource.blankImage}" alt="cover"/>
+            <img class="ap-cover-img hidden" id="ap-cover-img" src="${resource.blankImage}" alt=""/>
             ${svg(ICONS.note, 'id="ap-cover-fallback"')}
         </div>
         <div class="ap-track-details">
-            <p class="ap-track-name" id="ap-track-name-el">No Track</p>
-            <p class="ap-track-folder" id="ap-track-folder-el">Unknown Folder</p>
+            <p class="ap-track-name l10n-noTrack" id="ap-track-name-el">No Track</p>
+            <p class="ap-track-folder l10n-unknownFolder" id="ap-track-folder-el">Unknown Folder</p>
         </div>
     </div>
     <div class="ap-controls-container">
         <div class="ap-control-buttons">
-            <button class="ap-btn ap-btn-shuffle" id="ap-shuffle" title="Shuffle" aria-label="Shuffle">${svg(ICONS.shuffle, sized(16))}</button>
-            <button class="ap-btn ap-btn-prev" id="ap-prev" title="Previous" aria-label="Previous">${svg(ICONS.previous, sized(18))}</button>
-            <button class="ap-btn ap-btn-play-pause" id="ap-play-pause" title="Play/Pause" aria-label="Play/Pause">
+            <button class="ap-btn ap-btn-shuffle l10n_title-shuffle l10n_aria-shuffle" id="ap-shuffle" title="Shuffle" aria-label="Shuffle">${svg(ICONS.shuffle, sized(16))}</button>
+            <button class="ap-btn ap-btn-prev l10n_title-previousTrack l10n_aria-previousTrack" id="ap-prev" title="Previous" aria-label="Previous">${svg(ICONS.previous, sized(18))}</button>
+            <button class="ap-btn ap-btn-play-pause l10n_title-playPause l10n_aria-playPause" id="ap-play-pause" title="Play/Pause" aria-label="Play/Pause">
                 ${svg(ICONS.play, `class="play-icon" ${sized(20)}`)}
                 ${svg(ICONS.pause, `class="pause-icon" ${sized(20)}`)}
             </button>
-            <button class="ap-btn ap-btn-next" id="ap-next" title="Next" aria-label="Next">${svg(ICONS.next, sized(18))}</button>
-            <button class="ap-btn ap-btn-repeat" id="ap-repeat" title="${REPEAT_LABELS[0]}" aria-label="${REPEAT_LABELS[0]}">${svg(ICONS.repeat, sized(16))}</button>
+            <button class="ap-btn ap-btn-next l10n_title-nextTrack l10n_aria-nextTrack" id="ap-next" title="Next" aria-label="Next">${svg(ICONS.next, sized(18))}</button>
+            <button class="ap-btn ap-btn-repeat l10n_title-repeatOff l10n_aria-repeatOff" id="ap-repeat" title="Repeat (Off)" aria-label="Repeat (Off)">${svg(ICONS.repeat, sized(16))}</button>
         </div>
         <div class="ap-progress-bar-container">
             <span class="ap-time-current" id="ap-time-cur">0:00</span>
             <div class="ap-progress-slider-wrapper">
                 <div class="ap-progress-track"></div>
                 <div class="ap-progress-fill" id="ap-prog-fill"></div>
-                <input type="range" class="ap-progress-slider" id="ap-seek" aria-label="Seek" min="0" max="100" value="0"/>
+                <input type="range" class="ap-progress-slider l10n_aria-seek" id="ap-seek" aria-label="Seek" min="0" max="100" value="0"/>
             </div>
             <span class="ap-time-duration" id="ap-time-dur">0:00</span>
         </div>
     </div>
     <div class="ap-extra-controls">
         <div class="ap-volume-container">
-            <button class="ap-btn-volume" id="ap-volume-btn" title="Mute" aria-label="Mute">
+            <button class="ap-btn-volume l10n_title-mute l10n_aria-mute" id="ap-volume-btn" title="Mute" aria-label="Mute">
                 ${svg(ICONS.loud, `class="loud-icon" ${sized(18)}`)}
                 ${svg(ICONS.muted, `class="muted-icon" ${sized(18)}`)}
             </button>
             <div class="ap-volume-slider-wrapper">
                 <div class="ap-volume-track"></div>
                 <div class="ap-volume-fill" id="ap-vol-fill" style="width: 80%;"></div>
-                <input type="range" class="ap-volume-slider" id="ap-volume" aria-label="Volume" min="0" max="100" value="80"/>
+                <input type="range" class="ap-volume-slider l10n_aria-volume" id="ap-volume" aria-label="Volume" min="0" max="100" value="80"/>
             </div>
         </div>
-        <button class="ap-btn ap-btn-queue" id="ap-queue-btn" title="Toggle Queue" aria-label="Toggle Queue">${svg(ICONS.queue, sized(18))}</button>
-        <button class="ap-btn ap-btn-close" id="ap-close-btn" title="Stop and close player" aria-label="Stop and close player">${crossSvg(16)}</button>
+        <button class="ap-btn ap-btn-queue l10n_title-toggleQueue l10n_aria-toggleQueue" id="ap-queue-btn" title="Toggle Queue" aria-label="Toggle Queue">${svg(ICONS.queue, sized(18))}</button>
+        <button class="ap-btn ap-btn-close l10n_title-closePlayer l10n_aria-closePlayer" id="ap-close-btn" title="Stop and close player" aria-label="Stop and close player">${crossSvg(16)}</button>
     </div>
 </div>`;
 
 const QUEUE_TPL = `
 <div class="audio-queue-panel" id="audio-queue-panel">
     <div class="aq-header">
-        <h2>Play Queue</h2>
+        <h2 class="l10n-playQueue">Play Queue</h2>
         <div class="aq-header-actions">
-            <button class="aq-btn-export" id="aq-export" title="Save the queue as a playlist for VLC, MPC or another player" disabled="disabled">Export</button>
-            <button class="aq-btn-clear" id="aq-clear">Clear</button>
-            <button class="aq-btn-close" id="aq-close" aria-label="Close queue">&times;</button>
+            <button class="aq-btn-export l10n-exportQueue l10n_title-exportQueueHint" id="aq-export" title="Save the queue as a playlist for VLC, MPC or another player" disabled="disabled">Export</button>
+            <button class="aq-btn-clear l10n-clearQueue" id="aq-clear">Clear</button>
+            <button class="aq-btn-close l10n_aria-closeQueue" id="aq-close" aria-label="Close queue">&times;</button>
         </div>
     </div>
     <div class="aq-list-container">
@@ -99,10 +100,10 @@ const QUEUE_TPL = `
 
 const ROW_ACTIONS_TPL = `
 <span class="ap-item-actions">
-    <button class="ap-row-btn ap-row-play" title="Play Now" aria-label="Play Now">${svg(ICONS.play)}</button>
-    <button class="ap-row-btn ap-row-folder" title="Play folder from here" aria-label="Play folder from here">${svg(ICONS.playFolder)}</button>
-    <button class="ap-row-btn ap-row-next" title="Play Next" aria-label="Play Next">${svg(ICONS.playNext)}</button>
-    <button class="ap-row-btn ap-row-queue" title="Add to Queue" aria-label="Add to Queue">${svg(ICONS.add)}</button>
+    <button class="ap-row-btn ap-row-play l10n_title-playNow l10n_aria-playNow" title="Play Now" aria-label="Play Now">${svg(ICONS.play)}</button>
+    <button class="ap-row-btn ap-row-folder l10n_title-playFolder l10n_aria-playFolder" title="Play folder from here" aria-label="Play folder from here">${svg(ICONS.playFolder)}</button>
+    <button class="ap-row-btn ap-row-next l10n_title-playNext l10n_aria-playNext" title="Play Next" aria-label="Play Next">${svg(ICONS.playNext)}</button>
+    <button class="ap-row-btn ap-row-queue l10n_title-addToQueue l10n_aria-addToQueue" title="Add to Queue" aria-label="Add to Queue">${svg(ICONS.add)}</button>
 </span>`;
 
 const EQUALIZER_TPL = '<span class="ap-playing-equalizer"><span></span><span></span><span></span><span></span></span>';
@@ -155,14 +156,14 @@ const hideBar = () => {
 };
 
 const setEntry = item => {
-    dom('#ap-track-name-el').text(item.label).attr('title', item.label);
-    dom('#ap-track-folder-el').text(folderLabel(item));
+    i18n.mark(dom('#ap-track-name-el'), null, ['text']).text(item.label).attr('title', item.label);
+    i18n.mark(dom('#ap-track-folder-el'), null, ['text']).text(folderLabel(item));
 };
 
 const setError = isError => {
     if (isError) {
         dom('#audio-player-bar').addCls('ap-error');
-        dom('#ap-track-folder-el').text('Cannot play this file');
+        i18n.mark(dom('#ap-track-folder-el'), 'cannotPlay', ['text']);
     } else {
         dom('#audio-player-bar').rmCls('ap-error');
     }
@@ -186,7 +187,7 @@ const setShuffle = isOn => {
 
 // `mode`: 0 off, 1 queue, 2 song.
 const setRepeat = mode => {
-    const $btn = dom('#ap-repeat').attr('title', REPEAT_LABELS[mode]).attr('aria-label', REPEAT_LABELS[mode]);
+    const $btn = i18n.mark(dom('#ap-repeat'), REPEAT_KEYS[mode], ['title', 'aria']);
     if (mode) {
         $btn.addCls('active');
     } else {
@@ -229,10 +230,10 @@ const setExpandable = (isExpandable, isExpanded) => {
         $cover.addCls('ap-cover-expandable')
             .attr('role', 'button')
             .attr('tabindex', '0')
-            .attr('title', isExpanded ? 'Reduce' : 'Show now playing')
-            .attr('aria-label', isExpanded ? 'Reduce' : 'Show now playing')
             .attr('aria-expanded', isExpanded ? 'true' : 'false');
+        i18n.mark($cover, isExpanded ? 'reduce' : 'showNowPlaying', ['title', 'aria']);
     } else {
+        i18n.mark($cover, null, ['title', 'aria']);
         $cover.rmCls('ap-cover-expandable')
             .rmAttr('role')
             .rmAttr('tabindex')
@@ -271,8 +272,9 @@ const renderQueue = (entries, opts) => {
                     <p class="aq-item-name"></p>
                     <p class="aq-item-folder"></p>
                 </div>
-                <button class="aq-item-remove" title="Remove from queue" aria-label="Remove from queue">${crossSvg()}</button>
+                <button class="aq-item-remove l10n_title-removeFromQueue l10n_aria-removeFromQueue" title="Remove from queue" aria-label="Remove from queue">${crossSvg()}</button>
             </li>`);
+        i18n.apply($li);
         $li.find('.aq-item-name').text(item.label);
         $li.find('.aq-item-folder').text(folderLabel(item));
 
@@ -283,7 +285,7 @@ const renderQueue = (entries, opts) => {
             probe.onload = () => {
                 $cover.find('.aq-cover-fallback').rm();
                 $cover.css({background: 'none'});
-                $cover.app(dom('<img class="aq-cover-img" style="width: 100%; height: 100%; object-fit: cover;" alt="cover"/>').attr('src', coverUrl));
+                $cover.app(dom('<img class="aq-cover-img" style="width: 100%; height: 100%; object-fit: cover;" alt=""/>').attr('src', coverUrl));
             };
             probe.src = coverUrl;
         }
@@ -309,7 +311,7 @@ const addRowActions = (item, actions) => {
     if (item.$view.find('.ap-item-actions').length > 0) {
         return;
     }
-    const $actions = dom(ROW_ACTIONS_TPL);
+    const $actions = i18n.apply(dom(ROW_ACTIONS_TPL));
     Object.keys(actions).forEach(name => {
         $actions.find(`.ap-row-${name}`).on('click', ev => {
             ev.stopPropagation();
@@ -355,6 +357,7 @@ const listedItems = accepts => compact(dom('#items .item').map(el => el._item &&
 const mount = on => {
     base.$root.app(BAR_TPL);
     base.$root.app(QUEUE_TPL);
+    i18n.apply(dom('#audio-player-bar, #audio-queue-panel'));
 
     dom('#ap-play-pause').on('click', on.togglePlay);
     const $cover = dom('#ap-cover-gradient');

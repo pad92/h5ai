@@ -8,7 +8,6 @@ const regexps = {};
 
 const escapeRegExp = sequence => {
     return sequence.replace(/[\-\[\]\/\{\}\(\)\+\?\.\\\^\$]/g, '\\$&');
-    // return sequence.replace(/[\-\[\]\/\{\}\(\)\*\+\?\.\\\^\$\|]/g, '\\$&');
 };
 
 const parse = types => {

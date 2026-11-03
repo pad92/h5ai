@@ -4,6 +4,7 @@ const {request} = require('../server');
 const allsettings = require('./settings');
 const event = require('./event');
 const notification = require('../view/notification');
+const i18n = require('./i18n');
 
 const win = global.window;
 const doc = win.document;
@@ -119,7 +120,7 @@ const refresh = () => {
         });
 
         event.pub('location.refreshed', item, added, removed, updated);
-    }).catch(() => notification.set('refresh failed'));
+    }).catch(() => notification.set(i18n.t('refreshFailed')));
 };
 
 const setLocation = (newAbsHref, keepBrowserUrl) => {
@@ -149,7 +150,7 @@ const setLocation = (newAbsHref, keepBrowserUrl) => {
             item.isLoaded = true;
             notification.set();
             event.pub('location.changed', item);
-        }).catch(() => notification.set('loading failed'));
+        }).catch(() => notification.set(i18n.t('loadingFailed')));
     }
 };
 

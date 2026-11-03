@@ -6,17 +6,18 @@
 // cheap: the FFT runs natively, the canvas is a few thousand pixels scaled up
 // without smoothing, and nothing runs while paused, hidden, back on the cover
 // or on a video.
+const i18n = require('../../core/i18n');
 const viz = require('./vizmath');
 
 const {MODES, PSYCHEDELIC} = viz;
 // "off" shows the cover, where the cycle starts and ends.
 const MODE_LABELS = {
-    spectrum: 'Spectrum analyser',
-    scope: 'Oscilloscope',
-    plasma: 'Plasma',
-    kaleido: 'Kaleidoscope',
-    vortex: 'Vortex',
-    off: 'Cover'
+    spectrum: 'vizSpectrum',
+    scope: 'vizScope',
+    plasma: 'vizPlasma',
+    kaleido: 'vizKaleido',
+    vortex: 'vizVortex',
+    off: 'vizCover'
 };
 const FRAME_MS = 1000 / 30;
 // Each bar is 3 pixels wide with a 1-pixel gap, as in Winamp's 76x16 area.
@@ -49,22 +50,38 @@ const createVisualizer = ({audio, onModeChange}) => {
     let last = 0;
     const surfaces = [];
 
+    // Only while a display is shown: the view reduced, nothing is drawn, so
+    // nothing is computed either; opening it calls refresh().
     const schedule = () => {
-        if (!rafId && analyser && mode !== 'off' && isSupported()) {
+        if (!rafId && analyser && mode !== 'off' && isSupported() && surfaces.some(surface => surface.isShown())) {
             rafId = win().requestAnimationFrame(frame); // eslint-disable-line no-use-before-define
         }
     };
 
     // Connects the track to an analyser once the audio context runs: the
-    // track would go silent through a suspended one. Asked again on each
-    // play, so a context the browser held back starts with a later click.
+    // track would go silent through a suspended one. Only once a mode is
+    // chosen: the connection cannot be undone, and until then the track
+    // plays outside Web Audio. Asked again on each play and mode click, so
+    // a context the browser held back starts with a later click, and one
+    // it suspended later (a call, a locked screen) resumes.
     const activate = () => {
-        if (analyser || !isSupported()) {
+        if (mode === 'off' || !isSupported()) {
             return;
         }
         try {
             if (!context) {
                 context = new (AudioContextClass())();
+                context.addEventListener?.('statechange', () => {
+                    if (isPlaying && context.state !== 'running') {
+                        context.resume().catch(() => null);
+                    }
+                });
+            }
+            if (analyser) {
+                if (context.state !== 'running') {
+                    context.resume().catch(() => null);
+                }
+                return;
             }
             const connect = () => {
                 if (analyser || context.state !== 'running') {
@@ -308,7 +325,7 @@ const createVisualizer = ({audio, onModeChange}) => {
         }
     }
 
-    const describe = () => `${MODE_LABELS[mode]} (click to change)`;
+    const describe = () => i18n.t('vizSwitch', i18n.t(MODE_LABELS[mode]));
 
     function resetTrip(surface) {
         surface.trip = Object.assign(viz.createTrip(), {rest: 0, drawn: false});
@@ -349,6 +366,10 @@ const createVisualizer = ({audio, onModeChange}) => {
                 return;
             }
             switchTo(viz.nextMode(mode, prefersReducedMotion()));
+            // The click lets the browser start the audio context.
+            if (isPlaying) {
+                activate();
+            }
             onModeChange(mode);
         });
     };

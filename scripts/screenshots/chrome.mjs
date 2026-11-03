@@ -160,7 +160,9 @@ export const launch = async ({binary, hostRules}) => {
         ws.close();
         chrome.kill();
         await exited;
-        rmSync(profile, {recursive: true, force: true});
+        // Chrome's helper processes can still write to the profile after the
+        // browser process exits: a single pass then fails with ENOTEMPTY.
+        rmSync(profile, {recursive: true, force: true, maxRetries: 10, retryDelay: 100});
     };
 
     return {send, evaluate, navigate, networkIdle, viewport, click, drag, mouse, screenshot, close};

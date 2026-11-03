@@ -28,7 +28,7 @@ const settingsTpl =
         `<div class="block">
             <h1 class="l10n-tree">Tree</h1>
             <div id="view-tree" class="button view">
-                <img src="${resource.image('tree-toggle')}" alt="view-tree"/>
+                <img class="l10n_alt-tree" src="${resource.image('tree-toggle')}" alt="Tree"/>
             </div>
         </div>`;
 const storekey = 'ext/tree';

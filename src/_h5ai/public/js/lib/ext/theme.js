@@ -4,8 +4,8 @@ const resource = require('../core/resource');
 
 const KEY = 'h5ai_theme';
 const tpl =
-    `<div id="theme" class="tool" role="button" tabindex="0" title="Toggle theme" aria-pressed="false">
-        <img src="${resource.image('theme')}" alt="theme"/>
+    `<div id="theme" class="tool l10n_title-theme" role="button" tabindex="0" title="Toggle theme" aria-pressed="false">
+        <img class="l10n_alt-theme" src="${resource.image('theme')}" alt="Toggle theme"/>
     </div>`;
 
 const setTheme = theme => {

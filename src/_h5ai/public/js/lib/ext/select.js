@@ -11,7 +11,7 @@ const settings = Object.assign({
 }, allsettings.select);
 const selectorTpl =
         `<span class="selector">
-            <img src="${resource.image('selected')}" alt="selected"/>
+            <img class="l10n_alt-selected" src="${resource.image('selected')}" alt="selected"/>
         </span>`;
 const $document = dom(doc);
 const $html = dom('html');

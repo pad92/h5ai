@@ -118,7 +118,8 @@ const checkGroups = () => {
             ['Video thumbnails', '<code>ffmpeg</code> or <code>avconv</code>',
                 Boolean(video), video || 'no'],
             ['Document thumbnails',
-                'Hardened ImageMagick <code>magick</code> (or <code>convert</code> on ImageMagick 6)',
+                '<code>pdftoppm</code> (poppler) for PDF, and hardened ImageMagick <code>magick</code> ' +
+                    '(<code>convert</code> on ImageMagick 6) with Ghostscript <code>gs</code> for PostScript',
                 Boolean(docTool), docTool || 'no'],
             ['tar', 'Tar downloads', setup.HAS_CMD_TAR],
             ['zip', 'Zip downloads', setup.HAS_CMD_ZIP],

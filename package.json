@@ -1,6 +1,6 @@
 {
   "name": "h5ai",
-  "version": "1.5.1",
+  "version": "1.6.0",
   "description": "Modern HTTP web server index.",
   "homepage": "https://github.com/pad92/h5ai",
   "author": "pad92",
@@ -27,7 +27,6 @@
   "devDependencies": {
     "@babel/core": "8.0.10",
     "@babel/preset-env": "8.0.7",
-    "@eslint/js": "^10.0.1",
     "@fontsource/ubuntu": "^5.2.8",
     "@fontsource/ubuntu-mono": "^5.2.8",
     "@fortawesome/fontawesome-free": "^7.3.0",
@@ -55,7 +54,6 @@
     "marked": "^18.1.2",
     "movi-player": "^0.4.1",
     "normalize.css": "8.0.1",
-    "null-loader": "4.0.1",
     "postcss-less": "^7.0.1",
     "scar": "2.3.4",
     "stylelint": "^17.16.0",

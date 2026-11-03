@@ -46,7 +46,7 @@ help:
 	@echo "Docker image targets (image: $(TEST_IMAGE)):"
 	@echo "  docker-build  Build the Docker image"
 	@echo "  docker-test   Build the image and run the container test suite"
-	@echo "  docker-w3c    Build the image and validate its HTML and CSS (W3C, offline)"
+	@echo "  docker-w3c    Build the image and validate its HTML and CSS (local W3C checker; installs Chromium)"
 	@echo "  docker-grype  Build the image and scan it with Grype"
 	@echo "  docker-clean  Remove test containers and the built image"
 
@@ -203,8 +203,9 @@ docker-test: docker-build
 	@docker exec h5ai-test-noauth cat $(OPTIONS_JSON) | grep -qE '"passhash":[[:space:]]*""' || { echo "FAIL: empty passhash should remain empty when no password is configured"; docker rm -f h5ai-test-noauth; exit 1; }
 	@if docker logs h5ai-test-noauth 2>&1 | grep -q "Generated random h5ai administration password"; then echo "FAIL: startup must not generate or log an admin password"; docker rm -f h5ai-test-noauth; exit 1; fi
 	docker rm -f h5ai-test-noauth
-	sh test/docker/test-php-tar.sh $(TEST_IMAGE) $(TEST_HOST)
-	sh test/docker/test-document-thumbs.sh $(TEST_IMAGE) $(TEST_HOST)
+	sh test/docker/test-php-tar.sh $(TEST_IMAGE)
+	sh test/docker/test-document-thumbs.sh $(TEST_IMAGE)
+	sh test/docker/test-media-thumbs.sh $(TEST_IMAGE)
 	sh test/docker/test-w3c.sh $(TEST_IMAGE)
 	@echo "Testing container with basic authentication..."
 	$(TEST_RUN) --name h5ai-test-auth -e ENV_U=admin -e ENV_P=secret $(TEST_IMAGE)

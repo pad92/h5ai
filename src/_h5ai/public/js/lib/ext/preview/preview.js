@@ -13,17 +13,17 @@ const settings = Object.assign({
 const overlayTpl =
         `<div id="pv-overlay">
             <div id="pv-container"></div>
-            <div id="pv-spinner"><img class="back" src="${resource.blankImage}" alt=""/><img class="spinner" src="${resource.image('spinner')}" alt="loading"/></div>
+            <div id="pv-spinner"><img class="back" src="${resource.blankImage}" alt=""/><img class="spinner l10n_alt-loading" src="${resource.image('spinner')}" alt="loading"/></div>
             <div id="pv-prev-area" class="hof"><img src="${resource.image('preview-prev')}" alt=""/></div>
             <div id="pv-next-area" class="hof"><img src="${resource.image('preview-next')}" alt=""/></div>
             <div id="pv-bottombar" class="clearfix hof">
                 <ul id="pv-buttons">
-                    <li id="pv-bar-close" class="bar-right bar-button"><img src="${resource.image('preview-close')}" alt="close"/></li>
-                    <li id="pv-bar-raw" class="bar-right"><a class="bar-button"><img src="${resource.image('preview-raw')}" alt="raw"/></a></li>
-                    <li id="pv-bar-fullscreen" class="bar-right bar-button"><img src="${resource.image('preview-fullscreen')}" alt="fullscreen"/></li>
-                    <li id="pv-bar-next" class="bar-right bar-button"><img src="${resource.image('preview-next')}" alt="next"/></li>
+                    <li id="pv-bar-close" class="bar-right bar-button"><img class="l10n_alt-close" src="${resource.image('preview-close')}" alt="close"/></li>
+                    <li id="pv-bar-raw" class="bar-right"><a class="bar-button"><img class="l10n_alt-raw" src="${resource.image('preview-raw')}" alt="raw"/></a></li>
+                    <li id="pv-bar-fullscreen" class="bar-right bar-button"><img class="l10n_alt-fullscreen" src="${resource.image('preview-fullscreen')}" alt="fullscreen"/></li>
+                    <li id="pv-bar-next" class="bar-right bar-button"><img class="l10n_alt-next" src="${resource.image('preview-next')}" alt="next"/></li>
                     <li id="pv-bar-idx" class="bar-right bar-label"></li>
-                    <li id="pv-bar-prev" class="bar-right bar-button"><img src="${resource.image('preview-prev')}" alt="previous"/></li>
+                    <li id="pv-bar-prev" class="bar-right bar-button"><img class="l10n_alt-previous" src="${resource.image('preview-prev')}" alt="previous"/></li>
                 </ul>
             </div>
         </div>`;
@@ -293,6 +293,10 @@ const enter = () => {
 
 const exit = () => {
     const closedItem = session && session.item;
+    // A load still running for the closed preview must not show.
+    if (session) {
+        session.token = null;
+    }
     setLabels([]);
     // Restore the user's stored preference so the fullscreen forced for
     // images does not leak into the next non-image preview.
@@ -351,6 +355,10 @@ Session.prototype = {
         setLabels([this.item.label]);
 
         const item = this.item;
+        // Each load has its own token: only the latest one of the current
+        // Session shows, and closing the preview takes it back.
+        const token = {};
+        this.token = token;
         Promise.resolve()
             .then(() => {
                 each(dom('#pv-container *'), el => {
@@ -365,17 +373,27 @@ Session.prototype = {
                 setControlType('default');
             })
             .then(() => this.load(item))
-            // delay for testing
-            // .then(x => new Promise(resolve => setTimeout(() => resolve(x), 1000)))
             .then($content => {
-                if (item === this.item) {
-                    dom('#pv-container').clr().app($content).show();
-                    showSpinner(false);
-                    updateGui();
-                    // Media events fired before the element was attached never
-                    // reached the document: listeners resync from here.
-                    event.pub('preview.content', item, $content[0]);
+                // A later move, open() or close made this load outdated: its
+                // content comes too late. It is released, never shown in
+                // place of the current one or in a closed preview.
+                if (session !== this || this.token !== token) {
+                    each($content, el => {
+                        const all = el.querySelectorAll ? [el, ...el.querySelectorAll('*')] : [el];
+                        each(all, child => {
+                            if (typeof child.unload === 'function') {
+                                child.unload();
+                            }
+                        });
+                    });
+                    return;
                 }
+                dom('#pv-container').clr().app($content).show();
+                showSpinner(false);
+                updateGui();
+                // Media events fired before the element was attached never
+                // reached the document: listeners resync from here.
+                event.pub('preview.content', item, $content[0]);
             });
     },
 

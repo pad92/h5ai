@@ -2,7 +2,7 @@
 
 class Setup {
     // Command-line tools whose availability is probed and cached in cmds.json.
-    private const SYS_CMDS = ['avconv', 'avprobe', 'convert', 'du', 'ffmpeg', 'ffprobe', 'gm', 'magick', 'tar', 'zip'];
+    private const SYS_CMDS = ['avconv', 'avprobe', 'convert', 'du', 'ffmpeg', 'ffprobe', 'gm', 'gs', 'magick', 'pdftoppm', 'tar', 'zip'];
     private const LOOKUP_CMDS = ['command', 'which', 'where'];
 
     private array $store = [];
@@ -182,7 +182,9 @@ class Setup {
                 'HAS_CMD_FFMPEG',
                 'HAS_CMD_FFPROBE',
                 'HAS_CMD_GM',
+                'HAS_CMD_GS',
                 'HAS_CMD_MAGICK',
+                'HAS_CMD_PDFTOPPM',
                 'HAS_CMD_TAR',
                 'HAS_CMD_ZIP',
             ];

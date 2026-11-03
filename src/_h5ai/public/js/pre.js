@@ -21,6 +21,6 @@
     assert('console', win.console && is_fn(win.console.log));
     assert('assign', win.Object && is_fn(win.Object.assign));
     assert('promise', is_fn(win.Promise));
-    // assert('xhr', is_fn(win.XMLHttpRequest)); // is object in safari
+    // Not is_fn: XMLHttpRequest is an object in Safari.
     assert('xhr', win.XMLHttpRequest);
 }(this));

@@ -6,12 +6,53 @@ ARG H5AI_VERSION
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY src/ ./src/
-COPY test/ ./test/
-COPY gulpfile.js eslint.config.js LICENSE ./
+COPY gulpfile.js LICENSE ./
 COPY scripts/package-name.js ./scripts/
 RUN H5AI_VERSION="${H5AI_VERSION}" npm run build
 
-# Stage 2: Fetch s6-overlay and compile the php-rar extension
+# Stage 2: Build an ffmpeg that only decodes. h5ai runs it to grab one video
+# frame or an audio cover as a JPEG, and ffprobe to read a duration. Alpine's
+# ffmpeg links every encoder (x265, aom, SVT-AV1, rav1e, vpx, x264) and a
+# Vulkan stack: about 39 MB of the compressed image, against about 5 MB here.
+# The lists cover the types h5ai thumbnails (thumbnails.mov and .aud):
+# demuxers for the containers, decoders for the codecs they carry, and the
+# picture codecs of embedded covers. AV1 goes through libdav1d, which the
+# final stage installs from Alpine. Grype reads the version in the binary and
+# gates it like the packages: a finding means bumping FFMPEG_VERSION.
+# musl gives threads a 128 KiB stack unless the executable asks for more in
+# its ELF header; the ffmpeg CLI demuxes in a thread, and MPEG-TS overflows
+# that stack (segfault on .ts/.mts), hence the 2 MiB stack-size link flag.
+FROM alpine:3.24@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a AS ffmpeg-builder
+
+ARG FFMPEG_VERSION=9.0.2
+# SHA-256 of the release tarball whose ffmpeg-devel GPG signature was checked
+# (key FCF986EA15E6E293A5644F10B4322F04D67658D8).
+ARG FFMPEG_SHA256=8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e
+
+# BuildKit fetches the tarball itself and fails the build on a checksum
+# mismatch; a remote archive is not unpacked by ADD.
+ADD --checksum=sha256:${FFMPEG_SHA256} "https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.xz" /tmp/ffmpeg.tar.xz
+
+RUN apk add --no-cache build-base dav1d-dev nasm pkgconf xz zlib-dev \
+    && mkdir /src \
+    && tar -C /src --strip-components=1 -xJf /tmp/ffmpeg.tar.xz \
+    && cd /src \
+    && ./configure --prefix=/opt/ffmpeg \
+        --disable-everything --disable-autodetect --disable-doc --disable-debug --disable-network \
+        --enable-shared --disable-static --disable-ffplay --enable-ffmpeg --enable-ffprobe --disable-avdevice \
+        --enable-zlib --enable-libdav1d --enable-swscale \
+        --enable-protocol=file,pipe,crypto,data \
+        --enable-demuxer=mov,matroska,avi,flv,swf,asf,mpegts,mpegps,mpegvideo,rm,ogg,mp3,flac,aac,wav,aiff,m4v,h264,hevc,image2 \
+        --enable-decoder=h264,hevc,mpeg1video,mpeg2video,mpeg4,msmpeg4v1,msmpeg4v2,msmpeg4v3,wmv1,wmv2,wmv3,vc1,vp8,vp9,libdav1d,theora,flv,h263,h263p,rv10,rv20,rv30,rv40,vp6,vp6a,vp6f,flashsv,flashsv2,mjpeg,png,bmp,gif,webp,prores,dvvideo \
+        --enable-parser=h264,hevc,mpegvideo,mpeg4video,vc1,vp8,vp9,av1,mjpeg,png \
+        --enable-encoder=mjpeg --enable-muxer=image2 --enable-filter=scale,format,null \
+        --extra-ldexeflags=-Wl,-z,stack-size=2097152 \
+    && make -j"$(nproc)" \
+    && make install \
+    && strip /opt/ffmpeg/bin/ffmpeg /opt/ffmpeg/bin/ffprobe /opt/ffmpeg/lib/lib*.so.* \
+    && rm -rf /src /tmp/ffmpeg.tar.xz /opt/ffmpeg/include /opt/ffmpeg/lib/pkgconfig /opt/ffmpeg/share
+
+# Stage 3: Fetch s6-overlay and compile the php-rar extension
 FROM php:8.4.27-alpine3.24@sha256:d8784155c4d37986be9ddd7a8950df7e78998cc48e35472cd69e2b9371424a65 AS deps-builder
 
 ARG S6_OVERLAY_VERSION=3.2.3.2
@@ -63,17 +104,20 @@ ENV S6_CMD_WAIT_FOR_SERVICES_MAXTIME=30000
 ENV H5AI_ROOT_PATH=/share
 
 # Only extensions actually used by the h5ai PHP code are installed:
-# exif/gd/imagick (thumbnails), ghostscript (PDF/PostScript thumbnails through
-# ImageMagick, about 20 MiB compressed), fileinfo (download mimetypes), mbstring,
+# exif/gd/imagick (thumbnails), imagemagick-heic (HEIC/HEIF photos from
+# phones, through libheif), poppler-utils (pdftoppm for PDF thumbnails, about
+# 9 MiB installed; Ghostscript would take 62 MiB, about 20 MiB compressed, and
+# only adds PostScript thumbnails), fileinfo (download mimetypes), mbstring,
 # session, sqlite3 (CacheDB uses the SQLite3 class, not PDO), zip
 # (ZipArchive) plus the tar/zip CLIs for packaged downloads.
 # angie-console-light ships with the base image but nothing serves it.
 RUN apk upgrade --no-cache && apk add --no-cache \
     apache2-utils \
-    ffmpeg \
-    ghostscript \
     imagemagick \
+    imagemagick-heic \
+    imagemagick-jxl \
     imagemagick-raw \
+    libdav1d \
     libraw \
     php84 \
     php84-exif \
@@ -87,6 +131,7 @@ RUN apk upgrade --no-cache && apk add --no-cache \
     php84-session \
     php84-sqlite3 \
     php84-zip \
+    poppler-utils \
     shadow \
     tzdata \
     zip \
@@ -96,6 +141,12 @@ RUN php84 -r 'if (version_compare(PHP_VERSION, "8.4.27", "<")) { fwrite(STDERR, 
 
 COPY --from=deps-builder /h5ai/build/_h5ai /usr/share/h5ai/_h5ai
 COPY --from=deps-builder /s6-overlay/ /
+# ffmpeg in /usr/bin: PHP-FPM clears the environment (clear_env), and the
+# default PATH of its commands stops at /usr/bin. musl finds the libraries
+# in /usr/local/lib. The folder is copied whole: a wildcard COPY would turn
+# each library's symlinks into two more full copies.
+COPY --from=ffmpeg-builder /opt/ffmpeg/bin/ffmpeg /opt/ffmpeg/bin/ffprobe /usr/bin/
+COPY --from=ffmpeg-builder /opt/ffmpeg/lib/ /usr/local/lib/
 COPY --from=deps-builder /tmp/rar.so /usr/lib/php84/modules/rar.so
 
 COPY slash/     /

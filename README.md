@@ -51,7 +51,7 @@ A click opens the file in an overlay; the arrow keys move to the next one.
 | | |
 | --- | --- |
 | ![Image preview](doc/screenshots/preview-image.webp) | ![Markdown preview](doc/screenshots/preview-markdown.webp) |
-| **Images**: JPEG, PNG, WebP, GIF, SVG, TIFF, BMP, with EXIF details for photos. | **Markdown** rendered, plus plain text, CSV and logs. |
+| **Images**: JPEG, PNG, WebP, AVIF, GIF, SVG, TIFF, BMP, plus HEIC, JPEG XL and camera RAW through a server-made copy, with EXIF details for photos. | **Markdown** rendered, plus plain text, CSV and logs. |
 | ![Source code preview](doc/screenshots/preview-code.webp) | ![Video preview](doc/screenshots/preview-video.webp) |
 | **Source code** highlighted: Python, JavaScript, TypeScript, Go, Rust, C/C++, SQL and more. | **Video**: MP4, WebM, MKV, MOV and MPEG, in a built-in player. |
 
@@ -72,9 +72,9 @@ music, and back to the cover.
 
 ![Now playing view with the large cover and the track's tags](doc/screenshots/now-playing.webp)
 
-Thumbnails are generated for images, video frames, audio covers, PDF and
-PostScript documents, and ZIP or RAR archives (comic books, for example),
-then cached.
+Thumbnails are generated for images, video frames, audio covers, PDF
+documents, PostScript documents on hosts with Ghostscript, and ZIP or RAR
+archives (comic books, for example), then cached.
 
 ### Search and download
 
@@ -131,9 +131,10 @@ See the [changelog](CHANGELOG.md) for the details of each release.
 
 ### Docker (recommended)
 
-The [`pad92/docker-h5ai`][dockerhub] image bundles Angie, PHP 8.4 and every
-thumbnail tool (ImageMagick with Ghostscript, ffmpeg, the PHP image
-extensions), supervised by s6-overlay.
+The [`pad92/docker-h5ai`][dockerhub] image bundles Angie, PHP 8.4 and the
+thumbnail tools (ImageMagick with HEIC support, poppler for PDF, an ffmpeg
+built to decode only, the PHP image extensions), supervised by s6-overlay. It
+has no Ghostscript, so PostScript files get no thumbnail.
 
 ```bash
 # Protect the whole site with a password
@@ -154,7 +155,9 @@ A [`docker-compose.yml`](docker-compose.yml) example is included. It reads
 | `REAL_IP_FROM` | unset | Comma-separated CIDRs of trusted reverse proxies, to log and rate-limit the real client address. |
 | `REAL_IP_HEADER` | `X-Forwarded-For` | Header holding the client address when `REAL_IP_FROM` is set. |
 
-See [doc/administration.md](doc/administration.md) for the admin password and
+See [doc/installation.md](doc/installation.md) for step-by-step setups on
+Synology, QNAP, Unraid, TrueNAS SCALE, OpenMediaVault and Portainer, and
+[doc/administration.md](doc/administration.md) for the admin password and
 the diagnostic page.
 
 ### On your own web server
@@ -168,7 +171,8 @@ Requirements:
 * PHP `8.4.0+`
 * Apache httpd `2.4+` with `mod_authz_core`, lighttpd, nginx, Cherokee, or
   Angie. The bundled deployment examples in [`doc/server/`](doc/server/) cover
-  Apache, lighttpd, nginx, and Angie.
+  lighttpd, nginx, and Angie; Apache uses the bundled `.htaccess` files (see
+  [administration](doc/administration.md)).
 
 > [!IMPORTANT]
 > `_h5ai/private/` must never be served as static content. Apache applies the
@@ -186,9 +190,11 @@ Optional features need extra tools on the host:
 * `ffmpeg` or `avconv` for video and audio thumbnails, with `ffprobe` or
   `avprobe` to pick a frame at `thumbnails.seek`; without a probe the frame at
   0.1 seconds is used.
+* `pdftoppm` (poppler) for PDF thumbnails.
 * ImageMagick (`magick`, or `convert` on ImageMagick 6) with Ghostscript (`gs`)
-  for document thumbnails such as PDF: ImageMagick hands PDF and PostScript
-  files to Ghostscript. GraphicsMagick is an opt-in compatibility fallback and
+  for PostScript thumbnails, and for PDF when `pdftoppm` is missing or fails.
+  ImageMagick hands both formats to Ghostscript, so h5ai does not run it on
+  them without `gs`. GraphicsMagick is an opt-in compatibility fallback and
   does not use the bundled ImageMagick policy.
 * `tar` and `zip` for downloads configured to use those command-line archive
   formats; the PHP TAR writer does not need them.
@@ -210,7 +216,7 @@ To build from source, run the tests or regenerate the screenshots, see
 
 ## License
 
-MIT, copyright (c) 2020 Lars Jung. See [LICENSE](LICENSE).
+MIT, copyright (c) 2020 Lars Jung for h5ai and (c) 2019 OurContainers for the Docker packaging. See [LICENSE](LICENSE).
 
 
 ## References

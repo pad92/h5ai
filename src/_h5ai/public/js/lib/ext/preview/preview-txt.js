@@ -1,5 +1,6 @@
 const {keys, dom} = require('../../util');
 const allsettings = require('../../core/settings');
+const i18n = require('../../core/i18n');
 const preview = require('./preview');
 const {render} = require('./text-content');
 
@@ -47,8 +48,8 @@ const requestTextContent = href => {
 
         xhr.open('GET', href, true);
         xhr.onreadystatechange = callback;
-        xhr.onerror = () => reject('network error');
-        xhr.ontimeout = () => reject('request timed out');
+        xhr.onerror = () => reject(i18n.t('networkError'));
+        xhr.ontimeout = () => reject(i18n.t('requestTimedOut'));
         xhr.timeout = 30000;
         xhr.send();
     });
@@ -56,7 +57,7 @@ const requestTextContent = href => {
 
 const load = item => {
     return requestTextContent(item.absHref)
-        .catch(err => '[request failed] ' + err)
+        .catch(err => `[${i18n.t('requestFailed')}] ${err}`)
         .then(content => render(content, settings.styles[item.type], win));
 };
 
