@@ -18,7 +18,7 @@ image=${1:?Usage: test-w3c.sh IMAGE}
 # vnu 26.11.2, pinned by digest like the other tool images.
 vnu_image=${VNU_IMAGE:-ghcr.io/validator/validator:latest@sha256:33d21f6b3b7644e6a9897ed64076d0a8b8f5414d51154e03c35986f98f4fb80c}
 # The Node image of the Dockerfile build stage; Chromium comes from Debian.
-node_image=${NODE_IMAGE:-node:24.17.0-slim@sha256:862263c612aa437e3037674b85419622a9d93bff80aa1eee5398dfe686375532}
+node_image=${NODE_IMAGE:-node:24.22.2-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c}
 root=$(cd "$(dirname "$0")/../.." && pwd)
 container="h5ai-test-w3c-$$"
 dom_container="h5ai-test-w3c-dom-$$"

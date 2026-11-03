@@ -1,5 +1,5 @@
 # Stage 1: Build h5ai application from source
-FROM node:24.17.0-slim@sha256:862263c612aa437e3037674b85419622a9d93bff80aa1eee5398dfe686375532 AS h5ai-builder
+FROM node:24.22.2-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS h5ai-builder
 
 WORKDIR /build
 ARG H5AI_VERSION
