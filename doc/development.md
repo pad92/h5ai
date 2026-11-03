@@ -98,6 +98,24 @@ layers are built under QEMU, so a change to `FFMPEG_VERSION` or to the base
 images recompiles ffmpeg in emulation once.
 
 
+## Version
+
+Git is the only place that holds the version: `package.json` has none. A
+release is a tag `vX.Y.Z`, and `scripts/version.sh` gives the version every
+build uses (gulp, the CI jobs, the Makefile):
+
+* a tag pipeline, or a local clone whose `HEAD` carries a `vX.Y.Z` tag, gives
+  the tag without its `v` (`1.6.0`), and the page shows `v1.6.0`;
+* any other build gives its commit id (`1fd0cb1e`), shown as it is;
+* the Docker build has no `.git`: it takes the `H5AI_VERSION` build argument,
+  which wins over the two cases above when set;
+* a build with none of these shows `dev`.
+
+The version in the top bar opens `CHANGELOG.md`, which the build copies to
+`_h5ai/CHANGELOG.md`. Before tagging, the new release needs its
+`## vX.Y.Z` section there: the release job takes its notes from it.
+
+
 ## Docker image tags
 
 Docker Hub protects tags matching `^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9]+)?$` from
@@ -114,7 +132,8 @@ The README screenshots in `doc/screenshots/` are generated:
 > make screenshots
 ~~~
 
-The target builds the Docker image with the version from `package.json`,
+The target builds the Docker image with the version of `HEAD` (see
+[Version](#version); `H5AI_VERSION=1.6.0 make screenshots` sets it),
 creates a sample share with `scripts/screenshots/demo-share.mjs` (drawn
 landscapes, generated music and videos, documents and code), serves it on
 `127.0.0.1:8891`, and shoots it with headless Chrome through

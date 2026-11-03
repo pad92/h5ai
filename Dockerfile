@@ -7,7 +7,7 @@ COPY package.json package-lock.json ./
 RUN npm ci
 COPY src/ ./src/
 COPY gulpfile.js LICENSE ./
-COPY scripts/package-name.js ./scripts/
+COPY scripts/package-name.js scripts/version.sh ./scripts/
 RUN H5AI_VERSION="${H5AI_VERSION}" npm run build
 
 # Stage 2: Build an ffmpeg that only decodes. h5ai runs it to grab one video

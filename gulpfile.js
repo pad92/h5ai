@@ -1,5 +1,5 @@
 import gulp from 'gulp';
-import {execSync} from 'child_process';
+import {execFileSync} from 'child_process';
 import path from 'path';
 import {deleteAsync as del} from 'del';
 import webpack from 'webpack-stream';
@@ -18,6 +18,7 @@ import {fileURLToPath} from 'url';
 import {PassThrough} from 'stream';
 import pkg from './package.json' with {type: 'json'};
 import {packageFileName} from './scripts/package-name.js';
+import {versionLabel} from './src/_h5ai/public/js/lib/util/version.js';
 
 const {src, dest, series, parallel} = gulp;
 const __filename = fileURLToPath(import.meta.url);
@@ -51,22 +52,14 @@ const WEBPACK_CFG = {
     devtool: isProduction ? false : 'source-map'
 };
 
-let version = process.env.H5AI_VERSION || pkg.version;
-if (!process.env.H5AI_VERSION && !isProduction && !process.argv.includes('clean')) {
-    try {
-        const hashes = execSync(`git rev-list v${pkg.version}..HEAD`, {
-            encoding: 'utf8',
-            stdio: ['ignore', 'pipe', 'ignore']
-        }).split(/\r?\n/).filter(x => x);
-        if (hashes.length) {
-            const counter = ('000' + hashes.length).substr(-3);
-            const hash = hashes[0].substr(0, 7);
-            version += `+${counter}~${hash}`;
-        }
-    } catch { /* ignore error */ }
-}
+// The version comes from Git alone (scripts/version.sh): a release tag, else
+// the commit id. The Docker build has no .git and passes H5AI_VERSION.
+const version = execFileSync('sh', [path.join(ROOT, 'scripts/version.sh')], {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'inherit']
+}).trim();
 
-const comment = `${pkg.name} v${version} - ${pkg.homepage}`;
+const comment = `${pkg.name} ${versionLabel(version)} - ${pkg.homepage}`;
 const comment_js = `/* ${comment} */\n`;
 const comment_html = `<!-- ${comment} -->`;
 console.log(comment);
@@ -102,7 +95,7 @@ const buildStyles = () => src(path.join(SRC, '_h5ai/public/css/styles.less'))
     .pipe(dest(path.join(BUILD, '_h5ai/public/css')));
 
 const buildPhpFromPug = () => src(`${SRC}/**/*.php.pug`)
-    .pipe(pug({locals: {pkg: {...pkg, version}}}))
+    .pipe(pug({locals: {pkg: {...pkg, version}, versionLabel: versionLabel(version)}}))
     .pipe(rename(p => { p.extname = ''; }))
     .pipe(footer(comment_html))
     .pipe(dest(BUILD));

@@ -1,7 +1,7 @@
 extends ./page.tpl.pug
 
 block init
-    - var title = `h5ai info page - v${pkg.version}`
+    - var title = `h5ai info page - ${versionLabel}`
     - var module = 'info'
 
 block body
@@ -11,4 +11,4 @@ block body
         h1#header
             a(href=pkg.homepage)
                 | h5ai
-                span.version  v#{pkg.version}
+                span.version  #{versionLabel}

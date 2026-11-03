@@ -9,7 +9,8 @@ TEST_URL = http://$(TEST_HOST):8890/
 TEST_RUN = docker run -d -p 8890:80 -v $(CURDIR):/share:ro
 OPTIONS_JSON = /usr/share/h5ai/_h5ai/private/conf/options.json
 CMDS_JSON = /usr/share/h5ai/_h5ai/private/cache/cmds.json
-PKG_VERSION := $(shell sed -n 's/.*"version":[[:space:]]*"\([^"]*\)".*/\1/p' package.json | head -n1)
+# The tag on HEAD, else its commit id; H5AI_VERSION in the environment wins.
+VERSION := $(shell sh scripts/version.sh)
 PHPUNIT_PHAR ?= /tmp/phpunit.phar
 PHPUNIT_VERSION = 12.5.43
 PHPUNIT_SHA256 = 55350db3736f8d42170d9f7989ccd8b8e19ab4ba6be96e8c1c9cbcad430cb6d5
@@ -89,13 +90,13 @@ coverage: node_modules $(PHPUNIT_PHAR)
 	fi
 	node scripts/coverage-summary.js
 
-# Builds the image with the package version, so the pages show a release
-# number, serves a generated sample share on 127.0.0.1 only, and shoots it.
+# Builds the image with the version of HEAD (its tag, else its commit id;
+# `H5AI_VERSION=1.6.0 make screenshots` shows a release number), serves a generated sample share on 127.0.0.1 only, and shoots it.
 # The container and the sample share are removed even when a step fails.
 screenshots:
 	@test -n "$(CHROME)" || { echo "screenshots: no Chrome or Chromium found, set CHROME=/path/to/chrome"; exit 1; }
 	@for tool in docker ffmpeg magick node; do command -v $$tool >/dev/null || { echo "screenshots: $$tool is required"; exit 1; }; done
-	docker buildx build --load --tag $(SCREENSHOT_IMAGE) --build-arg H5AI_VERSION=$(PKG_VERSION) .
+	docker buildx build --load --tag $(SCREENSHOT_IMAGE) --build-arg H5AI_VERSION=$(VERSION) .
 	@share=$$(mktemp -d); \
 	trap 'docker rm -f $(SCREENSHOT_CONTAINER) >/dev/null 2>&1; rm -rf "$$share"' EXIT; \
 	CHROME='$(CHROME)' node scripts/screenshots/demo-share.mjs "$$share" && \
@@ -159,7 +160,7 @@ endef
 
 docker-build:
 	docker buildx build --load --tag $(TEST_IMAGE) \
-		--build-arg H5AI_VERSION=$$(if [ "$$(git branch --show-current)" = "master" ]; then git rev-parse --short HEAD; else echo '$(PKG_VERSION)'; fi) \
+		--build-arg H5AI_VERSION=$(VERSION) \
 		--build-arg BUILD_DATE=$$(date -u +%Y-%m-%dT%H:%M:%SZ) \
 		--build-arg BUILD_VCSREF=$$(git rev-parse --short HEAD) \
 		.

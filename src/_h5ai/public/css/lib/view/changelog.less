@@ -1,0 +1,85 @@
+// The changelog dialog opened from the version in the top bar.
+#changelog {
+    box-sizing: border-box;
+    width: min(960px, ~"calc(100vw - 32px)");
+    max-height: ~"calc(100vh - 64px)";
+    padding: 0;
+    color: #212121;
+    background: @col-back-paper;
+    border: 1px solid @col-border-strong;
+    border-radius: 8px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.24);
+
+    &[open] {
+        display: flex;
+        flex-direction: column;
+    }
+
+    // Without showModal() (old browsers) the dialog is only "open": it is
+    // centred by hand above the page.
+    &:not(:modal) {
+        position: fixed;
+        top: 32px;
+        left: 0;
+        right: 0;
+        margin: 0 auto;
+        z-index: 100;
+    }
+
+    &::backdrop {
+        background: rgba(0, 0, 0, 0.4);
+    }
+}
+
+#changelog-head {
+    display: flex;
+    align-items: center;
+    flex: 0 0 auto;
+    padding: 8px 8px 8px 24px;
+    border-bottom: 1px solid @col-border-strong;
+
+    h2 {
+        flex: 1 1 auto;
+        margin: 0;
+        font-size: 1.2em;
+    }
+}
+
+#changelog-close {
+    width: 36px;
+    height: 36px;
+    font-size: 24px;
+    line-height: 1;
+    color: inherit;
+    background: none;
+    border: 0;
+    border-radius: 4px;
+    cursor: pointer;
+
+    &:hover {
+        background: @col-back-hover;
+    }
+}
+
+#changelog-body {
+    flex: 1 1 auto;
+    overflow: auto;
+    padding: 8px 24px 16px;
+    font-size: 1.05em;
+    overflow-wrap: break-word;
+
+    a, a:active, a:visited {
+        color: #2080FF;
+        text-decoration: none;
+    }
+
+    // Names and paths read as text on a light chip, not in colour.
+    code {
+        font-size: 0.95em;
+        color: inherit;
+        background: rgba(0, 0, 0, 0.05);
+        border: 1px solid @col-border;
+        border-radius: 3px;
+        padding: 0 4px;
+    }
+}

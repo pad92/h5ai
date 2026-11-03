@@ -1,5 +1,7 @@
-const {dom} = require('../util');
+const {dom, escapeHtml} = require('../util');
+const {versionLabel} = require('../util/version');
 const config = require('../config');
+const changelog = require('./changelog');
 
 const SEL_ROOT = 'body';
 const TPL_MAINROW =
@@ -7,19 +9,30 @@ const TPL_MAINROW =
             <div id="content"></div>
         </div>`;
 
+const HOMEPAGE = 'https://github.com/pad92/h5ai/';
+
+// "powered by h5ai" links to the project; the version under it opens the
+// changelog. A release reads "v1.6.0", any other build its commit id.
+const versionButton = version => {
+    if (!version) {
+        return '';
+    }
+    return `<button type="button" id="version" class="l10n_title-changelog" title="Changelog">${escapeHtml(versionLabel(version))}</button>`;
+};
+
 const init = () => {
     const version = config.setup && config.setup.VERSION;
-    const versionText = version ? `v${version}` : 'by h5ai';
-    const backlinkTitle = version ? `powered by h5ai v${version} - https://github.com/pad92/h5ai/` : 'powered by h5ai - https://github.com/pad92/h5ai/';
 
     const TPL_TOPBAR =
             `<div id="topbar">
                 <div id="toolbar"></div>
                 <div id="flowbar"></div>
-                <a id="backlink" href="https://github.com/pad92/h5ai/" title="${backlinkTitle}">
-                    <div class="l10n-poweredBy">powered by h5ai</div>
-                    <div>${versionText}</div>
-                </a>
+                <div id="backlink">
+                    <a id="backlink-home" href="${HOMEPAGE}" title="${HOMEPAGE}">
+                        <div class="l10n-poweredBy">powered by h5ai</div>
+                    </a>
+                    ${versionButton(version)}
+                </div>
             </div>`;
 
     const $root = dom(SEL_ROOT)
@@ -27,6 +40,8 @@ const init = () => {
         .clr()
         .app(TPL_TOPBAR)
         .app(TPL_MAINROW);
+
+    $root.find('#version').on('click', () => changelog.open());
 
     return {
         $root,

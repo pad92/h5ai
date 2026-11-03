@@ -44,6 +44,7 @@ const defaults = {
     tree: 'Tree',
     view: 'View',
     poweredBy: 'powered by h5ai',
+    changelog: 'Changelog',
     loadingFailed: 'loading failed',
     refreshFailed: 'refresh failed',
 
