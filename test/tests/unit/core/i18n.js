@@ -27,7 +27,7 @@ test('i18n: marked elements get their text, placeholder, title, aria-label and a
         '<h1 class="l10n-tree">x</h1>',
         '<input class="l10n_ph-search"/>',
         '<button class="l10n_title-shuffle l10n_aria-shuffle"></button>',
-        '<img class="l10n_alt-cover"/>'
+        '<img class="l10n_alt-download"/>'
     ].join(''));
     withLanguage({tree: 'Arborescence', search: 'rechercher', shuffle: 'Aléatoire'}, () => {
         i18n.apply(el);
@@ -35,7 +35,7 @@ test('i18n: marked elements get their text, placeholder, title, aria-label and a
         assert.equal(el.querySelector('input').getAttribute('placeholder'), 'rechercher');
         assert.equal(el.querySelector('button').getAttribute('title'), 'Aléatoire');
         assert.equal(el.querySelector('button').getAttribute('aria-label'), 'Aléatoire');
-        assert.equal(el.querySelector('img').getAttribute('alt'), 'cover', 'a key missing from the language falls back to English');
+        assert.equal(el.querySelector('img').getAttribute('alt'), 'download', 'a key missing from the language falls back to English');
     });
 });
 

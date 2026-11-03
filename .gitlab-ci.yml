@@ -22,8 +22,6 @@ variables:
   npm_config_cache: "$CI_PROJECT_DIR/.npm"
   # Docker image published to Docker Hub under this name.
   IMAGE_NAME: pad92/docker-h5ai
-  # Mirrors Docker Hub's "Specific tags are immutable" policy.
-  DOCKERHUB_IMMUTABLE_TAG_REGEX: '^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9]+)?$'
   # Multi-platform candidate that `build:candidate` pushes by digest, without
   # a tag, on publishable pipelines; Grype scans it and the publish jobs
   # promote that digest. GitLab.com's online garbage collector deletes an
