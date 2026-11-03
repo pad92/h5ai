@@ -31,6 +31,12 @@ variables:
   # BuildKit's layer cache stays in the runner host's persistent `h5ai-ci`
   # builder, not in the registry; it is pruned down to this size.
   BUILDKIT_CACHE_MAX_USED: "20gb"
+  # BuildKit of the `h5ai-ci` builder, pinned by digest. Watchtower runs on
+  # the runner host and replaces a container whose tag gets a new image: when
+  # buildx's default `moby/buildkit:buildx-stable-1` moved, it stopped the
+  # builder in the middle of a build. It leaves an image pinned by digest
+  # alone. A new digest here recreates the builder (see .docker-build-base).
+  BUILDKIT_IMAGE: "moby/buildkit:v0.33.1@sha256:cec9f139f45e93c5c69c60f8b07cfad9f43f4ef6b6a6cd917527fea5ff2e3dea"
   # Job and scanner containers pinned by digest. These jobs receive registry
   # credentials and, for the docker ones, the runner's Docker socket, so the
   # container holding them must not be swappable — pinning only the scanners
@@ -126,7 +132,18 @@ build:app:
     - job: lint:dockerfile
   before_script:
     - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
-    - docker buildx inspect h5ai-ci >/dev/null 2>&1 || docker buildx create --name h5ai-ci --driver docker-container
+    - |
+      # Each job starts a new buildx client that does not know the builder,
+      # so it is created every time; create then reuses the host's container,
+      # whatever image it runs. A container from another BuildKit image (the
+      # default one before the pin, or an older digest) is removed first; its
+      # layer cache stays in the buildx_buildkit_h5ai-ci0_state volume.
+      BUILDER_IMAGE=$(docker inspect --format '{{.Config.Image}}' buildx_buildkit_h5ai-ci0 2>/dev/null) || BUILDER_IMAGE=
+      if [ -n "$BUILDER_IMAGE" ] && [ "$BUILDER_IMAGE" != "$BUILDKIT_IMAGE" ]; then
+        echo "Replacing the h5ai-ci builder container ($BUILDER_IMAGE)"
+        docker rm -f buildx_buildkit_h5ai-ci0
+      fi
+      docker buildx inspect h5ai-ci >/dev/null 2>&1 || docker buildx create --name h5ai-ci --driver docker-container --driver-opt "image=$BUILDKIT_IMAGE"
     # Version/build metadata consumed by the Dockerfile ARGs (image labels).
     # The tag of a tag pipeline, else the commit id (scripts/version.sh).
     - H5AI_VERSION=$(sh scripts/version.sh)
@@ -148,7 +165,6 @@ build:image:
   rules: *build_image_rules
   script:
     - docker image prune --all --force --filter label=h5ai.ci-pipeline --filter until=24h
-    - docker buildx inspect h5ai-ci >/dev/null 2>&1 || docker buildx create --name h5ai-ci --driver docker-container
     - |
       docker buildx build \
         --builder h5ai-ci \
