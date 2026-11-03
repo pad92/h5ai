@@ -319,6 +319,21 @@ test:docker:
     - docker run -d --name h5ai-test-noauth -v "$CI_PROJECT_DIR:/share:ro" "$TEST_IMAGE_REF"
     - TEST_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' h5ai-test-noauth)
     - wait_http "" "200 OK" "Public index page returned 200 OK" "Public index page test failed" h5ai-test-noauth
+    - |
+      # The image must carry the build's version and the changelog it opens.
+      EXPECTED_VERSION=$(sh scripts/version.sh)
+      if ! curl -fsS "http://${TEST_IP}/" | grep -qE "powered by h5ai v?${EXPECTED_VERSION}[ <]"; then
+        echo "✗ The page does not show version ${EXPECTED_VERSION}"
+        docker rm -f h5ai-test-noauth
+        exit 1
+      fi
+      echo "✓ The page shows version ${EXPECTED_VERSION}"
+      if ! curl -fsS "http://${TEST_IP}/_h5ai/CHANGELOG.md" | grep -q '^# Changelog'; then
+        echo "✗ /_h5ai/CHANGELOG.md is missing from the image"
+        docker rm -f h5ai-test-noauth
+        exit 1
+      fi
+      echo "✓ /_h5ai/CHANGELOG.md is served"
     - docker rm -f h5ai-test-noauth
 
     - echo "Testing container with basic authentication..."

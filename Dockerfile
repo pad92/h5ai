@@ -6,7 +6,8 @@ ARG H5AI_VERSION
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY src/ ./src/
-COPY gulpfile.js LICENSE ./
+# CHANGELOG.md goes to _h5ai/, where the version in the top bar opens it.
+COPY gulpfile.js LICENSE CHANGELOG.md ./
 COPY scripts/package-name.js scripts/version.sh ./scripts/
 RUN H5AI_VERSION="${H5AI_VERSION}" npm run build
 

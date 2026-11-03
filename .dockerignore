@@ -6,5 +6,5 @@ build
 doc
 scripts
 !scripts/package-name.js
-CHANGELOG*.md
+!scripts/version.sh
 README.md
