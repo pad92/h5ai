@@ -72,9 +72,9 @@ music, and back to the cover.
 
 ![Now playing view with the large cover and the track's tags](doc/screenshots/now-playing.webp)
 
-Thumbnails are generated for images, video frames, audio covers, PDF and
-PostScript documents, and ZIP or RAR archives (comic books, for example),
-then cached.
+Thumbnails are generated for images, video frames, audio covers, PDF
+documents, PostScript documents on hosts with Ghostscript, and ZIP or RAR
+archives (comic books, for example), then cached.
 
 ### Search and download
 
@@ -131,9 +131,10 @@ See the [changelog](CHANGELOG.md) for the details of each release.
 
 ### Docker (recommended)
 
-The [`pad92/docker-h5ai`][dockerhub] image bundles Angie, PHP 8.4 and every
-thumbnail tool (ImageMagick with Ghostscript and HEIC support, ffmpeg, the PHP
-image extensions), supervised by s6-overlay.
+The [`pad92/docker-h5ai`][dockerhub] image bundles Angie, PHP 8.4 and the
+thumbnail tools (ImageMagick with HEIC support, poppler for PDF, an ffmpeg
+built to decode only, the PHP image extensions), supervised by s6-overlay. It
+has no Ghostscript, so PostScript files get no thumbnail.
 
 ```bash
 # Protect the whole site with a password
@@ -188,9 +189,11 @@ Optional features need extra tools on the host:
 * `ffmpeg` or `avconv` for video and audio thumbnails, with `ffprobe` or
   `avprobe` to pick a frame at `thumbnails.seek`; without a probe the frame at
   0.1 seconds is used.
+* `pdftoppm` (poppler) for PDF thumbnails.
 * ImageMagick (`magick`, or `convert` on ImageMagick 6) with Ghostscript (`gs`)
-  for document thumbnails such as PDF: ImageMagick hands PDF and PostScript
-  files to Ghostscript. GraphicsMagick is an opt-in compatibility fallback and
+  for PostScript thumbnails, and for PDF when `pdftoppm` is missing or fails.
+  ImageMagick hands both formats to Ghostscript, so h5ai does not run it on
+  them without `gs`. GraphicsMagick is an opt-in compatibility fallback and
   does not use the bundled ImageMagick policy.
 * `tar` and `zip` for downloads configured to use those command-line archive
   formats; the PHP TAR writer does not need them.

@@ -20,7 +20,8 @@ const ADMIN_SETUP = {
     HAS_WRITABLE_CACHE_PRV: false,
     HAS_PHP_WEBP: true,
     HAS_CMD_FFMPEG: true,
-    HAS_CMD_MAGICK: true
+    HAS_CMD_MAGICK: true,
+    HAS_CMD_GS: true
 };
 
 // Loads the info page against the given setup with a stubbed server, and

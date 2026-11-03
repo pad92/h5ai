@@ -15,6 +15,9 @@ class Thumb {
     // ImageMagick 7 runs as `magick`; `convert` is its deprecated name and the
     // only one on ImageMagick 6 hosts. Settings, input, operators, output: an
     // order both versions accept.
+    // poppler renders the first PDF page without Ghostscript, at about the
+    // size of ImageMagick's 200 dpi A4 page below, as a JPEG on stdout.
+    const PDFTOPPM_CMDV = ['pdftoppm', '-f', '1', '-l', '1', '-singlefile', '-scale-to', '1600', '-jpeg', '-jpegopt', 'quality=90', '[H5AI_SRC]'];
     const MAGICK_CMDV = ['magick', '-density', '200', '[H5AI_SRC][0]', '-quality', '100', '-strip', 'WEBP:-'];
     const CONVERT_CMDV = ['convert', '-density', '200', '[H5AI_SRC][0]', '-quality', '100', '-strip', 'WEBP:-'];
     const GM_CONVERT_CMDV = ['gm', 'convert', '-density', '200', '-quality', '100', '-strip', '[H5AI_SRC][0]', 'WEBP:-'];
@@ -428,7 +431,23 @@ class Thumb {
         }
     }
 
+    // PDF goes to pdftoppm first. ImageMagick (or GraphicsMagick) gets what
+    // pdftoppm cannot render, and PostScript, only on a host with Ghostscript:
+    // without `gs` it fails on every listing. The Docker image ships no
+    // Ghostscript, so it renders PDF only.
     private function capture_doc(): bool {
+        if ($this->type->name === 'x-pdf' && $this->setup->get('HAS_CMD_PDFTOPPM')) {
+            try {
+                if ($this->do_capture(self::PDFTOPPM_CMDV)) {
+                    return true;
+                }
+            } catch (\Exception) {
+                // try ImageMagick below
+            }
+        }
+        if (!$this->setup->get('HAS_CMD_GS')) {
+            return false;
+        }
         try {
             if ($this->setup->get('HAS_CMD_MAGICK')) {
                 return $this->do_capture(self::MAGICK_CMDV);

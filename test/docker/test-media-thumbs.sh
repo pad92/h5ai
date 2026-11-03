@@ -1,8 +1,9 @@
 #!/bin/sh
 
-# Thumbnails of the formats added to the default options: each fixture is
-# requested with the type the listing gives it, and must come back as a WebP
-# image. The last request is the image preview's fallback for formats a
+# Thumbnails of the formats added to the default options, and of the codecs
+# the image's own ffmpeg build must decode (HEVC, AV1 through libdav1d, a
+# FLAC cover): each fixture is requested with the type the listing gives it,
+# and must come back as a WebP image. The last request is the image preview's fallback for formats a
 # browser cannot decode: a sample asked with the generic "img" type.
 
 set -eu
@@ -30,6 +31,9 @@ vid-ts video.mts
 vid video.ogv
 vid-vob video.vob
 ar-cbr comic.cbz
+vid-mp4 video-hevc.mp4
+vid-mkv video-av1.mkv
+aud audio-cover.flac
 img image.heic'
 
 cp "$(dirname "$0")"/fixtures/media/* "$fixture_dir/"

@@ -1,7 +1,8 @@
 #!/bin/sh
 
-# Thumbnails that need ImageMagick delegates shipped in the image: PDF
-# (Ghostscript) and TIFF. Each must come back from the API as a WebP file.
+# Thumbnails that need a tool shipped in the image: PDF (poppler's pdftoppm,
+# the image has no Ghostscript) and TIFF (an ImageMagick delegate). Each must
+# come back from the API as a WebP file.
 
 set -eu
 
