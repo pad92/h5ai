@@ -66,7 +66,6 @@ const defaults = {
     shutter: 'Shutter',
 
     // audio player
-    cover: 'cover',
     noTrack: 'No Track',
     unknownFolder: 'Unknown Folder',
     cannotPlay: 'Cannot play this file',
