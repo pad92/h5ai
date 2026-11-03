@@ -69,6 +69,35 @@ backs the W3C badges of the README. To check a new state of the interface,
 add it to `PAGES` in `dump-dom.mjs`.
 
 
+## Container tests
+
+`make docker-test` and the `test:docker` CI job also run the download and
+thumbnail scripts of `test/docker/`: `test-php-tar.sh`,
+`test-document-thumbs.sh` and `test-media-thumbs.sh`. The media test is the
+one that checks the image's own ffmpeg build. The scripts copy their fixtures
+into the container and reach it by its IP, or by a random port on
+`127.0.0.1` where the IP is not reachable (Docker Desktop), so they work the
+same from a CI job that drives the runner host's Docker through its socket.
+To cover a new format, add a sample to `test/docker/fixtures/media/` and a
+line to the cases of `test-media-thumbs.sh`.
+
+
+## CI images
+
+Branch and merge request pipelines build a single-platform image in the
+runner host's Docker, then test it and scan it with Grype there; a `.post`
+job removes it. Pipelines on `master` and tags build the amd64 and arm64
+candidate and push it to the GitLab registry by digest, without a tag; the
+publish jobs promote that digest once the tests and scans pass. GitLab.com
+deletes an untagged candidate that was never published after 24 hours.
+
+Both builds use the runner's persistent `h5ai-ci` BuildKit builder, which
+keeps the layer cache between pipelines and is pruned to
+`BUILDKIT_CACHE_MAX_USED`. Nothing is cached in the registry. The arm64
+layers are built under QEMU, so a change to `FFMPEG_VERSION` or to the base
+images recompiles ffmpeg in emulation once.
+
+
 ## Docker image tags
 
 Docker Hub protects tags matching `^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9]+)?$` from

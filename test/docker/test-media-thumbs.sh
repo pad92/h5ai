@@ -3,16 +3,17 @@
 # Thumbnails of the formats added to the default options, and of the codecs
 # the image's own ffmpeg build must decode (HEVC, AV1 through libdav1d, a
 # FLAC cover): each fixture is requested with the type the listing gives it,
-# and must come back as a WebP image. The last request is the image preview's fallback for formats a
-# browser cannot decode: a sample asked with the generic "img" type.
+# and must come back as a WebP image. The last request is the image
+# preview's fallback for formats a browser cannot decode: a sample asked with
+# the generic "img" type.
 
 set -eu
 
-image=${1:?Usage: test-media-thumbs.sh IMAGE [HOST]}
-host=${2:-localhost}
+. "$(dirname "$0")/lib.sh"
+
+image=${1:?Usage: test-media-thumbs.sh IMAGE}
 container="h5ai-test-mediathumbs-$$"
 fixture_dir=$(mktemp -d /tmp/h5ai-mediathumbs-test.XXXXXX)
-base="http://$host:8891"
 
 cleanup() {
 	docker rm -f "$container" >/dev/null 2>&1 || true
@@ -40,21 +41,7 @@ cp "$(dirname "$0")"/fixtures/media/* "$fixture_dir/"
 chmod 755 "$fixture_dir"
 chmod 644 "$fixture_dir"/*
 
-docker run -d --name "$container" -p 8891:80 -v "$fixture_dir:/share:ro" "$image" >/dev/null
-
-ready=false
-for _ in $(seq 1 20); do
-	if curl -fsSI "$base/" >/dev/null 2>&1; then
-		ready=true
-		break
-	fi
-	sleep 1
-done
-if [ "$ready" != true ]; then
-	echo 'FAIL: media thumbnail test container did not become ready' >&2
-	docker logs "$container" >&2
-	exit 1
-fi
+start_h5ai "$container" "$image" "$fixture_dir"
 
 # The last case is the preview sample: it carries a width.
 count=$(printf '%s\n' "$cases" | wc -l)
