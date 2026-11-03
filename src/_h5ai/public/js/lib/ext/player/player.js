@@ -73,10 +73,12 @@ const createPlayer = ({audioTypes, videoTypes}) => {
         });
     };
 
-    // The cover, or the visualizer in its place where Web Audio exists:
-    // checked as the view shows, as a saved mode may come from elsewhere.
+    // The cover, or the visualizer in its place where Web Audio exists, and
+    // the menu that picks it: checked as the view shows, as a saved mode may
+    // come from elsewhere and the motion preference may have changed.
     const syncVisualizer = () => {
         nowPlaying.setSwitchable(hasVisualizer(), visualizer.label);
+        nowPlaying.setChoices(hasVisualizer() ? visualizer.choices : null, visualizer.mode);
         nowPlaying.showVisualizer(hasVisualizer() ? visualizer.mode : 'off');
     };
 
@@ -567,7 +569,7 @@ const createPlayer = ({audioTypes, videoTypes}) => {
             close: clear,
             toggleNowPlaying
         });
-        nowPlaying.mount({close: syncExpandable});
+        nowPlaying.mount({close: syncExpandable, choose: mode => visualizer.choose(mode)});
 
         // Twice Winamp's 19 bars, in a square canvas that takes the cover's place.
         visualizer = createVisualizer({
@@ -599,11 +601,11 @@ const createPlayer = ({audioTypes, videoTypes}) => {
             }
         };
         event.sub('preview.content', (item, el) => setVideoShown(!!el && el.id === 'pv-content-vid'));
-        // The cover's label is built from strings, not marked in the page;
-        // a closed view gets it again when it opens.
+        // The cover's label and the menu are built from strings, not marked
+        // in the page; a closed view gets them again when it opens.
         event.sub('l10n.changed', () => {
             if (nowPlaying.isOpen()) {
-                nowPlaying.setSwitchable(hasVisualizer(), visualizer.label);
+                syncVisualizer();
             }
         });
         event.sub('preview.exit', () => setVideoShown(false));

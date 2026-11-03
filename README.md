@@ -66,9 +66,12 @@ it exports as an `.m3u8` playlist for VLC or MPC-HC
 A click on the bar's cover opens the track in large: its cover over a
 blurred copy of it, the title, artist, album and year read from the file's
 tags (MP3 and FLAC), and the format, duration, bit rate and size. A click
-on the large cover swaps it for a Winamp-style spectrum analyser, an
-oscilloscope, then a plasma, a kaleidoscope and a vortex that turn with the
-music, and back to the cover.
+on the large cover shows a visualizer in its place, and another click brings
+the cover back. The menu below the cover picks the visualizer: Winamp's
+spectrum analyser in its normal, fire or line style or with thin bands, its
+oscilloscope as lines, dots or solid, a spectrogram, VU meters, a stereo
+vectorscope, or a plasma, a kaleidoscope and a vortex that turn with the
+music.
 
 ![Now playing view with the large cover and the track's tags](doc/screenshots/now-playing.webp)
 

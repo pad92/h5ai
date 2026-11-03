@@ -1504,7 +1504,7 @@ test('audio covers: a FLAC picture becomes the cover', async () => {
 
 // Web Audio, animation frames and 2D canvases, which jsdom lacks. `audioEnv`
 // says how the next audio context starts and what the analyser hears.
-const audioEnv = {startState: 'running', resumes: true, hidden: false, contexts: [], sources: [], frames: [], recorders: new Map(), level: 255};
+const audioEnv = {startState: 'running', resumes: true, hidden: false, contexts: [], sources: [], frames: [], recorders: new Map(), level: 255, channels: [0.5, 0.5], splits: []};
 const recorderOf = canvas => audioEnv.recorders.get(canvas);
 const withAudio = async run => {
     const saved = {
@@ -1546,13 +1546,41 @@ const withAudio = async run => {
             audioEnv.sources.push(el);
             return {connect() {}};
         }
+        // The node a mono track is spread through, then the splitter: the
+        // channels each analyser was given are recorded.
+        createGain() {
+            const node = {
+                connect: target => {
+                    target.from = node;
+                }
+            };
+            return node;
+        }
+        createChannelSplitter(outputs) {
+            const splitter = {
+                outputs,
+                connect: (node, output) => {
+                    node.channel = output;
+                    audioEnv.splits.push({from: splitter.from, outputs, output});
+                }
+            };
+            return splitter;
+        }
         createAnalyser() {
             return {
                 fftSize: 0,
+                channel: null,
                 get frequencyBinCount() {
                     return this.fftSize / 2;
                 },
                 connect() {},
+                // A square wave of the channel's amplitude.
+                getFloatTimeDomainData(arr) {
+                    const amplitude = audioEnv.channels[this.channel];
+                    arr.forEach((unused, idx) => {
+                        arr[idx] = idx % 2 ? amplitude : -amplitude;
+                    });
+                },
                 // Loud bass, silence above.
                 getByteFrequencyData: arr => {
                     arr.fill(0);
@@ -1584,7 +1612,20 @@ const withAudio = async run => {
                 },
                 save() {},
                 restore() {},
-                translate() {},
+                beginPath() {},
+                rect() {},
+                clip() {},
+                moveTo() {},
+                lineTo(x, y) {
+                    calls.push({line: [x, y], style: this.strokeStyle});
+                },
+                stroke() {},
+                fillText(text) {
+                    calls.push({text});
+                },
+                translate(x, y) {
+                    calls.push({translate: [x, y]});
+                },
                 rotate() {},
                 scale() {},
                 drawImage(source) {
@@ -1623,17 +1664,23 @@ const runFrames = (count = 1) => {
 };
 const largeCover = () => $('#np-cover');
 const largeCanvas = () => $('#np-viz-canvas');
+const vizMenu = () => $('#np-viz-select');
+// Picks `mode` in the menu, as a viewer does.
+const pick = mode => {
+    vizMenu().value = mode;
+    vizMenu().dispatchEvent(new window.Event('change'));
+};
 const showsVisualizer = () => largeCover().classList.contains('np-cover-viz');
-// Opens the large view of the playing track, then clicks its cover until
-// the visualizer shows `mode`.
+// Opens the large view of the playing track.
 const openLarge = async () => {
     $('#ap-cover-gradient').click();
     await settle();
     assert.ok(panelOpen());
 };
+// Shows `mode` through the menu, unless it is shown already.
 const switchTo = mode => {
-    for (let i = 0; i < 6 && store.get('ext/player').visualizer !== mode; i += 1) {
-        largeCover().click();
+    if (vizMenu().value !== mode) {
+        pick(mode);
     }
     assert.equal(store.get('ext/player').visualizer, mode);
 };
@@ -1756,13 +1803,15 @@ test('visualizer: none in the bar, the large view shows the cover first', async 
             switchTo('off');
             assert.equal(showsVisualizer(), false, 'the cover is shown');
             assert.equal(largeCover().getAttribute('role'), 'button');
-            assert.equal(largeCover().getAttribute('title'), 'Cover (click to change)');
+            assert.ok(largeCover().getAttribute('title').startsWith('Show the visualizer: '), largeCover().getAttribute('title'));
             assert.equal($('#player-now-playing .np-viz'), null, 'no separate visualizer box');
+            assert.equal(vizMenu().classList.contains('hidden'), false, 'the menu below the cover');
+            assert.equal(vizMenu().value, 'off');
         });
     });
 });
 
-test('visualizer: clicks on the cover loop through every mode, and are remembered', async () => {
+test('visualizer: the menu picks a display, the cover hides it and brings it back, all remembered', async () => {
     const [a] = tracks('viz-modes', 'a.mp3');
     await withPlayer({}, [], async () => {
         await withAudio(async () => {
@@ -1772,29 +1821,178 @@ test('visualizer: clicks on the cover loop through every mode, and are remembere
             await openLarge();
             switchTo('off');
 
-            largeCover().click();
+            const {MODES} = reqlib('ext/player/visualizer');
+            const options = [...vizMenu().querySelectorAll('option')];
+            assert.deepEqual(options.map(option => option.value), ['off', ...MODES.filter(mode => mode !== 'off')], 'every display, the cover first');
+            assert.deepEqual([...vizMenu().querySelectorAll('optgroup')].map(group => group.label), ['Winamp', 'Meters', 'Psychedelic']);
+            assert.equal(options[0].parentNode, vizMenu(), 'the cover in no group');
+            assert.equal(vizMenu().getAttribute('aria-label'), 'Visualizer');
+
+            pick('scopeDots');
             assert.equal(showsVisualizer(), true, 'the visualizer takes the cover\'s place');
-            assert.equal(largeCover().getAttribute('title'), 'Spectrum analyser (click to change)');
-            assert.equal(store.get('ext/player').visualizer, 'spectrum');
+            assert.equal(store.get('ext/player').visualizer, 'scopeDots');
+            assert.equal(largeCover().getAttribute('title'), 'Show the cover');
+            runFrames(2);
+            const dots = recorderOf(largeCanvas()).calls;
+            assert.equal(dots.length, 151, 'one dot per column');
+            assert.ok(dots.every(call => call.h === 1), 'dots, not lines');
+
+            largeCover().click();
+            assert.equal(showsVisualizer(), false, 'a click: the cover again');
+            assert.equal(store.get('ext/player').visualizer, 'off');
+            assert.equal(vizMenu().value, 'off', 'the menu follows');
+            assert.equal(largeCover().getAttribute('title'), 'Show the visualizer: Oscilloscope, dots');
+            runFrames(1);
+            assert.equal(audioEnv.frames.length, 0, 'the cover: no frame at all');
 
             largeCover().dispatchEvent(new window.KeyboardEvent('keydown', {key: 'Enter'}));
-            assert.equal(largeCover().getAttribute('title'), 'Oscilloscope (click to change)', 'the keyboard switches too');
+            assert.equal(store.get('ext/player').visualizer, 'scopeDots', 'the keyboard brings the last display back');
+            assert.equal(vizMenu().value, 'scopeDots');
+
+            // The wave swings from top to bottom on every sample.
+            pick('scopeSolid');
+            runFrames(2);
+            const solid = recorderOf(largeCanvas()).calls;
+            assert.equal(solid.length, 151);
+            assert.ok(solid.every(call => call.h === 76 && (call.y === 0 || call.y === 75)), 'filled from the middle line');
+
+            pick('scope');
             runFrames(2);
             const columns = recorderOf(largeCanvas()).calls;
             assert.equal(columns.length, 151, 'one column per pixel');
-            assert.equal(columns[1].h, 151, 'a full swing joins top and bottom');
+            assert.equal(columns[1].h, 151, 'lines: a full swing joins top and bottom');
 
-            ['Plasma', 'Kaleidoscope', 'Vortex'].forEach(name => {
-                largeCover().click();
-                assert.equal(largeCover().getAttribute('title'), `${name} (click to change)`);
+            pick('off');
+            assert.equal(showsVisualizer(), false, 'the cover from the menu too');
+        });
+    });
+});
+
+test('visualizer: Winamp\'s analyser styles, and its thin bands', async () => {
+    const [a] = tracks('viz-styles', 'a.mp3');
+    await withPlayer({}, [], async () => {
+        await withAudio(async () => {
+            list(a);
+            press(a, 'folder');
+            await settle();
+            await openLarge();
+            const bars = () => recorderOf(largeCanvas()).calls.filter(call => call.h > 1);
+            const red = 'rgb(239,49,16)';
+
+            // The analyser hears loud bass: the first bars reach the top.
+            switchTo('spectrumLine');
+            runFrames(2);
+            const full = bars().filter(call => call.h === 151);
+            assert.ok(full.length > 0);
+            assert.ok(full.every(call => call.style === red), 'line: a full bar is red all the way down');
+
+            // Half as loud, and time for the bars to fall there.
+            audioEnv.level = 128;
+            runFrames(20);
+            const half = bars().filter(call => call.h > 60 && call.h < 90);
+            assert.ok(half.length > 0, 'bars half way up');
+            assert.ok(half.every(call => typeof call.style === 'string' && call.style !== red && call.style !== 'rgb(24,132,8)'), 'line: the colour of their top, neither red nor green');
+
+            switchTo('spectrum');
+            runFrames(2);
+            assert.ok(bars().every(call => typeof call.style === 'object'), 'normal: the skin\'s gradient, fixed on the screen');
+
+            switchTo('spectrumFire');
+            runFrames(2);
+            const calls = recorderOf(largeCanvas()).calls;
+            const fire = calls.filter(call => call.h > 1);
+            assert.ok(fire.some(call => call.h < 151), 'bars short of the top');
+            audioEnv.level = 255;
+            fire.forEach(call => {
+                const shift = calls[calls.indexOf(call) - 1];
+                assert.deepEqual(shift.translate, [0, 151 - call.h], 'fire: the gradient moved to the bar\'s top');
+                assert.equal(call.y, 0);
             });
-            largeCover().click();
-            assert.equal(showsVisualizer(), false, 'back to the cover');
+
+            switchTo('spectrumThin');
+            runFrames(2);
+            const thin = bars();
+            assert.ok(thin.length > 5);
+            assert.ok(thin.every(call => call.w === 1), 'bands one pixel wide');
+            assert.deepEqual(thin.map(call => call.x), thin.map((call, idx) => thin[0].x + idx), 'with no gap');
+            switchTo('off');
+        });
+    });
+});
+
+test('visualizer: the meters read each channel, a mono track in both', async () => {
+    const [a] = tracks('viz-meters', 'a.mp3');
+    await withPlayer({}, [], async () => {
+        await withAudio(async () => {
+            list(a);
+            press(a, 'folder');
+            await settle();
+            await openLarge();
+            switchTo('vu');
+            assert.deepEqual(audioEnv.splits.map(split => split.output), [0, 1], 'one analyser per channel');
+            const {from, outputs} = audioEnv.splits[0];
+            assert.equal(outputs, 2);
+            // A splitter alone would leave the right channel of a mono track
+            // silent: the node before it spreads mono to both.
+            assert.deepEqual(from && [from.channelCount, from.channelCountMode, from.channelInterpretation], [2, 'explicit', 'speakers']);
+
+            const needles = () => recorderOf(largeCanvas()).calls.filter(call => call.line && call.style === 'rgb(242,242,242)');
+            // The left channel loud, the right one silent.
+            audioEnv.channels = [0.5, 0];
+            runFrames(12);
+            const [leftNeedle, rightNeedle] = needles();
+            assert.ok(leftNeedle.line[0] > 76, 'the left needle pinned to the right');
+            assert.ok(rightNeedle.line[0] < 75, 'the right one at rest on the left');
+            assert.ok(leftNeedle.line[1] < 76 && rightNeedle.line[1] > 75, 'the left meter above, the right one below');
+            assert.deepEqual(recorderOf(largeCanvas()).calls.filter(call => call.text).map(call => call.text), ['L', 'R']);
+
+            audio().pause();
+            runFrames(5);
+            assert.ok(audioEnv.frames.length > 0, 'the needle falls after the pause');
+            runFrames(60);
+            assert.equal(audioEnv.frames.length, 0, 'then rests, and nothing runs');
+            audio().play();
+
+            switchTo('vectorscope');
+            const points = () => recorderOf(largeCanvas()).calls.filter(call => call.style === 'rgb(120,255,140)');
+            audioEnv.channels = [0.5, 0.5];
+            runFrames(2);
+            assert.deepEqual([...new Set(points().map(call => call.x))], [76], 'the same on both sides: one vertical line');
+            audioEnv.channels = [0.5, 0];
+            recorderOf(largeCanvas()).calls.length = 0;
             runFrames(1);
-            assert.equal(audioEnv.frames.length, 0, 'the cover: no frame at all');
-            assert.equal(store.get('ext/player').visualizer, 'off');
-            largeCover().click();
-            assert.equal(store.get('ext/player').visualizer, 'spectrum', 'and around again');
+            assert.ok(points().every(call => (call.x - 76) * (call.y - 76) > 0), 'the left alone: on the up-left diagonal');
+            audioEnv.channels = [0.5, 0.5];
+            switchTo('off');
+        });
+    });
+});
+
+test('visualizer: the spectrogram draws a column a frame, and stands still when paused', async () => {
+    const [a] = tracks('viz-spectrogram', 'a.mp3');
+    await withPlayer({}, [], async () => {
+        await withAudio(async () => {
+            list(a);
+            press(a, 'folder');
+            await settle();
+            await openLarge();
+            switchTo('spectrogram');
+            runFrames(2);
+            const images = () => recorderOf(largeCanvas()).calls.filter(call => call.put);
+            assert.equal(images().length, 2, 'one image per frame, over the last one');
+            const image = images()[1].put;
+            assert.equal(image.width, 151);
+            const pixel = (x, y) => Array.from(image.data.slice((y * 151 + x) * 4, (y * 151 + x) * 4 + 4));
+            assert.notDeepEqual(pixel(150, 150), pixel(150, 0), 'loud bass at the bottom, silent treble at the top');
+            assert.deepEqual(pixel(149, 150), pixel(150, 150), 'the frame before, one column to the left');
+            assert.deepEqual(pixel(148, 150), [0, 0, 0, 0], 'and nothing before it');
+
+            audio().pause();
+            runFrames(1);
+            assert.equal(audioEnv.frames.length, 0, 'paused: nothing runs');
+            assert.equal(images().length, 2, 'the picture stays as it is');
+            audio().play();
+            switchTo('off');
         });
     });
 });
@@ -1809,7 +2007,8 @@ test('visualizer: a saved psychedelic mode comes back with the queue', async () 
             await settle();
             await openLarge();
             assert.equal(showsVisualizer(), true);
-            assert.equal(largeCover().getAttribute('title'), 'Plasma (click to change)');
+            assert.equal(largeCover().getAttribute('title'), 'Show the cover');
+            assert.equal(vizMenu().value, 'plasma', 'the menu shows it');
         });
     });
 });
@@ -1868,6 +2067,7 @@ test('visualizer: a saved mode without Web Audio leaves the cover in place', asy
         await openLarge();
         assert.equal(showsVisualizer(), false, 'the cover, not an empty canvas');
         assert.equal(largeCover().getAttribute('role'), null, 'nothing to switch to');
+        assert.ok(vizMenu().classList.contains('hidden'), 'and no menu');
         largeCover().click();
         assert.equal(store.get('ext/player').visualizer, 'spectrum', 'the click changes nothing');
         $('#np-collapse').click();

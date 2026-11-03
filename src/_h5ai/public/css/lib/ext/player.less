@@ -1245,6 +1245,33 @@ body[data-theme="dark"] .ap-item-actions .ap-row-btn {
     }
 }
 
+// The cover, or the visualizer in its place, above the menu that picks it.
+#player-now-playing .np-visual {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+
+    .np-viz-select {
+        max-width: 100%;
+        padding: 6px 10px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 8px;
+        background: rgba(0, 0, 0, 0.35);
+        color: #fff;
+        color-scheme: dark;
+        font: inherit;
+        font-size: 13px;
+        cursor: pointer;
+
+        &:focus-visible {
+            outline: 2px solid #64b5f6;
+            outline-offset: 2px;
+        }
+    }
+}
+
 // The visualizer takes the cover's place, on the blurred backdrop: a few
 // pixels scaled up without smoothing, like Winamp's display.
 #player-now-playing .np-cover {
