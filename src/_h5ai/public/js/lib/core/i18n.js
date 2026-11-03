@@ -104,13 +104,26 @@ const defaults = {
     bitRate: 'Bit rate',
     file: 'File',
     vizSpectrum: 'Spectrum analyser',
+    vizSpectrumFire: 'Spectrum analyser, fire style',
+    vizSpectrumLine: 'Spectrum analyser, line style',
+    vizSpectrumThin: 'Spectrum analyser, thin bands',
     vizScope: 'Oscilloscope',
+    vizScopeDots: 'Oscilloscope, dots',
+    vizScopeSolid: 'Oscilloscope, solid',
+    vizSpectrogram: 'Spectrogram',
+    vizVu: 'VU meters',
+    vizVectorscope: 'Stereo vectorscope',
     vizPlasma: 'Plasma',
     vizKaleido: 'Kaleidoscope',
     vizVortex: 'Vortex',
     vizCover: 'Cover',
-    // %s: the name of the current display, one of the viz* strings.
-    vizSwitch: '%s (click to change)'
+    vizGroupWinamp: 'Winamp',
+    vizGroupMeters: 'Meters',
+    vizGroupTrips: 'Psychedelic',
+    vizChoose: 'Visualizer',
+    // %s: the visualizer a click shows, one of the viz* strings.
+    vizShow: 'Show the visualizer: %s',
+    vizShowCover: 'Show the cover'
 };
 
 const SETTERS = [

@@ -1,28 +1,46 @@
 // Visualizers of the playing track, drawn in place of the large view's
-// cover: Winamp's spectrum analyser with falling peaks and its oscilloscope,
-// then three psychedelic ones, a plasma, a kaleidoscope and a vortex. Those
-// turn their colours with the music but keep their brightness: a beat
-// swells, it never flashes. They read the real sound through a Web Audio analyser and stay
-// cheap: the FFT runs natively, the canvas is a few thousand pixels scaled up
-// without smoothing, and nothing runs while paused, hidden, back on the cover
-// or on a video.
+// cover. Winamp's: the spectrum analyser in its three styles and with thin
+// bands, with falling peaks, and its oscilloscope as lines, dots or solid.
+// Measuring ones: a scrolling spectrogram, two VU meters and a stereo
+// vectorscope. Then three psychedelic ones, a plasma, a kaleidoscope and a
+// vortex, which turn their colours with the music but keep their
+// brightness: a beat swells, it never flashes. They read the real sound
+// through Web Audio analysers and stay cheap: the FFT runs natively, the
+// canvas is a few thousand pixels scaled up without smoothing, and nothing
+// runs while paused, hidden, back on the cover or on a video.
 const i18n = require('../../core/i18n');
 const viz = require('./vizmath');
+const meters = require('./vizmeters');
 
-const {MODES, PSYCHEDELIC} = viz;
-// "off" shows the cover, where the cycle starts and ends.
+const {MODES, GROUPS, PSYCHEDELIC} = viz;
 const MODE_LABELS = {
     spectrum: 'vizSpectrum',
+    spectrumFire: 'vizSpectrumFire',
+    spectrumLine: 'vizSpectrumLine',
+    spectrumThin: 'vizSpectrumThin',
     scope: 'vizScope',
+    scopeDots: 'vizScopeDots',
+    scopeSolid: 'vizScopeSolid',
+    spectrogram: 'vizSpectrogram',
+    vu: 'vizVu',
+    vectorscope: 'vizVectorscope',
     plasma: 'vizPlasma',
     kaleido: 'vizKaleido',
     vortex: 'vizVortex',
     off: 'vizCover'
 };
+const GROUP_LABELS = {winamp: 'vizGroupWinamp', meters: 'vizGroupMeters', trips: 'vizGroupTrips'};
+// What a click on the cover shows when nothing was chosen yet.
+const DEFAULT_MODE = 'spectrum';
 const FRAME_MS = 1000 / 30;
-// Each bar is 3 pixels wide with a 1-pixel gap, as in Winamp's 76x16 area.
+// Each bar is 3 pixels wide with a 1-pixel gap, as in Winamp's 76x16 area;
+// thin bands are 1 pixel wide with no gap.
 const BAR_STEP = 4;
 const BAR_WIDTH = 3;
+// The oscilloscope shows this many samples: 46 ms at 44.1 kHz.
+const SCOPE_SAMPLES = 2048;
+// The two channels only feed the meters: their FFT size is their window.
+const CHANNEL_SAMPLES = 2048;
 // The kaleidoscope's mirrored sectors and bands, the vortex's ring points.
 const SECTORS = 8;
 const KALEIDO_BANDS = 16;
@@ -31,24 +49,44 @@ const RING_POINTS = 96;
 const TRAIL_KEEP = 0.88;
 // Paused, the trails fade out for this long, then nothing runs.
 const TRAIL_REST = 1;
+// The vectorscope: the points of a frame, and how much of the last frame's
+// glow a new one wipes, like a phosphor screen.
+const VECTOR_POINTS = 1024;
+const PHOSPHOR_FADE = 0.25;
+const VECTOR_COLOR = 'rgb(120,255,140)';
+// The VU meters' face, scale, red zone above 0 VU, and needle.
+const VU_FACE = 'rgb(36,26,10)';
+const VU_SCALE = 'rgb(255,179,64)';
+const VU_RED = 'rgb(255,74,42)';
+const VU_NEEDLE = 'rgb(242,242,242)';
+// Below this, a needle is at rest.
+const VU_REST = 0.002;
 
 const win = () => global.window;
 const AudioContextClass = () => win().AudioContext || win().webkitAudioContext;
 const isSupported = () => !!AudioContextClass() && typeof win().requestAnimationFrame === 'function';
 const prefersReducedMotion = () => typeof win().matchMedia === 'function' && win().matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-// `audio`: the track element. `onModeChange(mode)`: after a click changed it.
+// `audio`: the track element. `onModeChange(mode)`: after the viewer changed it.
 const createVisualizer = ({audio, onModeChange}) => {
     let context = null;
     let analyser = null;
+    // The left and right channels, or null where they could not be split:
+    // the meters then read the mixed wave in both.
+    let channels = null;
     let freq = null;
     let wave = null;
-    // The cover first: the visualizer is asked for with a click.
+    const left = new Float32Array(CHANNEL_SAMPLES);
+    const right = new Float32Array(CHANNEL_SAMPLES);
+    // The cover first: the visualizer is asked for by the viewer.
     let mode = 'off';
+    // What a click on the cover brings back.
+    let lastShown = DEFAULT_MODE;
     let isPlaying = false;
     let rafId = 0;
     let last = 0;
     const surfaces = [];
+    const palette = meters.spectrogramPalette();
 
     // Only while a display is shown: the view reduced, nothing is drawn, so
     // nothing is computed either; opening it calls refresh().
@@ -58,10 +96,32 @@ const createVisualizer = ({audio, onModeChange}) => {
         }
     };
 
+    // The two channels, each to its own analyser. A mono track is spread to
+    // both first: a splitter alone would leave the right one silent.
+    const splitChannels = source => {
+        try {
+            const stereo = context.createGain();
+            stereo.channelCount = 2;
+            stereo.channelCountMode = 'explicit';
+            stereo.channelInterpretation = 'speakers';
+            const splitter = context.createChannelSplitter(2);
+            source.connect(stereo);
+            stereo.connect(splitter);
+            return [0, 1].map(channel => {
+                const node = context.createAnalyser();
+                node.fftSize = CHANNEL_SAMPLES;
+                splitter.connect(node, channel);
+                return node;
+            });
+        } catch {
+            return null;
+        }
+    };
+
     // Connects the track to an analyser once the audio context runs: the
     // track would go silent through a suspended one. Only once a mode is
     // chosen: the connection cannot be undone, and until then the track
-    // plays outside Web Audio. Asked again on each play and mode click, so
+    // plays outside Web Audio. Asked again on each play and mode change, so
     // a context the browser held back starts with a later click, and one
     // it suspended later (a call, a locked screen) resumes.
     const activate = () => {
@@ -88,12 +148,14 @@ const createVisualizer = ({audio, onModeChange}) => {
                     return;
                 }
                 const node = context.createAnalyser();
-                node.fftSize = 2048;
+                node.fftSize = viz.FFT_SIZE;
                 node.minDecibels = -85;
                 node.maxDecibels = -20;
                 node.smoothingTimeConstant = 0.5;
-                context.createMediaElementSource(audio).connect(node);
+                const source = context.createMediaElementSource(audio);
+                source.connect(node);
                 node.connect(context.destination);
+                channels = splitChannels(source);
                 freq = new Uint8Array(node.frequencyBinCount);
                 wave = new Uint8Array(node.fftSize);
                 analyser = node;
@@ -109,37 +171,68 @@ const createVisualizer = ({audio, onModeChange}) => {
         }
     };
 
-    const drawSpectrum = (surface, dt) => {
+    const binHz = () => context.sampleRate / analyser.fftSize;
+
+    // The wave of the last SCOPE_SAMPLES, bytes with 128 at rest.
+    const scopeWave = () => wave.subarray(Math.max(0, wave.length - SCOPE_SAMPLES));
+
+    // `style`: one of viz.ANALYSER_STYLES; `layout`: thick or thin bands.
+    const drawSpectrum = (surface, dt, style, layout) => {
         const {ctx, rows} = surface;
-        const levels = viz.bandLevels(freq, context.sampleRate / analyser.fftSize, surface.edges);
-        const isMoving = viz.fall(surface.fall, levels, dt);
-        ctx.fillStyle = surface.gradient;
-        surface.fall.bars.forEach((level, idx) => {
+        const levels = viz.bandLevels(freq, binHz(), layout.edges);
+        const isMoving = viz.fall(layout.fall, levels, dt);
+        layout.fall.bars.forEach((level, idx) => {
             const height = Math.round(level * rows);
-            if (height) {
-                ctx.fillRect(idx * BAR_STEP, rows - height, BAR_WIDTH, height);
+            if (!height) {
+                return;
+            }
+            const x = idx * layout.step;
+            const top = rows - height;
+            if (style === 'line') {
+                ctx.fillStyle = surface.rowColors[viz.paletteRow(style, top, top, rows)];
+                ctx.fillRect(x, top, layout.width, height);
+            } else if (style === 'fire') {
+                // The gradient moves with the bar: its top is always red.
+                ctx.save();
+                ctx.translate(0, top);
+                ctx.fillStyle = surface.gradient;
+                ctx.fillRect(x, 0, layout.width, height);
+                ctx.restore();
+            } else {
+                ctx.fillStyle = surface.gradient;
+                ctx.fillRect(x, top, layout.width, height);
             }
         });
         ctx.fillStyle = viz.PEAK_COLOR;
-        surface.fall.peaks.forEach((peak, idx) => {
+        layout.fall.peaks.forEach((peak, idx) => {
             const top = rows - Math.round(peak * rows);
             if (peak > 0) {
-                ctx.fillRect(idx * BAR_STEP, Math.min(rows - 1, top), BAR_WIDTH, 1);
+                ctx.fillRect(idx * layout.step, Math.min(rows - 1, top), layout.width, 1);
             }
         });
         return isMoving;
     };
 
-    // One column per pixel, joined to the previous one so the wave reads as
-    // a line even where it jumps.
-    const drawScope = surface => {
+    // One column per pixel. "lines" joins each sample to the previous one so
+    // the wave reads as a line even where it jumps, "dots" draws the samples
+    // alone, "solid" fills from the middle line to the wave.
+    const drawScope = (surface, style) => {
         const {ctx, rows, width} = surface;
+        const samples = scopeWave();
+        const middle = Math.round((rows - 1) / 2);
         let previous = null;
         for (let x = 0; x < width; x += 1) {
-            const sample = wave[Math.floor(x * wave.length / width)];
+            const sample = samples[Math.floor(x * samples.length / width)];
             const y = Math.round(sample / 255 * (rows - 1));
-            const from = previous === null ? y : Math.min(previous, y);
-            const to = previous === null ? y : Math.max(previous, y);
+            let from = y;
+            let to = y;
+            if (style === 'solid') {
+                from = Math.min(middle, y);
+                to = Math.max(middle, y);
+            } else if (style === 'lines' && previous !== null) {
+                from = Math.min(previous, y);
+                to = Math.max(previous, y);
+            }
             ctx.fillStyle = viz.scopeColor(Math.abs(sample - 128) / 128);
             ctx.fillRect(x, from, 1, to - from + 1);
             previous = y;
@@ -147,7 +240,103 @@ const createVisualizer = ({audio, onModeChange}) => {
         return false;
     };
 
-    const binHz = () => context.sampleRate / analyser.fftSize;
+    // Time runs while it plays; paused, the picture fades for TRAIL_REST,
+    // then the drawing stops and is cleared. `onLive(dt)`: the step of a
+    // playing frame.
+    const restStep = (surface, dt, isLive, onLive) => {
+        const trip = surface.trip;
+        if (isLive) {
+            trip.rest = 0;
+            onLive(dt);
+            return true;
+        }
+        trip.rest += dt;
+        if (trip.rest >= TRAIL_REST) {
+            surface.ctx.clearRect(0, 0, surface.width, surface.rows);
+            return false;
+        }
+        return true;
+    };
+
+    // The trip moves with the music while it plays.
+    const tripStep = (surface, dt, isLive) => restStep(surface, dt, isLive, step => {
+        viz.advanceTrip(surface.trip, viz.energies(freq, binHz()), step);
+    });
+
+    // One new column a frame, bass at the bottom; paused, it stands still.
+    const drawSpectrogram = (surface, dt, isLive) => {
+        const {ctx, width, rows} = surface;
+        if (!isLive) {
+            return false;
+        }
+        if (!surface.spectrogram) {
+            surface.spectrogram = ctx.createImageData(width, rows);
+        }
+        const levels = viz.bandLevels(freq, binHz(), surface.rowEdges);
+        meters.scrollSpectrogram(surface.spectrogram.data, width, rows, levels, palette);
+        ctx.putImageData(surface.spectrogram, 0, 0);
+        return false;
+    };
+
+    // One meter on the `top` half-height band of the surface, its needle at
+    // `position`, its channel named `name`.
+    const drawMeter = (surface, top, height, position, name) => {
+        const {ctx, width} = surface;
+        const pivotX = width / 2;
+        const pivotY = top + height * 1.3;
+        const radius = height * 1.15;
+        const pointAt = (angle, distance) => [pivotX + Math.sin(angle) * distance, pivotY - Math.cos(angle) * distance];
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, top, width, height);
+        ctx.clip();
+        ctx.fillStyle = VU_FACE;
+        ctx.fillRect(0, top, width, height);
+        ctx.lineWidth = 1;
+        meters.VU_MARKS.forEach(mark => {
+            const angle = meters.vuAngle(meters.vuPosition(mark));
+            ctx.strokeStyle = mark > 0 ? VU_RED : VU_SCALE;
+            ctx.beginPath();
+            ctx.moveTo(...pointAt(angle, radius * 0.86));
+            ctx.lineTo(...pointAt(angle, radius * (mark % 5 ? 0.92 : 0.96)));
+            ctx.stroke();
+        });
+        ctx.strokeStyle = VU_NEEDLE;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(pivotX, pivotY);
+        ctx.lineTo(...pointAt(meters.vuAngle(position), radius * 0.98));
+        ctx.stroke();
+        ctx.fillStyle = VU_SCALE;
+        ctx.font = '9px monospace';
+        ctx.fillText(name, 4, top + height - 4);
+        ctx.restore();
+    };
+
+    // The left channel above, the right one below.
+    const drawVu = (surface, dt) => {
+        const half = Math.floor(surface.rows / 2);
+        surface.vu = surface.vu.map((position, channel) => meters.vuNeedle(position, channel ? right : left, dt));
+        drawMeter(surface, 0, half, surface.vu[0], 'L');
+        drawMeter(surface, surface.rows - half, half, surface.vu[1], 'R');
+        return surface.vu.some(position => position > VU_REST);
+    };
+
+    // The channels as points over the glow of the last frames.
+    const drawVectorscope = (surface, dt, isLive) => {
+        const {ctx, width, rows} = surface;
+        ctx.save();
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.fillStyle = `rgba(0,0,0,${PHOSPHOR_FADE})`;
+        ctx.fillRect(0, 0, width, rows);
+        ctx.restore();
+        return restStep(surface, dt, isLive, () => {
+            ctx.fillStyle = VECTOR_COLOR;
+            meters.vectorPoints(left, right, VECTOR_POINTS, width * 0.45).forEach(point => {
+                ctx.fillRect(Math.round(width / 2 + point.x), Math.round(rows / 2 + point.y), 1, 1);
+            });
+        });
+    };
 
     // Keeps `TRAIL_KEEP` of the last frame, turned by `spin` and zoomed by
     // `zoom` around the centre: the colours smear into trails.
@@ -171,23 +360,6 @@ const createVisualizer = ({audio, onModeChange}) => {
         ctx.translate(-size / 2, -size / 2);
         ctx.drawImage(buffer.canvas, 0, 0);
         ctx.restore();
-    };
-
-    // The trip moves with the music while it plays; paused, the trails fade
-    // for TRAIL_REST, then the drawing stops and is cleared.
-    const tripStep = (surface, dt, isLive) => {
-        const trip = surface.trip;
-        if (isLive) {
-            trip.rest = 0;
-            viz.advanceTrip(trip, viz.energies(freq, binHz()), dt);
-            return true;
-        }
-        trip.rest += dt;
-        if (trip.rest >= TRAIL_REST) {
-            surface.ctx.clearRect(0, 0, surface.width, surface.rows);
-            return false;
-        }
-        return true;
     };
 
     // The plasma fills the square; paused, it stays as it is.
@@ -253,24 +425,44 @@ const createVisualizer = ({audio, onModeChange}) => {
         if (!isLive) {
             return true;
         }
-        viz.ringPoints(wave, RING_POINTS, size * 0.3, size * 0.15).forEach((point, idx) => {
+        viz.ringPoints(scopeWave(), RING_POINTS, size * 0.3, size * 0.15).forEach((point, idx) => {
             ctx.fillStyle = viz.hueColor(trip.hue + idx * 360 / RING_POINTS);
             ctx.fillRect(Math.round(size / 2 + point.x) - 1, Math.round(size / 2 + point.y) - 1, 2, 2);
         });
         return true;
     };
 
-    const DRAW = {spectrum: drawSpectrum, scope: drawScope, plasma: drawPlasma, kaleido: drawKaleido, vortex: drawVortex};
+    // Each mode's drawing, `(surface, dt, isLive)` to whether it still moves.
+    const DRAW = {
+        spectrum: (surface, dt) => drawSpectrum(surface, dt, 'normal', surface.thick),
+        spectrumFire: (surface, dt) => drawSpectrum(surface, dt, 'fire', surface.thick),
+        spectrumLine: (surface, dt) => drawSpectrum(surface, dt, 'line', surface.thick),
+        spectrumThin: (surface, dt) => drawSpectrum(surface, dt, 'normal', surface.thin),
+        scope: surface => drawScope(surface, 'lines'),
+        scopeDots: surface => drawScope(surface, 'dots'),
+        scopeSolid: surface => drawScope(surface, 'solid'),
+        spectrogram: drawSpectrogram,
+        vu: drawVu,
+        vectorscope: drawVectorscope,
+        plasma: drawPlasma,
+        kaleido: drawKaleido,
+        vortex: drawVortex
+    };
+    // These draw over their own last frame; the others start from a clear one.
+    const KEEPS_CANVAS = [...PSYCHEDELIC, 'spectrogram', 'vectorscope'];
+    const USES_CHANNELS = ['vu', 'vectorscope'];
 
     const prepare = surface => {
         if (!surface.ctx) {
             surface.ctx = surface.canvas.getContext('2d');
             // Hard stops: one flat colour per pixel row, like the skin.
             const gradient = surface.ctx.createLinearGradient(0, 0, 0, surface.rows);
+            surface.rowColors = [];
             for (let row = 0; row < surface.rows; row += 1) {
                 const color = viz.spectrumColor(row, surface.rows);
                 gradient.addColorStop(row / surface.rows, color);
                 gradient.addColorStop((row + 1) / surface.rows, color);
+                surface.rowColors.push(color);
             }
             surface.gradient = gradient;
         }
@@ -282,6 +474,24 @@ const createVisualizer = ({audio, onModeChange}) => {
             surface.ctx.clearRect(0, 0, surface.width, surface.rows);
         }
     });
+
+    // The channels as floats, or the mixed wave in both where they could
+    // not be split; silence while paused.
+    const readChannels = isLive => {
+        if (!isLive) {
+            left.fill(0);
+            right.fill(0);
+        } else if (channels) {
+            channels[0].getFloatTimeDomainData(left);
+            channels[1].getFloatTimeDomainData(right);
+        } else {
+            const offset = wave.length - CHANNEL_SAMPLES;
+            for (let idx = 0; idx < CHANNEL_SAMPLES; idx += 1) {
+                left[idx] = (wave[offset + idx] - 128) / 128;
+                right[idx] = left[idx];
+            }
+        }
+    };
 
     function frame(now) {
         rafId = 0;
@@ -305,6 +515,9 @@ const createVisualizer = ({audio, onModeChange}) => {
             freq.fill(0);
             wave.fill(128);
         }
+        if (USES_CHANNELS.includes(mode)) {
+            readChannels(isLive);
+        }
         let isMoving = false;
         surfaces.forEach(surface => {
             if (!surface.isShown()) {
@@ -314,8 +527,7 @@ const createVisualizer = ({audio, onModeChange}) => {
             if (!ctx) {
                 return;
             }
-            // The psychedelic modes draw over their own last frame.
-            if (!PSYCHEDELIC.includes(mode)) {
+            if (!KEEPS_CANVAS.includes(mode)) {
                 ctx.clearRect(0, 0, surface.width, surface.rows);
             }
             isMoving = DRAW[mode](surface, dt, isLive) || isMoving;
@@ -325,24 +537,47 @@ const createVisualizer = ({audio, onModeChange}) => {
         }
     }
 
-    const describe = () => i18n.t('vizSwitch', i18n.t(MODE_LABELS[mode]));
-
-    function resetTrip(surface) {
+    function resetSurface(surface) {
         surface.trip = Object.assign(viz.createTrip(), {rest: 0, drawn: false});
+        surface.spectrogram = null;
+        surface.vu = [0, 0];
     }
+
+    const isAllowed = value => viz.allowedModes(prefersReducedMotion()).includes(value);
 
     // Each mode starts on a clean canvas.
     function switchTo(value) {
         mode = value;
+        if (value !== 'off') {
+            lastShown = value;
+        }
         clear();
-        surfaces.forEach(resetTrip);
+        surfaces.forEach(resetSurface);
         schedule();
     }
 
-    // `button`: holds the canvas and changes the mode on click; its owner
-    // names it from `label`, and only once it is a button: a label on a plain
-    // element is invalid HTML. `bars` 3-pixel bars of `rows` pixels;
-    // `isShown()`: whether to draw it now.
+    // A change by the viewer: shown, connected if the track plays (the
+    // click or the menu lets the browser start the audio context), saved.
+    const change = value => {
+        if (!isSupported() || !isAllowed(value) || value === mode) {
+            return;
+        }
+        switchTo(value);
+        if (isPlaying) {
+            activate();
+        }
+        onModeChange(mode);
+    };
+
+    // The cover's click: the last display shown, or the cover again.
+    const toggle = () => change(mode === 'off' ? isAllowed(lastShown) && lastShown || DEFAULT_MODE : 'off');
+
+    const layoutOf = (bars, step, width) => ({bars, step, width, edges: viz.bandEdges(bars), fall: viz.createFallState(bars)});
+
+    // `button`: holds the canvas and shows or hides the display on click;
+    // its owner names it from `label`, and only once it is a button: a label
+    // on a plain element is invalid HTML. `bars` 3-pixel bars of `rows`
+    // pixels; `isShown()`: whether to draw it now.
     const addSurface = (button, {bars, rows, isShown}) => {
         const canvas = button.querySelector('canvas');
         const width = bars * BAR_STEP - 1;
@@ -354,24 +589,14 @@ const createVisualizer = ({audio, onModeChange}) => {
             width,
             rows,
             isShown,
-            edges: viz.bandEdges(bars),
-            kaleidoEdges: viz.bandEdges(KALEIDO_BANDS),
-            fall: viz.createFallState(bars),
-            trip: null
+            thick: layoutOf(bars, BAR_STEP, BAR_WIDTH),
+            thin: layoutOf(width, 1, 1),
+            rowEdges: viz.bandEdges(rows),
+            kaleidoEdges: viz.bandEdges(KALEIDO_BANDS)
         };
-        resetTrip(surface);
+        resetSurface(surface);
         surfaces.push(surface);
-        button.addEventListener('click', () => {
-            if (!isSupported()) {
-                return;
-            }
-            switchTo(viz.nextMode(mode, prefersReducedMotion()));
-            // The click lets the browser start the audio context.
-            if (isPlaying) {
-                activate();
-            }
-            onModeChange(mode);
-        });
+        button.addEventListener('click', toggle);
     };
 
     const setPlaying = playing => {
@@ -379,7 +604,8 @@ const createVisualizer = ({audio, onModeChange}) => {
         schedule();
     };
 
-    // A saved psychedelic mode gives way to the cover under reduced motion.
+    // A saved mode; a psychedelic one gives way to the cover under reduced
+    // motion.
     const setMode = value => {
         if (MODES.includes(value)) {
             switchTo(PSYCHEDELIC.includes(value) && prefersReducedMotion() ? 'off' : value);
@@ -393,12 +619,26 @@ const createVisualizer = ({audio, onModeChange}) => {
         addSurface,
         setPlaying,
         setMode,
+        // The viewer's pick in the menu.
+        choose: change,
         get mode() {
             return mode;
         },
-        // What a click on a display does, for its title.
+        // What a click on the display does, for its title.
         get label() {
-            return describe();
+            return mode === 'off' ? i18n.t('vizShow', i18n.t(MODE_LABELS[isAllowed(lastShown) ? lastShown : DEFAULT_MODE])) : i18n.t('vizShowCover');
+        },
+        // The menu: the cover, then each group's allowed modes, translated.
+        get choices() {
+            const allowed = viz.allowedModes(prefersReducedMotion());
+            const option = value => ({value, label: i18n.t(MODE_LABELS[value])});
+            return [
+                {label: null, options: [option('off')]},
+                ...GROUPS.map(group => ({
+                    label: i18n.t(GROUP_LABELS[group.name]),
+                    options: group.modes.filter(value => allowed.includes(value)).map(option)
+                })).filter(group => group.options.length)
+            ];
         },
         // Drawing again, for a view that just became shown.
         refresh: schedule

@@ -2,7 +2,8 @@
 // copy of it, and what the file says about itself. It opens from the bar's
 // cover and fills the page; the bar's controls sit at its bottom, the rest of
 // the bar is hidden (player.less). Where Web Audio exists, a click on the
-// cover swaps it for the visualizer, and so on in a loop.
+// cover swaps it for the visualizer and back, and a menu below it picks
+// which visualizer.
 const {dom} = require('../../util');
 const format = require('../../core/format');
 const i18n = require('../../core/i18n');
@@ -20,10 +21,13 @@ const TPL = `
         <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><path d="${COLLAPSE_ICON}"/></svg>
     </button>
     <div class="np-content">
-        <div class="np-cover" id="np-cover">
-            <img class="np-cover-img hidden" id="np-cover-img" src="${resource.blankImage}" alt=""/>
-            <svg class="np-cover-fallback" id="np-cover-fallback" viewBox="0 0 24 24" fill="currentColor"><path d="${NOTE_ICON}"/></svg>
-            <canvas class="np-viz-canvas" id="np-viz-canvas"></canvas>
+        <div class="np-visual">
+            <div class="np-cover" id="np-cover">
+                <img class="np-cover-img hidden" id="np-cover-img" src="${resource.blankImage}" alt=""/>
+                <svg class="np-cover-fallback" id="np-cover-fallback" viewBox="0 0 24 24" fill="currentColor"><path d="${NOTE_ICON}"/></svg>
+                <canvas class="np-viz-canvas" id="np-viz-canvas"></canvas>
+            </div>
+            <select class="np-viz-select hidden l10n_aria-vizChoose l10n_title-vizChoose" id="np-viz-select" aria-label="Visualizer" title="Visualizer"></select>
         </div>
         <div class="np-info">
             <p class="np-kicker l10n-nowPlaying">Now playing</p>
@@ -130,6 +134,25 @@ const setSwitchable = (isSwitchable, label) => {
     }
 };
 
+// The visualizer menu, or none where Web Audio is missing (`choices` null).
+// `choices`: [{label, options: [{value, label}]}], a group without a label
+// listing its options at the top; `mode` is selected.
+const setChoices = (choices, mode) => {
+    const $select = dom('#np-viz-select');
+    if (!choices) {
+        $select.clr().hide();
+        return;
+    }
+    $select.clr();
+    choices.forEach(group => {
+        const $parent = group.label ? dom('<optgroup/>').attr('label', group.label).appTo($select) : $select;
+        group.options.forEach(option => {
+            $parent.app(dom('<option/>').attr('value', option.value).text(option.label));
+        });
+    });
+    $select.val(mode).show();
+};
+
 // `mode`: a visualizer mode; "off" shows the cover.
 const showVisualizer = mode => {
     if (mode && mode !== 'off') {
@@ -163,12 +186,14 @@ const close = () => {
     }
 };
 
-// `on.close`: called once the view closed, whatever closed it.
+// `on.close`: called once the view closed, whatever closed it;
+// `on.choose(mode)`: a visualizer picked in the menu.
 const mount = on => {
     onClose = on.close;
     base.$root.app(TPL);
     i18n.apply(dom('#player-now-playing'));
     dom('#np-collapse').on('click', close);
+    dom('#np-viz-select').on('change', ev => on.choose(ev.target.value));
     const $cover = dom('#np-cover');
     $cover.on('keydown', ev => {
         if ($cover.hasCls('np-cover-switchable') && (ev.key === 'Enter' || ev.key === ' ')) {
@@ -190,6 +215,7 @@ module.exports = {
     mount,
     render,
     setSwitchable,
+    setChoices,
     showVisualizer,
     open,
     close,

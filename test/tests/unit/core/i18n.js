@@ -58,12 +58,12 @@ test('i18n: a language change reaches the page and is announced', () => {
 });
 
 test('i18n: t() falls back to English and fills %s', () => {
-    withLanguage({vizSwitch: '%s (cliquer pour changer)'}, () => {
-        assert.equal(i18n.t('vizSwitch', 'Plasma'), 'Plasma (cliquer pour changer)');
+    withLanguage({vizShow: 'Afficher le visualiseur : %s'}, () => {
+        assert.equal(i18n.t('vizShow', 'Plasma'), 'Afficher le visualiseur : Plasma');
         assert.equal(i18n.t('vizPlasma'), 'Plasma');
     });
     assert.equal(i18n.t('no-such-key'), 'no-such-key');
-    assert.equal(i18n.t('vizSwitch', 'A $& B $$'), 'A $& B $$ (click to change)', 'an argument is inserted as is');
+    assert.equal(i18n.t('vizShow', 'A $& B $$'), 'Show the visualizer: A $& B $$', 'an argument is inserted as is');
 });
 
 test('i18n: mark() swaps the key of a state label', () => {

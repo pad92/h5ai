@@ -1,6 +1,7 @@
 // The visualizer's numbers, apart from any canvas or audio API so they can
-// be tested: frequency bands, falling bars and peaks, the colours of the
-// classic Winamp skin, and the psychedelic modes' motion and pixels.
+// be tested: frequency bands, falling bars and peaks, the colours and styles
+// of the classic Winamp skin, and the psychedelic modes' motion and pixels.
+// The meters' numbers are in vizmeters.js.
 
 // The classic skin's spectrum colours (viscolor.txt), from the top of a bar
 // to its bottom: red, orange, yellow, then green.
@@ -19,6 +20,18 @@ const rgb = ([r, g, b]) => `rgb(${r},${g},${b})`;
 // The colour of a bar's pixel row `row` (0 at the top) out of `rows`.
 const spectrumColor = (row, rows) => rgb(SPECTRUM_COLORS[Math.min(SPECTRUM_COLORS.length - 1, Math.floor(row * SPECTRUM_COLORS.length / rows))]);
 
+// Winamp's three analyser styles, as the row of the palette that colours the
+// pixel at row `row` of a bar whose top is at row `top`, out of `rows`:
+// "normal" colours by height on the screen, "fire" starts the palette at the
+// top of each bar, "line" paints the whole bar in the colour of its top.
+const ANALYSER_STYLES = ['normal', 'fire', 'line'];
+const paletteRow = (style, row, top, rows) => {
+    if (style === 'fire') {
+        return Math.min(rows - 1, row - top);
+    }
+    return style === 'line' ? top : row;
+};
+
 const scopeColor = swing => rgb(SCOPE_COLORS[Math.min(SCOPE_COLORS.length - 1, Math.floor((1 - swing) * SCOPE_COLORS.length))]);
 
 const LOW_HZ = 40;
@@ -28,19 +41,32 @@ const HIGH_HZ = 16000;
 // bass gets as many bars as treble.
 const bandEdges = count => Array.from({length: count + 1}, (unused, idx) => LOW_HZ * (HIGH_HZ / LOW_HZ) ** (idx / count));
 
-// `freq`: the analyser's byte magnitudes (0-255), `binHz`: the width of one
-// bin. Each band takes its loudest bin, 0..1. A band narrower than a bin
-// still reads the bin it falls in.
+// The analyser's FFT: 4096 samples, 93 ms at 44.1 kHz, bins of 10.8 Hz. A
+// longer one would tell the bass apart better but smear every beat.
+const FFT_SIZE = 4096;
+
+// `freq`: the analyser's byte magnitudes (0-255), bin `k` centred on
+// `k * binHz`. Each band takes the loudest bin centred inside it, 0..1. A
+// bass band narrower than a bin has none: it reads the spectrum between the
+// two bins around its middle, so neighbouring bars never move as one.
 const bandLevels = (freq, binHz, edges) => {
+    const last = freq.length - 1;
     const levels = [];
     for (let band = 0; band < edges.length - 1; band += 1) {
-        const from = Math.min(freq.length - 1, Math.floor(edges[band] / binHz));
-        const to = Math.min(freq.length - 1, Math.max(from, Math.ceil(edges[band + 1] / binHz) - 1));
-        let max = 0;
-        for (let bin = from; bin <= to; bin += 1) {
-            max = Math.max(max, freq[bin]);
+        const from = Math.ceil(edges[band] / binHz);
+        const to = Math.min(last, Math.ceil(edges[band + 1] / binHz) - 1);
+        let level = 0;
+        if (from <= to) {
+            for (let bin = from; bin <= to; bin += 1) {
+                level = Math.max(level, freq[bin]);
+            }
+        } else {
+            const at = Math.min(last, Math.sqrt(edges[band] * edges[band + 1]) / binHz);
+            const below = Math.floor(at);
+            const above = Math.min(last, below + 1);
+            level = freq[below] + (freq[above] - freq[below]) * (at - below);
         }
-        levels.push(max / 255);
+        levels.push(level / 255);
     }
     return levels;
 };
@@ -76,16 +102,19 @@ const createFallState = count => ({
     holds: new Array(count).fill(0)
 });
 
-// The modes a click goes through, the cover ("off") last. The psychedelic
-// ones keep moving and are left out when the system asks for reduced motion.
-const MODES = ['spectrum', 'scope', 'plasma', 'kaleido', 'vortex', 'off'];
-const PSYCHEDELIC = ['plasma', 'kaleido', 'vortex'];
+// The modes as the menu groups them, "off" being the cover. Their names are
+// saved: keep them. The psychedelic ones keep moving and are left out when
+// the system asks for reduced motion; the meters only move with the sound.
+const GROUPS = [
+    {name: 'winamp', modes: ['spectrum', 'spectrumFire', 'spectrumLine', 'spectrumThin', 'scope', 'scopeDots', 'scopeSolid']},
+    {name: 'meters', modes: ['spectrogram', 'vu', 'vectorscope']},
+    {name: 'trips', modes: ['plasma', 'kaleido', 'vortex']}
+];
+const PSYCHEDELIC = GROUPS[2].modes;
+const MODES = [...GROUPS.flatMap(group => group.modes), 'off'];
 
-// The mode after `mode`, or the first allowed one for an unknown mode.
-const nextMode = (mode, reducedMotion) => {
-    const allowed = MODES.filter(each => !reducedMotion || !PSYCHEDELIC.includes(each));
-    return allowed[(allowed.indexOf(mode) + 1) % allowed.length];
-};
+// The modes a viewer may pick.
+const allowedModes = reducedMotion => MODES.filter(mode => !reducedMotion || !PSYCHEDELIC.includes(mode));
 
 // The mean level, 0..1, of the bins from `lowHz` up to, not including,
 // `highHz`: next to each other, two bands never share a bin.
@@ -179,9 +208,13 @@ const plasmaPixels = (pixels, size, t, hue, warp) => {
 };
 
 module.exports = {
+    FFT_SIZE,
     MODES,
+    GROUPS,
     PSYCHEDELIC,
-    nextMode,
+    allowedModes,
+    ANALYSER_STYLES,
+    paletteRow,
     energies,
     follow,
     hueRgb,
@@ -190,6 +223,7 @@ module.exports = {
     advanceTrip,
     ringPoints,
     plasmaPixels,
+    rgb,
     PEAK_COLOR: rgb(PEAK_COLOR),
     spectrumColor,
     scopeColor,
