@@ -108,7 +108,8 @@ build:app:
   needs:
     - job: lint:app
   script:
-    - H5AI_VERSION=${CI_COMMIT_BRANCH:-$(sed -n 's/.*"version":[[:space:]]*"\([^\"]*\)".*/\1/p' package.json | head -n1)} npm run build
+    # gulp reads the version from scripts/version.sh: the tag, else the commit.
+    - npm run build
   artifacts:
     paths:
       - build/h5ai-*.zip
@@ -127,8 +128,8 @@ build:app:
     - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
     - docker buildx inspect h5ai-ci >/dev/null 2>&1 || docker buildx create --name h5ai-ci --driver docker-container
     # Version/build metadata consumed by the Dockerfile ARGs (image labels).
-    - H5AI_VERSION=$(sed -n 's/.*"version":[[:space:]]*"\([^"]*\)".*/\1/p' package.json | head -n1)
-    - if [ -n "$CI_COMMIT_BRANCH" ]; then H5AI_VERSION=$CI_COMMIT_BRANCH; fi
+    # The tag of a tag pipeline, else the commit id (scripts/version.sh).
+    - H5AI_VERSION=$(sh scripts/version.sh)
     - BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
     - BUILD_ARGS="--build-arg H5AI_VERSION=$H5AI_VERSION --build-arg BUILD_DATE=$BUILD_DATE --build-arg BUILD_VCSREF=$CI_COMMIT_SHORT_SHA"
   after_script:

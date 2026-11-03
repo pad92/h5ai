@@ -30,6 +30,7 @@
     "tree": "Arbol",
     "view": "Vista",
     "poweredBy": "funciona con h5ai",
+    "changelog": "Registro de cambios",
     "loadingFailed": "error al cargar",
     "refreshFailed": "error al actualizar",
     "close": "cerrar",

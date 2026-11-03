@@ -35,14 +35,33 @@ body[data-theme="dark"] #toolbar #theme.active img {
     filter: invert(1) opacity(0.95);
 }
 
-body[data-theme="dark"] #backlink,
-body[data-theme="dark"] #backlink:visited,
-body[data-theme="dark"] #backlink:active {
+body[data-theme="dark"] #backlink #backlink-home,
+body[data-theme="dark"] #backlink #version {
     color: @col-text-secondary-white;
 }
 
-body[data-theme="dark"] #backlink:hover {
+body[data-theme="dark"] #backlink #backlink-home:hover,
+body[data-theme="dark"] #backlink #version:hover {
     color: @col-text-primary-white;
+}
+
+body[data-theme="dark"] #changelog {
+    background: @col-grey-900;
+    color: @col-text-primary-white;
+    border-color: rgba(255, 255, 255, 0.08);
+}
+
+body[data-theme="dark"] #changelog #changelog-head {
+    border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+body[data-theme="dark"] #changelog #changelog-body code {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.08);
+}
+
+body[data-theme="dark"] #changelog #changelog-close {
+    color: @col-text-secondary-white;
 }
 
 body[data-theme="dark"] #sidebar {

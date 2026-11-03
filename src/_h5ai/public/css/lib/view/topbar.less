@@ -41,34 +41,49 @@
     height: 48px;
 }
 
+// "powered by h5ai" (a link) above the version (a button that opens the
+// changelog), each with its own hover.
 #backlink {
-    .eased-transition;
-
-    display: block;
+    display: flex;
+    flex-direction: column;
     flex: 0 0 auto;
     order: 99;
+    height: 48px;
     text-align: center;
-    padding: 6px 12px;
-    overflow: hidden;
-    height: 36px;
 
-    &, &:active, &:visited {
+    #backlink-home, #version {
+        .eased-transition;
+
+        display: block;
+        flex: 1 1 0;
+        padding: 0 12px;
+        line-height: 24px;
+        white-space: nowrap;
         color: @col-text-disabled-black;
         cursor: pointer;
         text-decoration: none;
+
+        &:hover {
+            color: @col-text-hover;
+            background: @col-back-hover;
+        }
     }
 
-    &:hover {
-        color: @col-text-hover;
-        background: @col-back-hover;
+    #backlink-home {
+        padding-top: 4px;
+        line-height: 20px;
     }
 
-    &:focus {
-        outline: 0;
-    }
+    #version {
+        font: inherit;
+        line-height: 20px;
+        padding-bottom: 4px;
+        border: 0;
+        background: none;
 
-    div {
-        line-height: 18px;
-        white-space: nowrap;
+        &:focus-visible {
+            outline: 1px solid @col-text-hover;
+            outline-offset: -1px;
+        }
     }
 }
