@@ -11,9 +11,9 @@ OPTIONS_JSON = /usr/share/h5ai/_h5ai/private/conf/options.json
 CMDS_JSON = /usr/share/h5ai/_h5ai/private/cache/cmds.json
 PKG_VERSION := $(shell sed -n 's/.*"version":[[:space:]]*"\([^"]*\)".*/\1/p' package.json | head -n1)
 PHPUNIT_PHAR ?= /tmp/phpunit.phar
-PHPUNIT_VERSION = 12.5.42
-PHPUNIT_SHA256 = bcd5cef3751188d7953f46efafd407c1acf37c5f49dbf7933e413eb20e933ac5
-PHP_COVERAGE_IMAGE = php:8.4.27-cli@sha256:a4ae1f57e22b89a0a69c5e085b3010ee727d094e1542d249e48a01bec3c44810
+PHPUNIT_VERSION = 12.5.43
+PHPUNIT_SHA256 = 55350db3736f8d42170d9f7989ccd8b8e19ab4ba6be96e8c1c9cbcad430cb6d5
+PHP_COVERAGE_IMAGE = php:8.4.27-cli@sha256:7e7413ed31b8c42b31c939cc83b3758b1cd618f7bf3803f5a0c39f98d4adcbee
 
 # README screenshots: image, container and loopback port used while shooting.
 SCREENSHOT_IMAGE = h5ai-screenshots:local
@@ -22,8 +22,8 @@ SCREENSHOT_PORT ?= 8891
 CHROME ?= $(firstword $(foreach b,google-chrome-stable google-chrome chromium chromium-browser,$(shell command -v $(b) 2>/dev/null)))
 
 # Scanners pinned by digest, kept in sync with .gitlab-ci.yml.
-GRYPE_IMAGE = anchore/grype:v0.121.0@sha256:621d56d1d68106b787022c81546f7e0a36202a25d1239f0c20195fab8c16f7ea
-SYFT_IMAGE = anchore/syft:v1.55.0@sha256:4cc92b64ca74ffca4c94d4c8fcc01f217731375300be14d0b6eeb2e82eaa110a
+GRYPE_IMAGE = anchore/grype:v0.121.1@sha256:6b06708b036f74b2cd70e94b706b4586af96d1932e6ac46255940b2e39dd44a9
+SYFT_IMAGE = anchore/syft:v1.56.0@sha256:697ae864af1299cfa43c54b161cea3dd65c6d54de82e3dba66ea3dccb3acc313
 
 .PHONY: help all install build lint test test-php coverage screenshots clean clean-all scan docker-build docker-test docker-w3c docker-grype docker-clean test-docker-config
 
