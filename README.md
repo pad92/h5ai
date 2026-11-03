@@ -171,7 +171,8 @@ Requirements:
 * PHP `8.4.0+`
 * Apache httpd `2.4+` with `mod_authz_core`, lighttpd, nginx, Cherokee, or
   Angie. The bundled deployment examples in [`doc/server/`](doc/server/) cover
-  Apache, lighttpd, nginx, and Angie.
+  lighttpd, nginx, and Angie; Apache uses the bundled `.htaccess` files (see
+  [administration](doc/administration.md)).
 
 > [!IMPORTANT]
 > `_h5ai/private/` must never be served as static content. Apache applies the
@@ -215,7 +216,7 @@ To build from source, run the tests or regenerate the screenshots, see
 
 ## License
 
-MIT, copyright (c) 2020 Lars Jung. See [LICENSE](LICENSE).
+MIT, copyright (c) 2020 Lars Jung for h5ai and (c) 2019 OurContainers for the Docker packaging. See [LICENSE](LICENSE).
 
 
 ## References

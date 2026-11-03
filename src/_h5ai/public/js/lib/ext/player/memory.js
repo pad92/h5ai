@@ -1,15 +1,30 @@
 // The player's state kept in the browser (localStorage, through core/store):
 // the queue, the current entry and its position, and the settings.
 const store = require('../../core/store');
+const {MODES} = require('./vizmath');
+
+const win = global.window;
 
 const STORE_KEY = 'ext/player';
 // A longer saved queue is cut: the state is read on every page load.
 const MAX_ENTRIES = 5000;
 const REPEAT_MODES = [0, 1, 2];
-const VISUALIZER_MODES = ['spectrum', 'scope', 'off'];
 
-// A path of this site: `//host/...` would point to another one.
-const isHref = value => typeof value === 'string' && value.startsWith('/') && !value.startsWith('//');
+// A path of this site. `//host/...` points to another one, and so do
+// `/\host/...` and `/<tab>/host/...`: URL parsing reads a backslash as a
+// slash and drops tabs and newlines. Such characters never occur in an
+// encoded href, so they are refused before the origin is checked.
+const isUnsafeChar = char => char === '\\' || char.charCodeAt(0) < 0x20 || char.charCodeAt(0) === 0x7f;
+const isHref = value => {
+    if (typeof value !== 'string' || !value.startsWith('/') || value.startsWith('//') || [...value].some(isUnsafeChar)) {
+        return false;
+    }
+    try {
+        return new URL(value, win.location.href).origin === win.location.origin;
+    } catch {
+        return false;
+    }
+};
 const isUnit = value => typeof value === 'number' && value >= 0 && value <= 1;
 
 // Storage may be full or disabled (private browsing): the player then works
@@ -44,7 +59,7 @@ const load = () => {
         muted: raw.muted === true,
         shuffle: raw.shuffle === true,
         repeat: REPEAT_MODES.includes(raw.repeat) ? raw.repeat : 0,
-        visualizer: VISUALIZER_MODES.includes(raw.visualizer) ? raw.visualizer : null
+        visualizer: MODES.includes(raw.visualizer) ? raw.visualizer : null
     };
 };
 

@@ -4,6 +4,14 @@
 
 Upgrading: a mounted `options.json` keeps its own `view.hidden` list and thumbnail types, so copy the new entries from the shipped file into it. With the Docker image, which no longer renders PostScript, also drop `x-ps` from `thumbnails.doc`.
 
+* **Restored fixes**: the fixes reviewed before v1.5.0 (merge request !27) never reached a release, because the Git mirror dropped them from `master`. They ship now:
+    * **Security**: the audio player's saved queue only accepts paths of this site. An entry like `/\host/a.mp3`, which browsers read as another host, is dropped before it reaches the audio source, the tag request or the exported playlist.
+    * **Preview**: content loaded for a previous item or session is never shown. Two quick Next on queued videos no longer let the skipped video replace the current one, and a video still loading when the preview closes no longer plays hidden.
+    * **Player**: a video the user starts (Next, Previous, the queue, a row button) replaces the preview being browsed; the queue moving on by itself still leaves it. A track goes through Web Audio only once a visualizer mode is chosen, so a context suspended by a call or a locked screen no longer leaves it silent. Plasma, kaleidoscope and vortex come back from the saved mode instead of the cover.
+    * **Upgrades**: `styles.css` and `scripts.js` carry the version in their URL (`?v=1.6.0`), so browsers stop using the previous release's files.
+    * **License**: `LICENSE` keeps the OurContainers notice of the Docker packaging next to Lars Jung's.
+    * **Tests**: `npm test` and the CI test jobs fail when a test fails, times out (20 s), stops before the end of the suite or leaves a promise rejection unhandled; before, they exited 0.
+    * **Build and CI**: `release-cli` is pinned by digest. The release build no longer makes an unused browser test bundle, and the unused `null-loader` and `@eslint/js` packages are gone. The `types.json` examples in `doc/configuration.md` use the real `{"glob": [...], "mime": [...]}` format.
 * **Docker image**: 164 MB instead of 305 MB once pulled.
     * ffmpeg 9.0.2 is built from source to decode only, with the containers and codecs of the types h5ai thumbnails, AV1 through libdav1d. Alpine's ffmpeg brought every encoder and a Vulkan stack. Files in older codecs left out of the build (Sorenson in old QuickTime files, Cinepak or Indeo in old AVI files) no longer get a thumbnail. Security fixes for ffmpeg now come with a new `FFMPEG_VERSION` in the Dockerfile, not with `apk upgrade`; Grype still reads the version from the binary.
     * PDF thumbnails come from poppler's `pdftoppm`, and Ghostscript is gone from the image (about 20 MiB compressed). PostScript files get no thumbnail in the image any more; a mounted `options.json` can drop `x-ps` from `thumbnails.doc`.

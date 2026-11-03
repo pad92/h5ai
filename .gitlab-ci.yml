@@ -37,7 +37,7 @@ variables:
   # credentials and, for the docker ones, the runner's Docker socket, so the
   # container holding them must not be swappable — pinning only the scanners
   # would leave that outer container mutable underneath them. Other job images
-  # (node, hadolint, php, curl, release-cli) and the privileged helper are
+  # (node, hadolint, the php test base, curl, release-cli) and the privileged helper are
   # pinned as well.
   DOCKER_IMAGE: "docker:28@sha256:2a232a42256f70d78e3cc5d2b5d6b3276710a0de0596c145f627ecfae90282ac"
   GRYPE_IMAGE: "anchore/grype:v0.121.0@sha256:621d56d1d68106b787022c81546f7e0a36202a25d1239f0c20195fab8c16f7ea"
@@ -336,7 +336,7 @@ test:docker:
     - sh test/docker/test-document-thumbs.sh "$TEST_IMAGE_REF"
     - sh test/docker/test-media-thumbs.sh "$TEST_IMAGE_REF"
 
-    - echo "Validating the served HTML and CSS (W3C Nu Html Checker, offline)..."
+    - echo "Validating the served HTML and CSS (local W3C Nu Html Checker)..."
     - sh test/docker/test-w3c.sh "$TEST_IMAGE_REF"
     - echo "All tests passed successfully!"
   rules: *pipeline_rules
@@ -594,7 +594,7 @@ publish:dockerhub:
 
 create_release:
   stage: release
-  image: registry.gitlab.com/gitlab-org/release-cli:v0.24.0
+  image: registry.gitlab.com/gitlab-org/release-cli:v0.24.0@sha256:3f52d526f48e8d10625c722fa6d6423ee82aadeae1b1aa91f07b62551d96dacf
   cache: []
   # publish:dockerhub is intentionally not required: it is optional (gated on
   # DOCKERHUB_* secrets) and the release notes only reference the GitLab

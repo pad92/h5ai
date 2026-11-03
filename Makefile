@@ -46,7 +46,7 @@ help:
 	@echo "Docker image targets (image: $(TEST_IMAGE)):"
 	@echo "  docker-build  Build the Docker image"
 	@echo "  docker-test   Build the image and run the container test suite"
-	@echo "  docker-w3c    Build the image and validate its HTML and CSS (W3C, offline)"
+	@echo "  docker-w3c    Build the image and validate its HTML and CSS (local W3C checker; installs Chromium)"
 	@echo "  docker-grype  Build the image and scan it with Grype"
 	@echo "  docker-clean  Remove test containers and the built image"
 

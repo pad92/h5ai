@@ -11,9 +11,9 @@ html(class='no-js', lang='en')
         meta(name='viewport', content='width=device-width, initial-scale=1')
         link(rel='shortcut icon', href!='<?= $public_href; ?>images/favicon/favicon-16-32.ico')
         link(rel='apple-touch-icon', type='image/png', href!='<?= $public_href; ?>images/favicon/favicon-152.png')
-        link(rel='stylesheet', href!='<?= $public_href; ?>css/styles.css')
+        link(rel='stylesheet', href!=`<?= $public_href; ?>css/styles.css?v=${encodeURIComponent(pkg.version)}`)
         <?php if (!$fallback_mode) { ?>
-        script(src!='<?= $public_href; ?>js/scripts.js', data-module=module)
+        script(src!=`<?= $public_href; ?>js/scripts.js?v=${encodeURIComponent(pkg.version)}`, data-module=module)
         <?php } ?>
         <?= $x_head_tags; ?>
 

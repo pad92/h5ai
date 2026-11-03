@@ -80,8 +80,9 @@ The `_h5ai/private/` directory contains configuration, password hashes and
 caches with filesystem paths. It must not be reachable over HTTP.
 
 * Apache 2.4 applies the bundled `_h5ai/.htaccess` deny rule and grants access
-  back only under `_h5ai/public/`. The virtual host must allow these access
-  directives with `AllowOverride AuthConfig` (or `AllowOverride All`).
+  back only under `_h5ai/public/`. The same file also sets headers, MIME types,
+  caching and options, so the virtual host needs `AllowOverride All`: with
+  `AuthConfig` alone, Apache answers 500.
 * nginx must include [`server/nginx.conf`](server/nginx.conf) in its server block.
 * Angie must include [`server/angie.conf`](server/angie.conf) in its server block.
 * lighttpd must include [`server/lighttpd.conf`](server/lighttpd.conf).

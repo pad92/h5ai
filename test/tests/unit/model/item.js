@@ -1,5 +1,6 @@
 const {test, assert} = require('scar');
 const reqlib = require('../../../util/reqlib');
+const {drain} = require('../../../util/fresh');
 const config = reqlib('config');
 
 config.setup = {PUBLIC_HREF: '/', ROOT_HREF: '/'};
@@ -481,7 +482,7 @@ test('image preview loads the original image and closes its EXIF request cleanly
     };
     try {
         item.$view.find('a')[0].click();
-        await new Promise(resolve => setTimeout(resolve, 10));
+        await drain();
         assert.equal(preview.item, item);
         const image = document.querySelector('#pv-content-img');
         assert.ok(image);
@@ -532,7 +533,7 @@ test('video preview uses native and isolated-player paths with subtitle tracks',
         view.setItems([native]);
         Object.defineProperty(window, 'crossOriginIsolated', {configurable: true, value: false});
         native.$view.find('a')[0].click();
-        await new Promise(resolve => setTimeout(resolve, 10));
+        await drain();
         assert.equal(document.querySelector('#pv-content-vid').tagName, 'VIDEO');
         assert.equal(preview.controlsType, 'vid');
         const cast = document.querySelector('#pv-bar-cast');
@@ -579,7 +580,7 @@ test('video preview uses native and isolated-player paths with subtitle tracks',
         Object.defineProperty(window, 'crossOriginIsolated', {configurable: true, value: true});
         view.setItems([movi]);
         movi.$view.find('a')[0].click();
-        await new Promise(resolve => setTimeout(resolve, 10));
+        await drain();
         const player = document.querySelector('#pv-content-vid');
         assert.equal(player.tagName.toLowerCase(), 'movi-player');
         assert.equal(player.getAttribute('engine'), null, 'Movi keeps its own engine order by default');
@@ -621,7 +622,7 @@ test('video preview: the engine option orders Movi\'s engines, known names only'
         allsettings['preview-vid'] = Object.assign({}, savedVid, {engine: value});
         view.setItems([movie]);
         movie.$view.find('a')[0].click();
-        await new Promise(resolve => setTimeout(resolve, 10));
+        await drain();
         const player = document.querySelector('#pv-content-vid');
         assert.equal(player.tagName.toLowerCase(), 'movi-player');
         const engine = player.getAttribute('engine');
@@ -646,7 +647,7 @@ test('video cast button: keyboard, availability races, failures and AirPlay', as
     const originalCrossOrigin = Object.getOwnPropertyDescriptor(window, 'crossOriginIsolated');
     const mediaProto = window.HTMLMediaElement.prototype;
     const originalRemote = Object.getOwnPropertyDescriptor(mediaProto, 'remote');
-    const tick = () => new Promise(resolve => setTimeout(resolve, 10));
+    const tick = drain;
     const castButton = () => document.querySelector('#pv-bar-cast');
     const close = () => document.querySelector('#pv-bar-close').click();
     const first = Item.get('/cast/first.mp4');
@@ -842,7 +843,7 @@ test('video preview: subtitles match the video name only, natively as WebVTT', a
         answer = null;
         view.setItems([video]);
         video.$view.find('a')[0].click();
-        await new Promise(resolve => setTimeout(resolve, 10));
+        await drain();
         assert.equal(document.querySelector('#pv-content-vid').tagName.toLowerCase(), 'movi-player');
         assert.deepEqual(tracksOf().sort(), [['EN.FORCED', 'en'], ['FR', 'fr'], ['Subtitles', null]]);
         document.querySelector('#pv-bar-close').click();
@@ -850,14 +851,14 @@ test('video preview: subtitles match the video name only, natively as WebVTT', a
         answer = 'loadedmetadata';
         Object.defineProperty(window, 'crossOriginIsolated', {configurable: true, value: false});
         video.$view.find('a')[0].click();
-        await new Promise(resolve => setTimeout(resolve, 10));
+        await drain();
         assert.equal(document.querySelector('#pv-content-vid').tagName, 'VIDEO');
         assert.deepEqual(tracksOf(), [['FR', 'fr']], 'the native element gets WebVTT only');
         document.querySelector('#pv-bar-close').click();
 
         answer = 'error';
         video.$view.find('a')[0].click();
-        await new Promise(resolve => setTimeout(resolve, 10));
+        await drain();
         assert.ok(document.querySelector('#pv-container #pv-content-vid'), 'an undecodable video still replaces the spinner');
         document.querySelector('#pv-bar-close').click();
     } finally {

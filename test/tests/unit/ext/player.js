@@ -1,6 +1,6 @@
 const {test, assert} = require('scar');
 const reqlib = require('../../../util/reqlib');
-const {flush} = require('../../../util/fresh');
+const {flush, drain} = require('../../../util/fresh');
 
 // Drives the audio player mounted by the item tests (with their FakeAudio).
 // The player is a singleton, so every test starts from a cleared, plain state.
@@ -664,7 +664,7 @@ const videos = (folder, ...names) => names.map(name => {
 });
 const previewShown = () => !$('#pv-overlay').classList.contains('hidden') && $('#pv-overlay').style.display !== 'none';
 const videoEl = () => $('#pv-container #pv-content-vid');
-const tick = () => new Promise(resolve => setTimeout(resolve, 10));
+const tick = drain;
 
 test('video rows: the same four actions, and the click still opens the preview', async () => {
     const [clip] = videos('vid-rows', 'clip.mp4');
@@ -767,6 +767,151 @@ test('video queue: closing the preview pauses, the play button reopens it', asyn
     });
 });
 
+test('video queue: a video loading late never replaces the one skipped to', async () => {
+    const [one, two, three] = videos('vid-race', 'one.mp4', 'two.mp4', 'three.mp4');
+    const proto = window.Element.prototype;
+    const originalSetAttribute = proto.setAttribute;
+    const originalCrossOrigin = Object.getOwnPropertyDescriptor(window, 'crossOriginIsolated');
+    Object.defineProperty(window, 'crossOriginIsolated', {configurable: true, value: false});
+    // Each video waits for its metadata until the test lets it through.
+    const loading = {};
+    proto.setAttribute = function setAttribute(name, value) {
+        originalSetAttribute.call(this, name, value);
+        if (this.id === 'pv-content-vid' && name === 'src') {
+            loading[value.split('/').pop()] = this;
+        }
+    };
+    const loaded = async name => {
+        loading[name].dispatchEvent(new window.Event('loadedmetadata'));
+        await tick();
+    };
+    let unloaded = 0;
+    try {
+        await withPlayer({}, [], async () => {
+            list(one, two, three);
+            press(one, 'folder');
+            await tick();
+            await loaded('one.mp4');
+            assert.equal(preview.item, one);
+
+            $('#ap-next').click();
+            $('#ap-next').click();
+            await tick();
+            assert.deepEqual(Object.keys(loading), ['one.mp4', 'two.mp4', 'three.mp4']);
+            const unload = loading['two.mp4'].unload;
+            loading['two.mp4'].unload = function counted() {
+                unloaded += 1;
+                return unload && unload.call(this);
+            };
+
+            await loaded('three.mp4');
+            await loaded('two.mp4');
+            assert.equal(preview.item, three);
+            assert.equal(trackName(), 'three.mp4');
+            assert.equal(document.querySelectorAll('#pv-content-vid').length, 1);
+            assert.ok(videoEl().getAttribute('src').endsWith('three.mp4'), 'the late video stays out');
+            assert.equal(unloaded, 1, 'and is unloaded');
+            $('#ap-close-btn').click();
+        });
+    } finally {
+        proto.setAttribute = originalSetAttribute;
+        if (originalCrossOrigin) Object.defineProperty(window, 'crossOriginIsolated', originalCrossOrigin);
+        else delete window.crossOriginIsolated;
+    }
+});
+
+// Holds each native video's metadata until the test lets it through:
+// `loads` lists the elements in the order they started loading.
+const withHeldMetadata = async run => {
+    const proto = window.Element.prototype;
+    const originalSetAttribute = proto.setAttribute;
+    const originalCrossOrigin = Object.getOwnPropertyDescriptor(window, 'crossOriginIsolated');
+    Object.defineProperty(window, 'crossOriginIsolated', {configurable: true, value: false});
+    const loads = [];
+    proto.setAttribute = function setAttribute(name, value) {
+        originalSetAttribute.call(this, name, value);
+        if (this.id === 'pv-content-vid' && name === 'src') {
+            loads.push(this);
+        }
+    };
+    const release = async el => {
+        el.dispatchEvent(new window.Event('loadedmetadata'));
+        await tick();
+    };
+    // Counts the unload() calls of `el`, set once its loader ran.
+    const countUnloads = el => {
+        const counter = {count: 0};
+        const unload = el.unload;
+        el.unload = function counted() {
+            counter.count += 1;
+            return unload && unload.call(this);
+        };
+        return counter;
+    };
+    try {
+        await run({loads, release, countUnloads});
+    } finally {
+        proto.setAttribute = originalSetAttribute;
+        if (originalCrossOrigin) Object.defineProperty(window, 'crossOriginIsolated', originalCrossOrigin);
+        else delete window.crossOriginIsolated;
+    }
+};
+
+test('video preview: closed while its video loads, nothing shows and the music goes on', async () => {
+    const [a] = tracks('vid-closed', 'a.mp3');
+    const [clip] = videos('vid-closed', 'clip.mp4');
+    await withPlayer({}, [], async () => {
+        await withHeldMetadata(async ({loads, release, countUnloads}) => {
+            list(a, clip);
+            press(a, 'folder');
+            await settle();
+            assert.equal(audio().paused, false);
+
+            clip.$view.find('a')[0].click();
+            await tick();
+            assert.equal(loads.length, 1);
+            const unloads = countUnloads(loads[0]);
+            $('#pv-bar-close').click();
+            await release(loads[0]);
+
+            assert.equal(document.querySelector('#pv-content-vid'), null, 'no video in the closed preview');
+            assert.equal(unloads.count, 1, 'the late video is unloaded');
+            assert.equal(audio().paused, false, 'the track is not paused for it');
+            assert.equal(barIsActive(), true);
+            assert.equal(document.querySelector('.ap-video-shown'), null, 'the bar is not hidden for it');
+        });
+    });
+});
+
+test('video preview: back and forth while loading shows the last load only', async () => {
+    const [first, second] = videos('vid-back', 'first.mp4', 'second.mp4');
+    await withPlayer({}, [], async () => {
+        await withHeldMetadata(async ({loads, release, countUnloads}) => {
+            list(first, second);
+            first.$view.find('a')[0].click();
+            await tick();
+            $('#pv-bar-next').click();
+            await tick();
+            $('#pv-bar-prev').click();
+            await tick();
+            assert.equal(loads.length, 3, 'first, second, first again');
+            const [early, middle, last] = loads;
+            const earlyUnloads = countUnloads(early);
+            const middleUnloads = countUnloads(middle);
+
+            await release(early);
+            await release(middle);
+            await release(last);
+            assert.equal(preview.item, first);
+            assert.equal(document.querySelectorAll('#pv-content-vid').length, 1);
+            assert.equal(videoEl(), last, 'the last load is the one shown');
+            assert.equal(earlyUnloads.count, 1, 'the earlier load of the same video is unloaded');
+            assert.equal(middleUnloads.count, 1);
+            $('#pv-bar-close').click();
+        });
+    });
+});
+
 test('video queue: a video the user opened is left alone by the queue', async () => {
     const [a, b] = tracks('vid-own', 'a.mp3', 'b.mp3');
     const [clip] = videos('vid-own', 'clip.mp4');
@@ -811,6 +956,67 @@ test('video queue: a preview the user is browsing is not taken over', async () =
             $('#ap-play-pause').click();
             await tick();
             assert.equal(preview.item, clip, 'the play button opens the waiting video');
+        });
+    });
+});
+
+test('video queue: an explicit play opens the waiting video over the preview', async () => {
+    const [a] = tracks('vid-play', 'a.mp3');
+    const [clip] = videos('vid-play', 'clip.mp4');
+    const [photo] = tracks('vid-play', 'photo.jpg');
+    await withPlayer({}, [], async () => {
+        await withVideoMetadata(async () => {
+            list(a, clip, photo);
+            press(a, 'folder');
+            await settle();
+            press(clip, 'next');
+            photo.$view.find('a')[0].click();
+            await tick();
+            audio().emit('ended');
+            await tick();
+            assert.equal(preview.item, photo, 'the queue moving on leaves the photo');
+
+            $('#ap-play-pause').click();
+            await tick();
+            assert.equal(preview.item, clip, 'the play button asks for the video');
+            assert.ok(videoEl());
+            $('#ap-close-btn').click();
+        });
+    });
+});
+
+test('video queue: next and the queue replace a preview with their video', async () => {
+    const [a] = tracks('vid-moves', 'a.mp3');
+    const [clip] = videos('vid-moves', 'clip.mp4');
+    const [photo] = tracks('vid-moves', 'photo.jpg');
+    await withPlayer({}, [], async () => {
+        await withVideoMetadata(async () => {
+            list(a, clip, photo);
+            const browsePhoto = async () => {
+                photo.$view.find('a')[0].click();
+                await tick();
+                assert.equal(preview.item, photo);
+            };
+            press(a, 'folder');
+            await settle();
+            press(clip, 'next');
+
+            await browsePhoto();
+            $('#ap-next').click();
+            await tick();
+            assert.equal(preview.item, clip, 'the next button');
+            assert.ok(videoEl());
+
+            $('#pv-bar-close').click();
+            $('#ap-queue-btn').click();
+            $$('#aq-list-el .aq-item')[0].click();
+            await settle();
+            assert.equal(trackName(), a.label);
+            await browsePhoto();
+            $$('#aq-list-el .aq-item')[1].click();
+            await tick();
+            assert.equal(preview.item, clip, 'a click in the queue');
+            $('#ap-close-btn').click();
         });
     });
 });
@@ -996,14 +1202,35 @@ test('player memory: only paths of this site are read back', () => {
     const saved = store.get('ext/player');
     try {
         store.put('ext/player', {
-            queue: ['/music/a.mp3', '//elsewhere.example/b.mp3', 'https://elsewhere.example/c.mp3', 7],
-            current: '//elsewhere.example/b.mp3',
+            queue: [
+                '/music/a.mp3', '//elsewhere.example/b.mp3', 'https://elsewhere.example/c.mp3', 7,
+                '/music/a%20b%23c.mp3',
+                // Each resolves to https://elsewhere.example/... once parsed as a URL.
+                '/\\elsewhere.example/d.mp3', '/\t/elsewhere.example/e.mp3', '/\n/elsewhere.example/f.mp3',
+                '/\r/elsewhere.example/g.mp3'
+            ],
+            current: '/\\elsewhere.example/d.mp3',
             time: -3
         });
         const state = memory.load();
-        assert.deepEqual(state.queue, ['/music/a.mp3']);
+        assert.deepEqual(state.queue, ['/music/a.mp3', '/music/a%20b%23c.mp3']);
         assert.equal(state.current, null);
         assert.equal(state.time, 0);
+    } finally {
+        store.put('ext/player', saved);
+    }
+});
+
+test('player memory: every visualizer mode is read back', () => {
+    const memory = reqlib('ext/player/memory');
+    const saved = store.get('ext/player');
+    try {
+        ['spectrum', 'scope', 'plasma', 'kaleido', 'vortex', 'off'].forEach(mode => {
+            store.put('ext/player', {visualizer: mode});
+            assert.equal(memory.load().visualizer, mode);
+        });
+        store.put('ext/player', {visualizer: 'strobe'});
+        assert.equal(memory.load().visualizer, null, 'an unknown mode is dropped');
     } finally {
         store.put('ext/player', saved);
     }
@@ -1160,9 +1387,22 @@ const withAudio = async run => {
             this.state = audioEnv.startState;
             this.sampleRate = 48000;
             this.destination = {};
+            this.listeners = [];
+            this.resumed = 0;
             audioEnv.contexts.push(this);
         }
+        addEventListener(type, fn) {
+            if (type === 'statechange') {
+                this.listeners.push(fn);
+            }
+        }
+        // What the browser does on a call or a locked screen.
+        suspendBy(state) {
+            this.state = state;
+            this.listeners.forEach(fn => fn());
+        }
         resume() {
+            this.resumed += 1;
             if (!audioEnv.resumes) {
                 return Promise.reject(new Error('NotAllowedError'));
             }
@@ -1274,9 +1514,68 @@ test('visualizer: a held-back audio context never takes the track', async () => 
             list(a);
             press(a, 'folder');
             await settle();
+            await openLarge();
+            switchTo('off');
+            largeCover().click();
+            await settle();
             assert.equal(audioEnv.contexts.length, 1);
             assert.deepEqual(audioEnv.sources, [], 'not connected: the track keeps its sound');
             assert.equal(audioEnv.frames.length, 0, 'nothing to draw');
+        });
+    });
+});
+
+test('visualizer: without a mode chosen, the track never goes through Web Audio', async () => {
+    const [a] = tracks('viz-unused', 'a.mp3');
+    await withPlayer({}, [], async () => {
+        await withAudio(async () => {
+            audioEnv.resumes = true;
+            // The player is shared by the tests: the cover, as on a first visit.
+            store.put('ext/player', {visualizer: 'off'});
+            playerExt.restoreSaved();
+            const contexts = audioEnv.contexts.length;
+            const sources = audioEnv.sources.length;
+            list(a);
+            press(a, 'folder');
+            await settle();
+            audio().pause();
+            audio().play();
+            await settle();
+            assert.equal(audioEnv.contexts.length, contexts, 'no audio context at all');
+            assert.equal(audioEnv.sources.length, sources);
+        });
+    });
+});
+
+test('visualizer: a context suspended after connecting resumes', async () => {
+    const [a] = tracks('viz-resume', 'a.mp3');
+    await withPlayer({}, [], async () => {
+        await withAudio(async () => {
+            audioEnv.resumes = true;
+            list(a);
+            press(a, 'folder');
+            await settle();
+            await openLarge();
+            switchTo('spectrum');
+            await settle();
+            const context = audioEnv.contexts[audioEnv.contexts.length - 1];
+            const sources = audioEnv.sources.filter(el => el === audio()).length;
+            assert.equal(sources, 1, 'connected');
+
+            context.suspendBy('interrupted');
+            await settle();
+            assert.equal(context.state, 'running', 'resumed while the track plays');
+
+            audio().pause();
+            await settle();
+            context.suspendBy('suspended');
+            assert.equal(context.state, 'suspended', 'left alone while paused');
+            const before = context.resumed;
+            audio().play();
+            await settle();
+            assert.ok(context.resumed > before, 'the next play resumes it');
+            assert.equal(context.state, 'running');
+            assert.equal(audioEnv.sources.filter(el => el === audio()).length, 1, 'connected once only');
         });
     });
 });
@@ -1289,10 +1588,11 @@ test('visualizer: the spectrum follows the sound, falls when paused, and stops',
             list(a);
             press(a, 'folder');
             await settle();
-            assert.deepEqual(audioEnv.sources, [audio()], 'a later click starts the context and connects the track');
-            assert.equal(audioEnv.contexts.length, 1, 'one context for the page');
             await openLarge();
             switchTo('spectrum');
+            await settle();
+            assert.deepEqual(audioEnv.sources, [audio()], 'choosing a mode connects the track');
+            assert.equal(audioEnv.contexts.length, 1, 'one context for the page');
 
             runFrames(2);
             const bars = recorderOf(largeCanvas()).calls.filter(call => call.w === 3 && call.h > 1);
@@ -1362,6 +1662,21 @@ test('visualizer: clicks on the cover loop through every mode, and are remembere
             assert.equal(store.get('ext/player').visualizer, 'off');
             largeCover().click();
             assert.equal(store.get('ext/player').visualizer, 'spectrum', 'and around again');
+        });
+    });
+});
+
+test('visualizer: a saved psychedelic mode comes back with the queue', async () => {
+    const [a] = tracks('viz-restore', 'a.mp3');
+    await withPlayer({}, [], async () => {
+        await withAudio(async () => {
+            list(a);
+            store.put('ext/player', {queue: [a.absHref], current: a.absHref, visualizer: 'plasma'});
+            playerExt.restoreSaved();
+            await settle();
+            await openLarge();
+            assert.equal(showsVisualizer(), true);
+            assert.equal(largeCover().getAttribute('title'), 'Plasma (click to change)');
         });
     });
 });
@@ -1445,6 +1760,14 @@ test('visualizer: only for tracks, and drawn in the large view while it is open'
                 recorderOf(largeCanvas()).calls.length = 0;
                 runFrames(2);
                 assert.equal(recorderOf(largeCanvas()).calls.length, 0, 'nothing drawn once reduced');
+                assert.equal(audioEnv.frames.length, 0, 'and no frame requested while it plays');
+
+                $('#ap-cover-gradient').click();
+                assert.ok(audioEnv.frames.length > 0, 'opening the view again draws again');
+                runFrames(1);
+                assert.ok(recorderOf(largeCanvas()).calls.length > 0);
+                $('#np-collapse').click();
+                runFrames(2);
 
                 press(clip, 'folder');
                 await tick();

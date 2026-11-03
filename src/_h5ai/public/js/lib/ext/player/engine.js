@@ -50,16 +50,19 @@ const createEngine = ({isVideo, on}) => {
         }
     };
 
-    // A preview the user opened is never taken over.
+    // A preview the user opened is not taken over by the queue moving on by
+    // itself; a video the user starts (play, next, a queue or row button)
+    // replaces it.
     const previewIsFree = () => !isPreviewShown() || !!openedVideo && preview.item === openedVideo;
 
-    // Loads `item`, and starts it when `play`. Returns whether it was asked
-    // to start, and for a track the promise of audio.play().
-    const load = (item, play) => {
+    // Loads `item`, and starts it when `play`. A video replaces a preview the
+    // user opened only with `takeOver`. Returns whether it was asked to
+    // start, and for a track the promise of audio.play().
+    const load = (item, play, takeOver = false) => {
         current = item;
         if (currentIsVideo()) {
             audio.pause();
-            if (play && previewIsFree()) {
+            if (play && (takeOver || previewIsFree())) {
                 openVideo();
                 return {started: true, promise: null};
             }
@@ -72,7 +75,8 @@ const createEngine = ({isVideo, on}) => {
         return play ? {started: true, promise: audio.play()} : {started: false, promise: null};
     };
 
-    // Starts or resumes the current entry; a closed video opens again.
+    // Starts or resumes the current entry; a closed video opens again, over
+    // any preview: the bar's play button or a media key asks for it.
     const play = () => {
         if (!currentIsVideo()) {
             return audio.play();

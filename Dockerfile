@@ -6,8 +6,7 @@ ARG H5AI_VERSION
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY src/ ./src/
-COPY test/ ./test/
-COPY gulpfile.js eslint.config.js LICENSE ./
+COPY gulpfile.js LICENSE ./
 COPY scripts/package-name.js ./scripts/
 RUN H5AI_VERSION="${H5AI_VERSION}" npm run build
 

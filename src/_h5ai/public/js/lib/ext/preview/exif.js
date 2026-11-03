@@ -148,4 +148,4 @@ const buildExifHtml = (tags, label) => {
 const hasExifData = tags => !!(tags && (tags.Make || tags.Model || tags.FocalLength || tags.FNumber ||
     tags.ExposureTime || tags.ISOSpeedRatings || tags.ISO || tags.DateTimeOriginal));
 
-module.exports = {formatShutterSpeed, formatAperture, formatFocalLength, formatISO, formatDateTime, convertDMSToDD, getGPSLink, buildExifHtml, hasExifData};
+module.exports = {formatShutterSpeed, formatAperture, formatFocalLength, formatISO, formatDateTime, getGPSLink, buildExifHtml, hasExifData};
