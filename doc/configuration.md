@@ -168,7 +168,9 @@ Enables the player bar: clicking an audio file plays it alone, in place of the q
 
 The browser keeps the queue, the current entry and its position, the volume, shuffle and repeat (`localStorage`, key `ext/player`). The next page or visit brings them back, paused: browsers start no sound without a click. Closing the player forgets the queue. Each browser keeps its own; with several tabs, the last change wins.
 
-The queue drawer's Export button downloads the queue as an extended M3U playlist (`.m3u8`, UTF-8) with absolute URLs, to open in an external player. See [Playing the queue in an external player](#playing-the-queue-in-an-external-player).
+The list button on the right of the player bar opens the queue, a card above the bar. It lists the entries in the order they play, the shuffled order while shuffle is on, and a click on one plays it. The handle at the left of a row moves it: drag it with the mouse or a finger, or focus it and use the arrow keys, Home and End. Delete on the handle, or the cross at the right, removes the row. Escape closes the card.
+
+The card's Export button (the download icon) downloads the queue as an extended M3U playlist (`.m3u8`, UTF-8) with absolute URLs, to open in an external player. See [Playing the queue in an external player](#playing-the-queue-in-an-external-player).
 
 Shuffle plays every entry of the queue once, in a random order; previous goes back through that order, which ends like the queue does unless repeat is on.
 
@@ -187,7 +189,7 @@ Tracks also get a visualizer in the style of the first Winamp releases, in the n
 
 ##### Playing the queue in an external player
 
-1. Open the queue drawer (the list button on the right of the player bar) and click **Export**. The browser downloads the queue as a playlist named after its folder, such as `Night Drive.m3u8`, or `queue.m3u8` when the tracks come from several folders.
+1. Open the queue (the list button on the right of the player bar) and click **Export**, the download icon. The browser downloads the queue as a playlist named after its folder, such as `Night Drive.m3u8`, or `queue.m3u8` when the tracks come from several folders.
 2. Open that file in the player:
    - **VLC**: *Media > Open File*, or drop the file on the window. On Android or iOS, open the downloaded file with VLC.
    - **MPC-HC** or **MPC-BE**: *File > Open File*, or drop the file on the window.

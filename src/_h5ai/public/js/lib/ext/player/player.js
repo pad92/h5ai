@@ -128,12 +128,15 @@ const createPlayer = ({audioTypes, videoTypes}) => {
         });
     };
 
-    const renderQueue = () => view.renderQueue(queue.entries, {
+    // The drawer lists the play order, the shuffled one while shuffle is on:
+    // what plays next is what the user reorders.
+    const renderQueue = () => view.renderQueue(queue.sequence, {
         current: queue.current,
         isVideo,
         coverFor,
         onSelect: item => jumpTo(item), // eslint-disable-line no-use-before-define
-        onRemove: item => remove(item) // eslint-disable-line no-use-before-define
+        onRemove: item => remove(item), // eslint-disable-line no-use-before-define
+        onMove: (item, index) => move(item, index) // eslint-disable-line no-use-before-define
     });
 
     const setPlaying = playing => {
@@ -354,6 +357,13 @@ const createPlayer = ({audioTypes, videoTypes}) => {
         persist();
     };
 
+    const move = (item, index) => {
+        if (queue.move(item, index)) {
+            renderQueue();
+            persist();
+        }
+    };
+
     const clear = () => {
         covers.release(queue.entries);
         queue.clear();
@@ -539,6 +549,7 @@ const createPlayer = ({audioTypes, videoTypes}) => {
             toggleShuffle: () => {
                 queue.setShuffle(!queue.isShuffled);
                 view.setShuffle(queue.isShuffled);
+                renderQueue();
                 persist();
             },
             cycleRepeat: () => {

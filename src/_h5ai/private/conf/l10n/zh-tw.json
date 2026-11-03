@@ -73,6 +73,7 @@
     "playNext": "接著播放",
     "addToQueue": "加入佇列",
     "removeFromQueue": "從佇列移除",
+    "moveInQueue": "拖曳或使用方向鍵移動",
     "nowPlaying": "正在播放",
     "showNowPlaying": "顯示正在播放",
     "reduce": "縮小",

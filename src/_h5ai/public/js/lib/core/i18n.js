@@ -91,6 +91,7 @@ const defaults = {
     playNext: 'Play Next',
     addToQueue: 'Add to Queue',
     removeFromQueue: 'Remove from queue',
+    moveInQueue: 'Drag, or use the arrow keys, to move',
     nowPlaying: 'Now playing',
     showNowPlaying: 'Show now playing',
     reduce: 'Reduce',

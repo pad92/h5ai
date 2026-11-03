@@ -73,6 +73,7 @@
     "playNext": "Als Nächstes abspielen",
     "addToQueue": "Zur Warteschlange hinzufügen",
     "removeFromQueue": "Aus der Warteschlange entfernen",
+    "moveInQueue": "Ziehen oder mit den Pfeiltasten verschieben",
     "nowPlaying": "Aktuelle Wiedergabe",
     "showNowPlaying": "Aktuelle Wiedergabe anzeigen",
     "reduce": "Verkleinern",

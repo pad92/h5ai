@@ -73,6 +73,7 @@
     "playNext": "Odtwórz jako następny",
     "addToQueue": "Dodaj do kolejki",
     "removeFromQueue": "Usuń z kolejki",
+    "moveInQueue": "Przeciągnij lub użyj strzałek, aby przenieść",
     "nowPlaying": "Teraz odtwarzane",
     "showNowPlaying": "Pokaż odtwarzany utwór",
     "reduce": "Zmniejsz",
