@@ -176,11 +176,21 @@ build:candidate:
     - docker run --privileged --rm tonistiigi/binfmt:qemu-v10.2.3-68@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0 --install all || true
     - |
       # BuildKit lists the platforms it can emulate when it starts: a builder
-      # started before QEMU was registered restarts to see arm64.
-      if ! docker buildx inspect --bootstrap h5ai-ci | grep -q 'linux/arm64'; then
-        docker buildx stop h5ai-ci
-        docker buildx inspect --bootstrap h5ai-ci | grep -q 'linux/arm64'
-      fi
+      # started before QEMU was registered restarts to see arm64. The output
+      # is read whole: the runner sets pipefail, and `| grep -q` closing the
+      # pipe early made docker fail (SIGPIPE) although arm64 was listed.
+      builder=$(docker buildx inspect --bootstrap h5ai-ci)
+      case "$builder" in
+        *linux/arm64*) ;;
+        *)
+          docker buildx stop h5ai-ci
+          builder=$(docker buildx inspect --bootstrap h5ai-ci)
+          case "$builder" in
+            *linux/arm64*) ;;
+            *) printf '%s\n' "$builder"; echo "ERROR: builder h5ai-ci cannot emulate linux/arm64" >&2; exit 1 ;;
+          esac
+          ;;
+      esac
   script:
     - |
       docker buildx build \
@@ -321,18 +331,33 @@ test:docker:
     - wait_http "" "200 OK" "Public index page returned 200 OK" "Public index page test failed" h5ai-test-noauth
     - |
       # The image must carry the build's version and the changelog it opens.
+      # Bodies are read whole and matched with case: with pipefail, a pipe
+      # into `grep -q` or `head` fails when the reader stops before the
+      # writer has written everything.
       EXPECTED_VERSION=$(sh scripts/version.sh)
-      if ! curl -fsS "http://${TEST_IP}/" | grep -qE "powered by h5ai v?${EXPECTED_VERSION}[ <]"; then
-        echo "✗ The page does not show version ${EXPECTED_VERSION}"
-        docker rm -f h5ai-test-noauth
-        exit 1
-      fi
-      echo "✓ The page shows version ${EXPECTED_VERSION}"
-      if ! curl -fsS "http://${TEST_IP}/_h5ai/CHANGELOG.md" | grep -q '^# Changelog'; then
-        echo "✗ /_h5ai/CHANGELOG.md is missing from the image"
-        docker rm -f h5ai-test-noauth
-        exit 1
-      fi
+      case "$EXPECTED_VERSION" in
+        [0-9]*.[0-9]*.[0-9]*) EXPECTED_LABEL="v$EXPECTED_VERSION" ;;
+        *) EXPECTED_LABEL="$EXPECTED_VERSION" ;;
+      esac
+      PAGE=$(curl -fsS "http://${TEST_IP}/") || PAGE=
+      case "$PAGE" in
+        *"powered by h5ai $EXPECTED_LABEL "*|*"powered by h5ai $EXPECTED_LABEL<"*) ;;
+        *)
+          echo "✗ The page does not show version ${EXPECTED_LABEL}"
+          docker rm -f h5ai-test-noauth
+          exit 1
+          ;;
+      esac
+      echo "✓ The page shows version ${EXPECTED_LABEL}"
+      CHANGELOG=$(curl -fsS "http://${TEST_IP}/_h5ai/CHANGELOG.md") || CHANGELOG=
+      case "$CHANGELOG" in
+        "# Changelog"*) ;;
+        *)
+          echo "✗ /_h5ai/CHANGELOG.md is missing from the image"
+          docker rm -f h5ai-test-noauth
+          exit 1
+          ;;
+      esac
       echo "✓ /_h5ai/CHANGELOG.md is served"
     - docker rm -f h5ai-test-noauth
 
