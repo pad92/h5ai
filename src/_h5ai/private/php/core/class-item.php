@@ -33,6 +33,8 @@ class Item {
     public readonly string $href;
     public readonly int|false $date;
     public readonly ?int $size;
+    // An expired folder size, shown while the refresh worker recomputes it.
+    public readonly bool $is_size_stale;
     public readonly bool $is_folder;
     public bool $is_content_fetched = false;
 
@@ -45,6 +47,7 @@ class Item {
         $this->href = $context->paths()->to_href($this->path, $this->is_folder);
         $this->date = @filemtime($this->path);
         $this->size = Util::filesize($context, $this->path, $this->is_folder);
+        $this->is_size_stale = $this->is_folder && Filesize::is_size_stale($this->path);
     }
 
     public function to_json_object(): array {
@@ -53,6 +56,9 @@ class Item {
             'time' => $this->date * 1000,
             'size' => $this->size,
         ];
+        if ($this->is_size_stale) {
+            $obj['sizeStale'] = true;
+        }
 
         if ($this->is_folder) {
             $obj['managed'] = $this->context->paths()->is_managed_href($this->href);

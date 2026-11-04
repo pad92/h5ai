@@ -173,8 +173,9 @@ dates only, never a path of the share, and only an admin session gets them.
   each visit of this page would take as long as the warmer itself.
 * **Thumbnail database**: the size of `thumbs_cache.db` and the number of
   source files it records.
-* **Folder sizes**: entries of `foldersizes.json`, how many are still served
-  (younger than 5 minutes) and its size on disk.
+* **Folder sizes**: entries of `foldersizes.json`, how many are fresh
+  (younger than 5 minutes) and its size on disk. Older entries are shown,
+  blinking, until a refresh replaces them.
 
 **Start** launches a background task now: the cache warmer whatever
 `cache.warmAtStartup` and `cache.warmInterval` say, or the folder size

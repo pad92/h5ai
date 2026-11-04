@@ -104,3 +104,48 @@ test('autorefresh: a hidden tab skips the heartbeat and refreshes once when show
         assert.equal(calls.refreshes, 1, 'showing the tab again without a missed heartbeat does nothing');
     });
 });
+
+const listing = (...staleFlags) => ({
+    content: Object.fromEntries(staleFlags.map((isSizeStale, index) => [`/f${index}/`, {isSizeStale}]))
+});
+
+test('autorefresh: disabled, a listing with expired sizes refreshes until they are recomputed', () => {
+    withAutorefresh({enabled: false}, (emit, calls) => {
+        emit('location.changed', listing(false, false));
+        assert.deepEqual(calls.set, [], 'up-to-date sizes need no refresh');
+
+        emit('location.changed', listing(false, true));
+        assert.equal(calls.set.length, 1);
+        assert.equal(calls.set[0].delay, 5000);
+        calls.set[0].fn();
+        assert.equal(calls.refreshes, 1);
+
+        emit('location.refreshed', listing(true));
+        assert.equal(calls.set.length, 2, 'still expired: one more refresh');
+        emit('location.refreshed', listing(false));
+        assert.equal(calls.set.length, 2, 'recomputed: the follow-up stops');
+    });
+});
+
+test('autorefresh: disabled, the follow-up of expired sizes stops after five minutes per folder', () => {
+    const savedNow = Date.now;
+    let now = 1000000;
+    Date.now = () => now;
+    try {
+        withAutorefresh({enabled: false}, (emit, calls) => {
+            emit('location.changed', listing(true));
+            now += 299000;
+            emit('location.refreshed', listing(true));
+            assert.equal(calls.set.length, 2);
+            now += 1000;
+            emit('location.refreshed', listing(true));
+            assert.equal(calls.set.length, 2, 'five minutes after the first expired size, no more refreshes');
+
+            emit('location.beforeChange');
+            emit('location.changed', listing(true));
+            assert.equal(calls.set.length, 3, 'another folder gets its own five minutes');
+        });
+    } finally {
+        Date.now = savedNow;
+    }
+});

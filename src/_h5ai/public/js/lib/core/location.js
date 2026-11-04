@@ -105,7 +105,7 @@ const refresh = () => {
     const oldItems = values(item.content);
     const oldProps = {};
     each(oldItems, i => {
-        oldProps[i.absHref] = {size: i.size, time: i.time};
+        oldProps[i.absHref] = {size: i.size, isSizeStale: i.isSizeStale, time: i.time};
     });
 
     event.pub('location.beforeRefresh');
@@ -116,7 +116,7 @@ const refresh = () => {
         const removed = difference(oldItems, newItems);
         const updated = filter(newItems, i => {
             const old = oldProps[i.absHref];
-            return old && (old.size !== i.size || old.time !== i.time);
+            return old && (old.size !== i.size || old.isSizeStale !== i.isSizeStale || old.time !== i.time);
         });
 
         event.pub('location.refreshed', item, added, removed, updated);
