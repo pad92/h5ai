@@ -90,6 +90,16 @@ test('item model builds cached hierarchy, labels, types and statistics', () => {
     assert.deepEqual(markdown.getCrumb().map(item => item.absHref), ['/', '/README.md']);
 });
 
+test('item model: a listing sets or clears the expired size flag, an href alone keeps it', () => {
+    const folder = Item.get({href: '/stale-flag/', size: 5, sizeStale: true});
+    assert.equal(folder.isSizeStale, true);
+    assert.equal(Item.get('/stale-flag/').isSizeStale, true, 'an href alone carries no size');
+    Item.get({href: '/stale-flag/', size: 7});
+    assert.equal(folder.isSizeStale, false, 'a size without the flag is up to date');
+    Item.get({href: '/stale-flag/', size: null, sizeStale: true});
+    assert.equal(folder.isSizeStale, true);
+});
+
 test('item model rejects paths outside root and removes cached descendants', () => {
     const parent = Item.get('/remove-me/');
     const child = Item.get('/remove-me/child.txt');
@@ -123,6 +133,13 @@ test('directory view renders, replaces, incrementally changes, and updates item 
     reqlib('core/event').pub('location.refreshed', folder, [], [], [second]);
     assert.equal(second.$view.find('.size').attr('data-bytes'), '42');
     assert.equal(second.$view.find('.date').attr('data-time'), '1800000000000');
+    assert.equal(second.$view.find('.size').hasCls('stale'), false);
+    second.isSizeStale = true;
+    reqlib('core/event').pub('location.refreshed', folder, [], [], [second]);
+    assert.equal(second.$view.find('.size').hasCls('stale'), true, 'an expired size blinks');
+    second.isSizeStale = false;
+    reqlib('core/event').pub('location.refreshed', folder, [], [], [second]);
+    assert.equal(second.$view.find('.size').hasCls('stale'), false, 'a recomputed size stops blinking');
     view.setHint('noMatch');
     assert.equal(view.getModes().includes(view.getMode()), true);
     view.setMode('grid');

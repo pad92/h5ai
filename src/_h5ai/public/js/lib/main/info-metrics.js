@@ -149,7 +149,7 @@ const cacheRows = (cache, now) => {
         ...coverageRows(thumbnails.coverage, now),
         ['Thumbnail database', dbText, thumbnailDb.bytes === null ? 'none' : formatSize(thumbnailDb.bytes)],
         ['Folder sizes',
-            `${formatSize(folderSizes.bytes) || '0 B'} on disk. Entries are served for ${formatDuration(folderSizes.ttl)}.${newest}`,
+            `${formatSize(folderSizes.bytes) || '0 B'} on disk. Entries are fresh for ${formatDuration(folderSizes.ttl)}; older ones are shown while they are recomputed.${newest}`,
             `${folderSizes.fresh.toLocaleString('en')} of ${plural(folderSizes.entries, 'entry', 'entries')} fresh`,
             {kind: 'purge', name: 'folderSizes'}],
         ['Search index',

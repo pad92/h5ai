@@ -68,6 +68,11 @@
         width: 80px;
     }
 
+    // An expired folder size, shown while it is recomputed.
+    .size.stale {
+        animation: view-size-stale 2s ease-in-out infinite alternate;
+    }
+
     #view-hint {
         display: block;
         margin-top: 36px;
@@ -75,5 +80,22 @@
         color: @col-border;
         font-size: 5em;
         font-weight: bold;
+    }
+}
+
+@keyframes view-size-stale {
+    from {
+        opacity: 1;
+    }
+
+    to {
+        opacity: 0.35;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #view .size.stale {
+        animation: none;
+        opacity: 0.55;
     }
 }

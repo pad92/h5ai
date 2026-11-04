@@ -463,8 +463,10 @@ class Search {
         $root = $this->context->paths()->to_path($href);
         return $this->context->with_cached_folder_sizes(function () use ($root, $pattern, $ignorecase): array {
             $cache = [];
+            // Nothing refreshes search results, so an expired folder size
+            // would blink there for good: it is shown without the flag.
             return array_map(
-                fn(string $path): array => Item::get($this->context, $path, $cache)->to_json_object(),
+                fn(string $path): array => array_diff_key(Item::get($this->context, $path, $cache)->to_json_object(), ['sizeStale' => true]),
                 $this->get_paths($root, $pattern, $ignorecase),
             );
         });

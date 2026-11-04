@@ -14,7 +14,11 @@ class Filesize {
     private static bool $persistent_cache_dirty = false;
     private static array $dirty_entries = [];
     private static ?string $persistent_cache_path = null;
+    // Folder => true: the folders this request queued for the refresh worker.
     private static array $stale_paths = [];
+    // Folder => true: folders found deleted, whose entries and subtree the
+    // next save removes.
+    private static array $deleted_folders = [];
 
     private static function init_persistent_cache(): void {
         if (self::$persistent_cache !== null) {
@@ -58,9 +62,9 @@ class Filesize {
         foreach (self::$dirty_entries as $entry_path => $entry) {
             $current[$entry_path] = $entry;
         }
-        // Expired entries are never served again, only recomputed: dropping
-        // them keeps the file, decoded by every listing, to recent activity.
-        $current = array_filter($current, self::is_cache_entry_fresh(...));
+        // An expired entry stays until a refresh replaces it: listings show
+        // it meanwhile. A deleted folder leaves with its subtree.
+        $current = self::without_folders(array_filter($current, self::is_cache_entry_usable(...)), self::$deleted_folders);
 
         $tmp = @tempnam($dir, 'foldersizes.');
         $json = json_encode($current);
@@ -68,6 +72,7 @@ class Filesize {
             && @rename($tmp, $path)) {
             self::$persistent_cache = $current;
             self::$dirty_entries = [];
+            self::$deleted_folders = [];
             self::$persistent_cache_dirty = false;
         } elseif ($tmp !== false) {
             @unlink($tmp);
@@ -80,8 +85,22 @@ class Filesize {
     // subfolders. Every subfolder has an entry of its own, written in the same
     // pass, so validating a folder walks its subtree through those entries
     // and the file stays linear in the number of folders.
+    //
+    // A subfolder the previous entry listed that no longer exists, or became
+    // a symlink (never counted as a subfolder), was deleted: the next save
+    // removes its entry and those below it, which needs no stat() of the
+    // other entries. A deleted folder no listing can show any more thus
+    // leaves the cache when its parent is next computed. Until that save,
+    // its stale entries stay in memory, where is_cache_entry_valid() rejects
+    // them since the folder is gone.
     public static function set_persistent_cache_entry(string $path, int $size, array $children): void {
         self::init_persistent_cache();
+        $previous_children = self::$persistent_cache[$path]['children'] ?? [];
+        foreach (is_array($previous_children) ? array_diff($previous_children, $children) : [] as $child) {
+            if (is_string($child) && (!is_dir($child) || is_link($child))) {
+                self::$deleted_folders[$child] = true;
+            }
+        }
         self::$persistent_cache[$path] = [
             'size' => $size,
             'mtime' => @filemtime($path),
@@ -115,6 +134,7 @@ class Filesize {
             }
             self::$persistent_cache = null;
             self::$dirty_entries = [];
+            self::$deleted_folders = [];
             self::$persistent_cache_dirty = false;
             return is_array($entries) ? count($entries) : 0;
         } finally {
@@ -123,8 +143,9 @@ class Filesize {
         }
     }
 
-    // Entries of the folder size cache file and how many are still served
-    // (younger than CACHE_TTL). Counts only: paths never leave the server.
+    // Entries of the folder size cache file and how many are fresh (younger
+    // than CACHE_TTL); older ones are shown while they are recomputed.
+    // Counts only: paths never leave the server.
     public static function cache_stats(string $file): array {
         $content = @file_get_contents($file);
         $entries = $content === false ? null : json_decode($content, true);
@@ -142,16 +163,35 @@ class Filesize {
         ];
     }
 
+    // A well-formed entry: its size can be shown, even once expired.
+    private static function is_cache_entry_usable(mixed $entry): bool {
+        return is_array($entry) && isset($entry['size'], $entry['cached_at'], $entry['children'])
+            && is_int($entry['size']) && is_int($entry['cached_at']) && is_array($entry['children'])
+            && array_key_exists('mtime', $entry);
+    }
+
     private static function is_cache_entry_fresh(mixed $entry): bool {
-        if (!is_array($entry) || !isset($entry['size'], $entry['cached_at'], $entry['children'])
-            || !is_int($entry['size']) || !is_int($entry['cached_at']) || !is_array($entry['children'])
-            || !array_key_exists('mtime', $entry)) {
-            return false;
+        return self::is_cache_entry_usable($entry)
+            && $entry['cached_at'] <= time() && time() - $entry['cached_at'] <= self::CACHE_TTL;
+    }
+
+    // $entries without the folders of $folders (path => true) and the
+    // folders below them.
+    private static function without_folders(array $entries, array $folders): array {
+        if ($folders === []) {
+            return $entries;
         }
-        if ($entry['cached_at'] > time() || time() - $entry['cached_at'] > self::CACHE_TTL) {
-            return false;
-        }
-        return true;
+        return array_filter($entries, static function (string $path) use ($folders): bool {
+            for ($folder = $path; ; $folder = $parent) {
+                if (isset($folders[$folder])) {
+                    return false;
+                }
+                $parent = dirname($folder);
+                if ($parent === $folder) {
+                    return true;
+                }
+            }
+        }, ARRAY_FILTER_USE_KEY);
     }
 
     // Fresh, and neither the folder nor any folder below it changed its
@@ -178,14 +218,21 @@ class Filesize {
 
     // The folders to hand to the background refresh, each once.
     public static function end_async_mode(): array {
-        $stale_paths = array_unique(self::$stale_paths);
+        $stale_paths = array_keys(self::$stale_paths);
         self::$stale_paths = [];
         return $stale_paths;
     }
 
+    // Whether get_cached_size() answered $path with an expired size it
+    // queued for a refresh: the listing shows that size as refreshing.
+    public static function is_size_stale(string $path): bool {
+        return isset(self::$stale_paths[$path]) && (self::$cache[$path] ?? null) !== null;
+    }
+
     // Size of a listed item without computing any folder size: a regular
-    // file is read directly, a folder comes from a fresh cache entry or is
-    // unknown (null) and queued for the refresh worker. Call it between
+    // file is read directly. A folder comes from its cache entry; an expired
+    // or missing entry is queued for the refresh worker, and the folder size
+    // stays unknown (null) only without an entry. Call it between
     // begin_async_mode() and end_async_mode(), as
     // Context::with_cached_folder_sizes() does.
     public static function get_cached_size(string $path, bool $with_foldersize, bool $is_folder): ?int {
@@ -201,10 +248,12 @@ class Filesize {
         if ($with_foldersize) {
             self::init_persistent_cache();
             $entry = self::$persistent_cache[$path] ?? null;
-            if (self::is_cache_entry_fresh($entry)) {
+            if (!self::is_cache_entry_fresh($entry)) {
+                self::$stale_paths[$path] = true;
+            }
+            if (self::is_cache_entry_usable($entry)) {
                 return self::$cache[$path] = $entry['size'];
             }
-            self::$stale_paths[] = $path;
         }
         return self::$cache[$path] = null;
     }

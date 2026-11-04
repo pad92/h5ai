@@ -139,7 +139,9 @@ final class FolderSizeCacheTest extends H5aiTestCase {
         self::assertSame([$this->root('a/x')], self::folderSizeEntries()[$this->root('a')]['children']);
     }
 
-    public function testSavingDropsExpiredAndOutdatedEntries(): void {
+    // An expired entry is shown until a refresh replaces it, so saving keeps
+    // it; a malformed one is never usable.
+    public function testSavingKeepsExpiredEntriesAndDropsMalformedOnes(): void {
         file_put_contents($this->cacheFile, json_encode([
             '/expired' => ['size' => 1, 'mtime' => 1, 'cached_at' => time() - Filesize::CACHE_TTL - 1, 'children' => []],
             '/other-process' => ['size' => 2, 'mtime' => 1, 'cached_at' => time(), 'children' => []],
@@ -147,7 +149,64 @@ final class FolderSizeCacheTest extends H5aiTestCase {
         ]));
         Filesize::set_persistent_cache_entry($this->root('a'), 7, []);
         Filesize::save_persistent_cache();
-        self::assertSame(['/other-process', $this->root('a')], array_keys(json_decode((string) file_get_contents($this->cacheFile), true)));
+        self::assertSame(['/expired', '/other-process', $this->root('a')], array_keys(json_decode((string) file_get_contents($this->cacheFile), true)));
+    }
+
+    public function testADeletedFolderLeavesTheCacheWithItsSubtreeWhenItsParentIsComputed(): void {
+        $this->write($this->root('a/x/deep/data.bin'), 'x');
+        Filesize::get_size($this->root('a'), true, false);
+        Filesize::save_persistent_cache();
+        self::assertArrayHasKey($this->root('a/x/deep'), self::folderSizeEntries());
+
+        self::removeTree($this->root('a/x'));
+        file_put_contents($this->cacheFile, json_encode(
+            json_decode((string) file_get_contents($this->cacheFile), true) + ['/other-process' => ['size' => 2, 'mtime' => 1, 'cached_at' => time(), 'children' => []]],
+        ));
+        Filesize::get_size($this->root('a'), true, false);
+        Filesize::save_persistent_cache();
+
+        $saved = array_keys(json_decode((string) file_get_contents($this->cacheFile), true));
+        foreach ([self::folderSizeEntries(), array_flip($saved)] as $entries) {
+            self::assertArrayNotHasKey($this->root('a/x'), $entries);
+            self::assertArrayNotHasKey($this->root('a/x/deep'), $entries, 'the subtree of a deleted folder goes with it');
+            self::assertArrayHasKey($this->root('a/y'), $entries);
+        }
+        self::assertContains('/other-process', $saved, 'entries another process saved are kept');
+        self::assertSame(self::treeSize($this->root('a')), self::folderSizeEntries()[$this->root('a')]['size']);
+    }
+
+    // A symlink is never counted as a subfolder: a folder replaced by one
+    // leaves the cache like a deleted one.
+    public function testAFolderReplacedByASymlinkLeavesTheCache(): void {
+        $this->write($this->root('a/x/deep/data.bin'), 'x');
+        Filesize::get_size($this->root('a'), true, false);
+        Filesize::save_persistent_cache();
+
+        self::removeTree($this->root('a/x'));
+        symlink($this->root('a/y'), $this->root('a/x'));
+        Filesize::get_size($this->root('a'), true, false);
+        Filesize::save_persistent_cache();
+
+        $saved = json_decode((string) file_get_contents($this->cacheFile), true);
+        self::assertArrayNotHasKey($this->root('a/x'), $saved);
+        self::assertArrayNotHasKey($this->root('a/x/deep'), $saved);
+        self::assertArrayHasKey($this->root('a/y'), $saved);
+    }
+
+    // A subfolder left out of its parent's children because it was already
+    // counted still exists: its entry stays.
+    public function testASkippedSubfolderKeepsItsEntry(): void {
+        Filesize::get_size($this->root('a'), true, false);
+        // Expired, so the walk goes into a/y instead of reusing its entry.
+        $entries = new ReflectionProperty(Filesize::class, 'persistent_cache');
+        $cached = $entries->getValue();
+        $cached[$this->root('a/y')]['cached_at'] -= Filesize::CACHE_TTL + 1;
+        $entries->setValue(null, $cached);
+        $class = new ReflectionClass(Filesize::class);
+        $visited = [realpath($this->root('a/y')) => true];
+        $class->getMethod('php_folder_size')->invokeArgs($class->newInstanceWithoutConstructor(), [$this->root('a'), &$visited]);
+        self::assertSame([$this->root('a/x')], self::folderSizeEntries()[$this->root('a')]['children']);
+        self::assertArrayHasKey($this->root('a/y'), self::folderSizeEntries());
     }
 
     public function testArchivesTrackVisitedFoldersByRealPath(): void {
