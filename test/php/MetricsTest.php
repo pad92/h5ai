@@ -27,16 +27,16 @@ final class MetricsTest extends H5aiTestCase {
     }
 
     public function testSearchIndexMetricsExposeCountsWithoutPaths(): void {
-        $this->write($this->cache('search-index.json'), json_encode([
-            'paths' => ['/private/name.txt'],
-            'dirs' => ['/private' => 100],
-        ]));
+        $this->write($this->root('private/name.txt'), 'x');
+        self::assertTrue((new Search($this->context()))->refresh_index());
 
+        $metrics = $this->collect()['cache']['searchIndex'];
         self::assertSame(
-            ['bytes' => strlen((string) file_get_contents($this->cache('search-index.json'))), 'entries' => 1, 'directories' => 1, 'updated' => filemtime($this->cache('search-index.json'))],
-            $this->collect()['cache']['searchIndex'],
+            ['bytes' => filesize($this->cache(Search::INDEX_FILE)) + filesize($this->cache(Search::TREE_FILE)), 'entries' => 2, 'directories' => 2],
+            array_intersect_key($metrics, ['bytes' => 0, 'entries' => 0, 'directories' => 0]),
         );
-        self::assertStringNotContainsString('/private/name.txt', json_encode($this->collect()));
+        self::assertIsInt($metrics['updated']);
+        self::assertStringNotContainsString('name.txt', json_encode($this->collect()));
     }
 
     public function testThumbnailsAreCountedPerFileAndPerSourceWithTheLastCoverage(): void {

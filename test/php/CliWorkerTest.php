@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
-// warm-cache.php and refresh-cache.php, the CLI workers started by cron
-// or by a web request.
+// warm-cache.php, refresh-cache.php and search-index.php, the CLI workers
+// started by cron or by a web request.
 final class CliWorkerTest extends H5aiTestCase {
     private string $app;
     private SubprocessCoverage $coverage;
@@ -68,6 +68,15 @@ final class CliWorkerTest extends H5aiTestCase {
         $this->runWorker('refresh-cache.php', [$this->root('sub')]);
         self::assertGreaterThanOrEqual(1000, $this->cachedSizes()[$this->root('sub')]['size'] ?? 0);
         self::assertFileDoesNotExist($this->app . '/private/cache/refresh.requested', 'the request marker must be cleared');
+    }
+
+    public function testTheSearchIndexWorkerWritesTheIndexAndClearsItsMarker(): void {
+        $this->copyApp();
+        $cache = $this->app . '/private/cache';
+        touch($cache . '/search-index.requested');
+        $this->runWorker('search-index.php');
+        self::assertSame(['entries' => 2, 'directories' => 2], array_intersect_key(Search::stats($cache), ['entries' => 0, 'directories' => 0]));
+        self::assertFileDoesNotExist($cache . '/search-index.requested', 'the request marker must be cleared');
     }
 
     public function testTheCacheWarmerCachesTheRootFolder(): void {

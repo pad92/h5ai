@@ -108,6 +108,7 @@ ENV H5AI_ROOT_PATH=/share
 # phones, through libheif), poppler-utils (pdftoppm for PDF thumbnails, about
 # 9 MiB installed; Ghostscript would take 62 MiB, about 20 MiB compressed, and
 # only adds PostScript thumbnails), fileinfo (download mimetypes), mbstring,
+# posix (the search index is only read by the user who wrote it),
 # session, sqlite3 (CacheDB uses the SQLite3 class, not PDO), zip
 # (ZipArchive) plus the tar/zip CLIs for packaged downloads.
 # angie-console-light ships with the base image but nothing serves it.
@@ -128,6 +129,7 @@ RUN apk upgrade --no-cache && apk add --no-cache \
     php84-opcache \
     php84-openssl \
     php84-pecl-imagick \
+    php84-posix \
     php84-session \
     php84-sqlite3 \
     php84-zip \

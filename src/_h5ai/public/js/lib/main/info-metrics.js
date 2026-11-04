@@ -153,7 +153,7 @@ const cacheRows = (cache, now) => {
             `${folderSizes.fresh.toLocaleString('en')} of ${plural(folderSizes.entries, 'entry', 'entries')} fresh`,
             {kind: 'purge', name: 'folderSizes'}],
         ['Search index',
-            `${searchIndex.entries.toLocaleString('en')} names in ${searchIndex.directories.toLocaleString('en')} directories. Rebuilt by the cache warmer; directory changes invalidate it on the next search.`,
+            `${searchIndex.entries.toLocaleString('en')} names in ${searchIndex.directories.toLocaleString('en')} directories. Refreshed in the background by the cache warmer, and by a search once it is older than search.indexTtl.`,
             formatSize(searchIndex.bytes), {kind: 'purge', name: 'searchIndex'}]
     ];
 };

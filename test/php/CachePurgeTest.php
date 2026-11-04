@@ -117,12 +117,12 @@ final class CachePurgeTest extends H5aiTestCase {
     }
 
     public function testTheSearchIndexCanBePurged(): void {
-        $this->write($this->cache('search-index.json'), json_encode([
-            'paths' => ['/a.txt', '/b.txt'],
-            'dirs' => ['/root' => 1],
-        ]));
+        $this->write($this->root('a.txt'), 'x');
+        $this->write($this->root('b.txt'), 'x');
+        self::assertTrue((new Search($this->context()))->refresh_index());
 
         self::assertSame(['entries' => 2, 'directories' => 1], $this->purge()->purge(CachePurge::SEARCH_INDEX));
-        self::assertFileDoesNotExist($this->cache('search-index.json'));
+        self::assertFileDoesNotExist($this->cache(Search::INDEX_FILE));
+        self::assertFileDoesNotExist($this->cache(Search::TREE_FILE));
     }
 }

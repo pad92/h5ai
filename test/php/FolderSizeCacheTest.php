@@ -150,12 +150,8 @@ final class FolderSizeCacheTest extends H5aiTestCase {
         self::assertSame(['/other-process', $this->root('a')], array_keys(json_decode((string) file_get_contents($this->cacheFile), true)));
     }
 
-    public function testSearchAndArchivesTrackVisitedFoldersByRealPath(): void {
+    public function testArchivesTrackVisitedFoldersByRealPath(): void {
         $context = $this->context();
-        $visited = [realpath($this->root('l1')) => true];
-        self::assertSame([$this->root('l1')], (new Search($context))->get_paths($this->root(), '^l\d+$', false, $visited));
-        self::assertArrayHasKey(realpath($this->root('a/x')), $visited);
-
         $archive = new Archive($context);
         $addDir = new ReflectionMethod($archive, 'add_dir');
         $archiveVisited = [realpath($this->root('a')) => true];

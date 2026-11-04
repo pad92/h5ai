@@ -15,7 +15,7 @@ class Metrics {
                 'thumbnails' => $this->thumbnails(),
                 'thumbnailDb' => CacheDB::stats($cache . '/thumbs_cache.db'),
                 'folderSizes' => Filesize::cache_stats($cache . '/foldersizes.json'),
-                'searchIndex' => Search::stats($cache . '/search-index.json'),
+                'searchIndex' => Search::stats($cache),
             ],
         ];
     }
