@@ -86,23 +86,20 @@ class Filesize {
     // pass, so validating a folder walks its subtree through those entries
     // and the file stays linear in the number of folders.
     //
-    // A subfolder the previous entry listed and that no longer exists was
-    // deleted: its entry and those below it go, which needs no stat() of the
+    // A subfolder the previous entry listed that no longer exists, or became
+    // a symlink (never counted as a subfolder), was deleted: the next save
+    // removes its entry and those below it, which needs no stat() of the
     // other entries. A deleted folder no listing can show any more thus
-    // leaves the cache when its parent is next computed.
+    // leaves the cache when its parent is next computed. Until that save,
+    // its stale entries stay in memory, where is_cache_entry_valid() rejects
+    // them since the folder is gone.
     public static function set_persistent_cache_entry(string $path, int $size, array $children): void {
         self::init_persistent_cache();
         $previous_children = self::$persistent_cache[$path]['children'] ?? [];
-        $deleted = [];
         foreach (is_array($previous_children) ? array_diff($previous_children, $children) : [] as $child) {
-            if (is_string($child) && !is_dir($child)) {
-                $deleted[$child] = true;
+            if (is_string($child) && (!is_dir($child) || is_link($child))) {
+                self::$deleted_folders[$child] = true;
             }
-        }
-        if ($deleted !== []) {
-            self::$deleted_folders += $deleted;
-            self::$persistent_cache = self::without_folders(self::$persistent_cache, $deleted);
-            self::$dirty_entries = self::without_folders(self::$dirty_entries, $deleted);
         }
         self::$persistent_cache[$path] = [
             'size' => $size,

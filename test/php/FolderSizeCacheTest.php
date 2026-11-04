@@ -175,6 +175,24 @@ final class FolderSizeCacheTest extends H5aiTestCase {
         self::assertSame(self::treeSize($this->root('a')), self::folderSizeEntries()[$this->root('a')]['size']);
     }
 
+    // A symlink is never counted as a subfolder: a folder replaced by one
+    // leaves the cache like a deleted one.
+    public function testAFolderReplacedByASymlinkLeavesTheCache(): void {
+        $this->write($this->root('a/x/deep/data.bin'), 'x');
+        Filesize::get_size($this->root('a'), true, false);
+        Filesize::save_persistent_cache();
+
+        self::removeTree($this->root('a/x'));
+        symlink($this->root('a/y'), $this->root('a/x'));
+        Filesize::get_size($this->root('a'), true, false);
+        Filesize::save_persistent_cache();
+
+        $saved = json_decode((string) file_get_contents($this->cacheFile), true);
+        self::assertArrayNotHasKey($this->root('a/x'), $saved);
+        self::assertArrayNotHasKey($this->root('a/x/deep'), $saved);
+        self::assertArrayHasKey($this->root('a/y'), $saved);
+    }
+
     // A subfolder left out of its parent's children because it was already
     // counted still exists: its entry stays.
     public function testASkippedSubfolderKeepsItsEntry(): void {

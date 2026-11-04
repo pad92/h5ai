@@ -133,6 +133,23 @@ final class ListingTest extends H5aiTestCase {
         self::assertEqualsCanonicalizing([$this->root('expired'), $this->root('unknown')], $context->refreshPaths, 'expired and unknown sizes are recomputed');
     }
 
+    // Nothing refreshes search results: an expired size is shown there
+    // without the flag, so it does not blink for good.
+    public function testSearchResultsShowExpiredFolderSizesWithoutTheFlag(): void {
+        mkdir($this->root('match-expired'));
+        self::resetFolderSizes($this->tmp . '/cache/foldersizes.json');
+        (new ReflectionProperty(Filesize::class, 'persistent_cache'))->setValue(null, [
+            $this->root('match-expired') => ['size' => 42, 'mtime' => filemtime($this->root('match-expired')), 'cached_at' => time() - Filesize::CACHE_TTL - 1, 'children' => []],
+        ]);
+        $context = $this->coldContext();
+
+        $found = array_column((new Search($context))->get_items('/', 'match-expired', false), null, 'href');
+
+        self::assertSame(42, $found['/match-expired/']['size']);
+        self::assertArrayNotHasKey('sizeStale', $found['/match-expired/']);
+        self::assertContains($this->root('match-expired'), $context->refreshPaths, 'the size is still recomputed');
+    }
+
     public function testTheCurrentPathIsTheRequestedFolder(): void {
         mkdir($this->root('sub'));
         foreach (['/sub/' => $this->root('sub'), '/sub/inside.txt' => $this->root('sub'), '/' => $this->root()] as $href => $expected) {
