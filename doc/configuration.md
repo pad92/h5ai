@@ -66,11 +66,11 @@ into it before adding your own.
 
 ### Cache options (`cache`)
 
-Configure automatic background cache warming (for pre-generating thumbnails and calculating folder sizes persistently).
+Configure automatic background cache warming for thumbnails, folder sizes and the search index.
 
 | Key | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `warmAtStartup` | `boolean` | `true` | If `true`, a request starts the cache warmer in the background when it has not run for `warmInterval` seconds. The warmer walks the whole share, creates every missing thumbnail and computes folder sizes, so the first run on a large share keeps the CPU and the disks busy for a while, and each later run reads the whole tree again. Set it to `false` to keep disks idle, and run the warmer from a scheduled task instead (see below). |
+| `warmAtStartup` | `boolean` | `true` | If `true`, a request starts the cache warmer in the background when it has not run for `warmInterval` seconds. The warmer walks the whole share, creates missing thumbnails, computes folder sizes and updates the search index. The first run on a large share can keep the CPU and disks busy for a while; later runs read the tree again. Set it to `false` to keep disks idle, and run the warmer from a scheduled task instead (see below). |
 | `warmInterval` | `number` | `86400` | The execution interval in seconds for the background cache warmer (default is 24 hours). |
 
 Older releases named these options `warm_at_startup` and `warm_interval`; those names are still read when the new ones are absent.
@@ -83,6 +83,8 @@ Older releases named these options `warm_at_startup` and `warm_interval`; those 
 > 
 > **How invalidation works**
 > The computed folder sizes are saved in `_h5ai/private/cache/foldersizes.json`, one entry per folder with its direct subfolders. Each entry expires after five minutes, and expired entries are removed from the file when it is next written. When the cache warmer reads an entry, a change in the entries of that folder or of any folder below it invalidates it; changes to an existing file may not change its directory's `mtime`, so those are picked up when the entry expires. Initial HTML, API listings and search results only use fresh cached folder sizes and hand missing or expired entries to a background refresh. If a refresh fails, the folder size remains unknown until a later refresh succeeds. Regular file sizes use the metadata already read for each item and remain available for display and sorting. Only the cache warmer and the background refresh worker compute folder sizes. Ordinary directory and metadata reads can still block on an unavailable mount.
+>
+> The search index is saved in `_h5ai/private/cache/search-index.json`. The cache warmer updates it during its directory walk. If the index is missing or stale, a search request rebuilds it. Searches check each indexed directory's modification time, change time and permission bits; a directory change triggers a rebuild. File names stay indexed when file permissions change. With `view.hideIf403` enabled, each matching file and its parent directories are checked for readability when the search runs.
 >
 > **Thumbnail lifetime**
 > Thumbnails in `_h5ai/public/cache/thumbs/` never expire. Each one carries the modification time of its source, and is regenerated as soon as the two differ, even when the source got older (`cp -p`, a restored backup). At the end of each pass, the cache warmer deletes the thumbnails and `thumbs_cache.db` entries of sources that no longer exist. A source counts as gone only when its closest existing folder is readable, and nothing is deleted while the root folder is empty or unreadable (an unmounted share). The warmer learns the source of an older thumbnail when a pass meets that source again, so the thumbnails of files deleted before that pass stay until the thumbnail folder is emptied by hand.

@@ -175,6 +175,9 @@ dates only, never a path of the share, and only an admin session gets them.
   source files it records.
 * **Folder sizes**: entries of `foldersizes.json`, how many are still served
   (younger than 5 minutes) and its size on disk.
+* **Search index**: the number of indexed names and directories, plus the
+  index file's size. The cache warmer updates it during its directory walk;
+  searches rebuild it when a directory's state has changed.
 
 **Start** launches a background task now: the cache warmer whatever
 `cache.warmAtStartup` and `cache.warmInterval` say, or the folder size
@@ -198,6 +201,7 @@ size refresh runs.
   are generated again by listings and by the next cache warmer run.
 * **Folder sizes**: deletes `foldersizes.json` and the temporary files an
   interrupted save left next to it. Sizes are computed again on demand.
+* **Search index**: deletes `search-index.json`. The next search builds it again.
 
 Other files of the caches are kept: `cmds.json` (probed again on each admin
 visit), `login-failures.json` (the login limit) and the task status files.
