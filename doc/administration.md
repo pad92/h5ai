@@ -201,7 +201,8 @@ size refresh runs.
   are generated again by listings and by the next cache warmer run.
 * **Folder sizes**: deletes `foldersizes.json` and the temporary files an
   interrupted save left next to it. Sizes are computed again on demand.
-* **Search index**: deletes `search-index.txt` and `search-index.tree.json`.
+* **Search index**: deletes `search-index.txt` and `search-index.tree`, unless
+  an index refresh is running.
   Searches walk the share until the next refresh builds them again.
 
 Other files of the caches are kept: `cmds.json` (probed again on each admin

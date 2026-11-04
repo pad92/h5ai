@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 final class SearchTest extends H5aiTestCase {
     private const INDEX = '/cache/search-index.txt';
-    private const TREE = '/cache/search-index.tree.json';
+    private const TREE = '/cache/search-index.tree';
 
     private function searchContext(array $options = [], array $setup = []): SearchTestContext {
         return $this->context($options, $setup, [], SearchTestContext::class);
@@ -134,12 +134,12 @@ final class SearchTest extends H5aiTestCase {
         $this->write($this->root('changed/real.txt'), 'x');
         $context = $this->searchContext();
         self::assertTrue((new Search($context))->refresh_index());
-        $tree = json_decode((string) file_get_contents($this->tmp . self::TREE), true);
+        $tree = unserialize((string) file_get_contents($this->tmp . self::TREE));
         $tree['built'] = time() + 10;
         $tree['dirs']['same']['e'][] = 'fghost-same.txt';
         $tree['dirs']['changed']['e'][] = 'fghost-changed.txt';
         $tree['dirs']['changed']['s']['mtime']--;
-        file_put_contents($this->tmp . self::TREE, json_encode($tree));
+        file_put_contents($this->tmp . self::TREE, serialize($tree));
 
         self::assertTrue((new Search($context))->refresh_index());
 
@@ -195,6 +195,53 @@ final class SearchTest extends H5aiTestCase {
         self::assertSame([$this->tmp . '/link/file.txt'], (new Search($context))->get_paths($this->tmp . '/link', 'file'));
         self::assertSame(0, $context->indexRefreshes);
         self::assertTrue((new Search($context))->refresh_index(), 'a second refresh succeeds too');
+    }
+
+    // The index never goes into a symlinked folder: a search started from
+    // inside one walks it, and asks for no refresh since none would help.
+    public function testASearchFromASymlinkedFolderWalksIt(): void {
+        $this->write($this->root('real/report.txt'), 'x');
+        symlink($this->root('real'), $this->root('data'));
+        $context = $this->searchContext();
+        self::assertTrue((new Search($context))->refresh_index());
+
+        self::assertSame([$this->root('data/report.txt')], (new Search($context))->get_paths($this->root('data'), 'report'));
+        $this->write($this->root('real/sub/later.txt'), 'x');
+        self::assertSame([$this->root('data/sub/later.txt')], (new Search($context))->get_paths($this->root('data/sub'), 'later'), 'a folder below the symlink too');
+        self::assertSame(0, $context->indexRefreshes);
+    }
+
+    // JSON cannot hold a name that is not valid UTF-8: the tree keeps it, so
+    // the next refresh still reuses the unchanged folders.
+    public function testNamesThatAreNotUtf8KeepTheTree(): void {
+        $file = $this->write($this->root("sub/caf\xE9.txt"), 'x');
+        $context = $this->searchContext();
+        self::assertTrue((new Search($context))->refresh_index());
+
+        $tree = unserialize((string) file_get_contents($this->tmp . self::TREE));
+        self::assertContains("fcaf\xE9.txt", $tree['dirs']['sub']['e'] ?? []);
+        $tree['built'] = time() + 10;
+        file_put_contents($this->tmp . self::TREE, serialize($tree));
+        self::assertTrue((new Search($context))->refresh_index());
+        self::assertSame([$file], (new Search($context))->get_paths($this->root(), '^caf'), 'a reused entry keeps the exact name');
+    }
+
+    public function testThePurgeWaitsForARunningRefresh(): void {
+        $this->write($this->root('file.txt'), 'x');
+        self::assertTrue((new Search($this->searchContext()))->refresh_index());
+        $lock = fopen($this->tmp . '/cache/search-index.lock', 'c+');
+        flock($lock, LOCK_EX);
+        try {
+            Search::purge($this->tmp . '/cache');
+            self::fail('a purge must not run during a refresh, which would write the index again');
+        } catch (RuntimeException $exception) {
+            self::assertStringContainsString('being refreshed', $exception->getMessage());
+        } finally {
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
+        self::assertFileExists($this->tmp . self::INDEX);
+        self::assertSame(['entries' => 1, 'directories' => 1], Search::purge($this->tmp . '/cache'), 'the purge runs once the refresh ended');
     }
 
     public function testNamesWithLineBreaksAndBackslashesAreFound(): void {

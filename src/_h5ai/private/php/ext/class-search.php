@@ -9,8 +9,9 @@
 class Search {
     // Read by searches: a JSON header line, then one entry per line.
     public const INDEX_FILE = 'search-index.txt';
-    // Read by the refresh only: each folder's state and entries.
-    public const TREE_FILE = 'search-index.tree.json';
+    // Read by the refresh only: each folder's state and entries, serialized
+    // by PHP, which keeps file names that are not valid UTF-8 (JSON cannot).
+    public const TREE_FILE = 'search-index.tree';
     private const LOCK_FILE = 'search-index.lock';
     private const VERSION = 3;
     private const DEFAULT_TTL = 300;
@@ -45,14 +46,31 @@ class Search {
 
         $max_depth = max(0, (int) $this->context->query_option('search.maxDepth', 64));
         $max_results = max(1, (int) $this->context->query_option('search.maxResults', 1000));
-        $paths = $this->search_index($root, $re, $max_depth, $max_results);
+        // The index never goes into a symlinked folder, but a search started
+        // from inside one walks it, as before the index.
+        $is_in_symlink = $this->is_in_symlinked_folder($root);
+        $paths = $is_in_symlink ? null : $this->search_index($root, $re, $max_depth, $max_results);
         if ($paths === null) {
-            $this->context->trigger_search_index_refresh();
+            if (!$is_in_symlink) {
+                $this->context->trigger_search_index_refresh();
+            }
             $paths = [];
             $visited = [];
             $this->walk($root, $re, 0, $max_depth, $max_results, $visited, $paths);
         }
         return $paths;
+    }
+
+    // Whether $root or one of its parents below ROOT_PATH is a symlink. A
+    // symlinked ROOT_PATH itself is indexed like any root.
+    private function is_in_symlinked_folder(string $root): bool {
+        $base = $this->context->get_setup()->get('ROOT_PATH');
+        for ($path = $root; $path !== $base && str_starts_with($path, $base); $path = dirname($path)) {
+            if (@is_link($path)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // Matches read from the index, or null without a usable one. An index
@@ -239,7 +257,8 @@ class Search {
     // The previous refresh's tree, or null when it is missing or was made
     // for another version or configuration.
     private function read_tree(): ?array {
-        $tree = json_decode((string) @file_get_contents($this->cache_file(self::TREE_FILE)), true);
+        $content = @file_get_contents($this->cache_file(self::TREE_FILE));
+        $tree = $content === false ? null : @unserialize($content, ['allowed_classes' => false]);
         if (!is_array($tree) || ($tree['version'] ?? null) !== self::VERSION
             || ($tree['config'] ?? null) !== $this->config_hash()
             || !is_int($tree['built'] ?? null) || !is_array($tree['dirs'] ?? null)) {
@@ -250,7 +269,7 @@ class Search {
 
     private function write_index(int $uid, int $started, array $dirs): bool {
         $config = $this->config_hash();
-        $is_tree_written = $this->replace_cache_file(self::TREE_FILE, static fn($handle): bool => fwrite($handle, (string) json_encode(
+        $is_tree_written = $this->replace_cache_file(self::TREE_FILE, static fn($handle): bool => fwrite($handle, serialize(
             ['version' => self::VERSION, 'config' => $config, 'built' => $started, 'dirs' => $dirs],
         )) !== false);
         $header = [
@@ -353,17 +372,31 @@ class Search {
     }
 
     // Removes the index, its tree and the temporary files an interrupted
-    // write left. Returns the counts the index held.
+    // write left, under the refresh lock: a running refresh would write the
+    // index again right after. Returns the counts the index held; throws
+    // while a refresh runs.
     public static function purge(string $cache_path): array {
-        $stats = self::stats($cache_path);
-        @unlink($cache_path . '/' . self::INDEX_FILE);
-        @unlink($cache_path . '/' . self::TREE_FILE);
-        foreach (@scandir($cache_path) ?: [] as $name) {
-            if (preg_match('/^search-index\..+\.tmp$/', $name)) {
-                @unlink($cache_path . '/' . $name);
+        $lock = @fopen($cache_path . '/' . self::LOCK_FILE, 'c+');
+        if ($lock === false || !flock($lock, LOCK_EX | LOCK_NB)) {
+            if ($lock !== false) {
+                fclose($lock);
             }
+            throw new RuntimeException('the search index is being refreshed');
         }
-        return ['entries' => $stats['entries'], 'directories' => $stats['directories']];
+        try {
+            $stats = self::stats($cache_path);
+            @unlink($cache_path . '/' . self::INDEX_FILE);
+            @unlink($cache_path . '/' . self::TREE_FILE);
+            foreach (@scandir($cache_path) ?: [] as $name) {
+                if (preg_match('/^search-index\..+\.tmp$/', $name)) {
+                    @unlink($cache_path . '/' . $name);
+                }
+            }
+            return ['entries' => $stats['entries'], 'directories' => $stats['directories']];
+        } finally {
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
     }
 
     // Paths are stored relative to ROOT_PATH, one per line: backslashes and
