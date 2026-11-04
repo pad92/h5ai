@@ -45,14 +45,14 @@ class PathPolicy {
 
     // Visible entry names of a folder. Unreadable entries are logged and
     // kept unless view.hideIf403 is set.
-    public function read_dir(string $path): array {
+    public function read_dir(string $path, bool $include_unreadable = false): array {
         $names = [];
         if (is_dir($path)) {
-            foreach (scandir($path) as $name) {
+            foreach (@scandir($path) ?: [] as $name) {
                 if ($this->is_hidden($name) || $this->is_hidden($this->to_href($path) . $name)) {
                     continue;
                 }
-                if (!is_readable($path . '/' . $name)) {
+                if (!$include_unreadable && !is_readable($path . '/' . $name)) {
                     Util::log('permission denied while listing: ' . $path . '/' . $name);
                     if ($this->query_option('view.hideIf403', false)) {
                         continue;

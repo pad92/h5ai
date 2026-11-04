@@ -20,6 +20,8 @@ final class PathPolicyTest extends H5aiTestCase {
         $this->context = $this->context(
             ['custom' => ['enabled' => true], 'search' => ['maxResults' => 2, 'maxDepth' => 4]],
             ['PUBLIC_PATH' => $this->root('_h5ai/public'), 'PRIVATE_PATH' => $this->root('_h5ai/private')],
+            [],
+            SearchTestContext::class,
         );
     }
 
@@ -53,13 +55,20 @@ final class PathPolicyTest extends H5aiTestCase {
     }
 
     public function testSearchEnforcesItsResultLimit(): void {
-        $visited = [];
-        self::assertCount(2, (new Search($this->context))->get_paths($this->root(), 'match', false, $visited));
+        self::assertCount(2, (new Search($this->context))->get_paths($this->root(), 'match'), 'walk');
+        self::assertTrue((new Search($this->context))->refresh_index());
+        self::assertCount(2, (new Search($this->context))->get_paths($this->root(), 'match'), 'index');
     }
 
-    public function testSearchRejectsFileSymlinksEscapingTheRoot(): void {
-        $visited = [];
-        self::assertSame([], (new Search($this->context))->get_paths($this->root(), 'outside-link', false, $visited));
+    public function testSearchRejectsFileSymlinksEscapingTheRootAndH5aiFolders(): void {
+        foreach (['walk', 'index'] as $source) {
+            if ($source === 'index') {
+                self::assertTrue((new Search($this->context))->refresh_index());
+            }
+            self::assertSame([], (new Search($this->context))->get_paths($this->root(), 'outside-link'), $source);
+            self::assertSame([], (new Search($this->context))->get_paths($this->root(), 'internal'), $source);
+        }
+        self::assertStringNotContainsString('internal', (string) file_get_contents($this->tmp . '/cache/' . Search::INDEX_FILE), 'h5ai folders are never listed');
     }
 
     public function testArchivesRejectFileSymlinksEscapingTheRoot(): void {
@@ -99,11 +108,18 @@ final class PathPolicyTest extends H5aiTestCase {
         $context = $this->context(
             ['search' => ['maxResults' => 100, 'maxDepth' => 1, 'maxPatternLength' => 8]],
             ['PUBLIC_PATH' => $this->root('_h5ai/public'), 'PRIVATE_PATH' => $this->root('_h5ai/private')],
+            [],
+            SearchTestContext::class,
         );
         $search = new Search($context);
-        $found = $search->get_paths($this->root(), 'match');
-        self::assertCount(5, $found, 'files two levels down must stay out of reach');
-        self::assertNotContains($this->root('d1/d2/match-deep.txt'), $found);
+        foreach (['walk', 'index'] as $source) {
+            if ($source === 'index') {
+                self::assertTrue($search->refresh_index());
+            }
+            $found = $search->get_paths($this->root(), 'match');
+            self::assertCount(5, $found, "{$source}: files two levels down must stay out of reach");
+            self::assertNotContains($this->root('d1/d2/match-deep.txt'), $found);
+        }
         self::assertSame([], $search->get_paths($this->root(), '(unclosed'), 'an invalid pattern finds nothing');
         self::assertSame([], $search->get_paths($this->root(), 'way-too-long'), 'an oversized pattern finds nothing');
         self::assertSame([], $search->get_paths($this->root(), ''), 'an empty pattern finds nothing');

@@ -267,7 +267,19 @@ class Context {
         if ($paths === []) {
             return false;
         }
-        $marker = $this->setup->get('CACHE_PRV_PATH') . '/refresh.requested';
+        return $this->launch_once('refresh.requested', 'refresh-cache.php', $paths);
+    }
+
+    // Starts the search index refresh worker. False when a refresh is
+    // already requested or the launch failed.
+    public function trigger_search_index_refresh(): bool {
+        return $this->launch_once('search-index.requested', 'search-index.php');
+    }
+
+    // Launches a worker script unless $marker_name, which the worker removes
+    // when it ends, says one was requested less than five minutes ago.
+    private function launch_once(string $marker_name, string $script, array $args = []): bool {
+        $marker = $this->setup->get('CACHE_PRV_PATH') . '/' . $marker_name;
         if (is_file($marker) && (time() - (int) @filemtime($marker)) > 300) {
             @unlink($marker);
         }
@@ -276,8 +288,7 @@ class Context {
             return false;
         }
         fclose($marker_handle);
-        $script_path = $this->setup->get('PRIVATE_PATH') . '/php/refresh-cache.php';
-        if (!Util::launch_background($script_path, $paths)) {
+        if (!Util::launch_background($this->setup->get('PRIVATE_PATH') . '/php/' . $script, $args)) {
             @unlink($marker);
             return false;
         }

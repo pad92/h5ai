@@ -39,6 +39,11 @@ final class CacheWarmerTest extends H5aiTestCase {
         };
         (new CacheWarmer($context, $recorder))->warm();
         self::assertSame(
+            ['entries' => 4, 'directories' => 1],
+            array_intersect_key(Search::stats($this->tmp . '/cache'), ['entries' => 0, 'directories' => 0]),
+            'the warmer refreshes the search index',
+        );
+        self::assertSame(
             [['img-jpg', '/a.jpg', 266, 200, $seeded['/a.jpg']], ['ar-zip', '/c.zip', 266, 200, $seeded['/c.zip']]],
             $recorder->calls,
         );

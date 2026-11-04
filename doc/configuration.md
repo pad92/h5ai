@@ -66,11 +66,11 @@ into it before adding your own.
 
 ### Cache options (`cache`)
 
-Configure automatic background cache warming (for pre-generating thumbnails and calculating folder sizes persistently).
+Configure automatic background cache warming for thumbnails, folder sizes and the search index.
 
 | Key | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `warmAtStartup` | `boolean` | `true` | If `true`, a request starts the cache warmer in the background when it has not run for `warmInterval` seconds. The warmer walks the whole share, creates every missing thumbnail and computes folder sizes, so the first run on a large share keeps the CPU and the disks busy for a while, and each later run reads the whole tree again. Set it to `false` to keep disks idle, and run the warmer from a scheduled task instead (see below). |
+| `warmAtStartup` | `boolean` | `true` | If `true`, a request starts the cache warmer in the background when it has not run for `warmInterval` seconds. The warmer walks the whole share, creates missing thumbnails, computes folder sizes and updates the search index. The first run on a large share can keep the CPU and disks busy for a while; later runs read the tree again. Set it to `false` to keep disks idle, and run the warmer from a scheduled task instead (see below). |
 | `warmInterval` | `number` | `86400` | The execution interval in seconds for the background cache warmer (default is 24 hours). |
 
 Older releases named these options `warm_at_startup` and `warm_interval`; those names are still read when the new ones are absent.
@@ -83,6 +83,8 @@ Older releases named these options `warm_at_startup` and `warm_interval`; those 
 > 
 > **How invalidation works**
 > The computed folder sizes are saved in `_h5ai/private/cache/foldersizes.json`, one entry per folder with its direct subfolders. Each entry expires after five minutes and stays in the file until a refresh replaces it. When a folder is computed again, the entries of its subfolders that no longer exist are removed with everything below them. When the cache warmer reads an entry, a change in the entries of that folder or of any folder below it invalidates it; changes to an existing file may not change its directory's `mtime`, so those are picked up when the entry expires. Initial HTML, API listings and search results never compute a folder size: they show the cached size, and hand missing or expired entries to a background refresh. An expired size blinks slowly until the refresh replaces it (with reduced motion enabled in the browser, it is dimmed instead). A folder without any entry shows no size until a refresh succeeds. Regular file sizes use the metadata already read for each item and remain available for display and sorting. Only the cache warmer and the background refresh worker compute folder sizes. Ordinary directory and metadata reads can still block on an unavailable mount.
+>
+> The search index is saved in `_h5ai/private/cache/search-index.txt`, with `search-index.tree` next to it for the refresh. A search reads the index instead of walking the share, which matters on NFS or SMB mounts, and checks only its matches on disk. A deleted file, or the old name of a renamed one, is never returned, and with `view.hideIf403` each match must still be readable. A new file shows up after the next refresh. The cache warmer refreshes the index after its walk, and a search starts a background refresh once the index is older than `search.indexTtl` (five minutes by default). A refresh reads the modification time, change time and permission bits of every folder, and lists again only the folders that changed. When the index is missing, or was written for another configuration or by another user, searches walk the share and request a refresh. The index does not follow symlinked folders, so a search started from inside one walks it. The refresh refuses to run as root, since it could index names the web server cannot read. Run the cache warmer from cron as the web server user, for example `sudo -u www-data nice -n 19 php _h5ai/private/php/warm-cache.php`. In the Docker image that user is `angie`, and `docker exec` runs as root unless told otherwise: use `docker exec -u angie h5ai nice -n 19 php /usr/share/h5ai/_h5ai/private/php/warm-cache.php`.
 >
 > **Thumbnail lifetime**
 > Thumbnails in `_h5ai/public/cache/thumbs/` never expire. Each one carries the modification time of its source, and is regenerated as soon as the two differ, even when the source got older (`cp -p`, a restored backup). At the end of each pass, the cache warmer deletes the thumbnails and `thumbs_cache.db` entries of sources that no longer exist. A source counts as gone only when its closest existing folder is readable, and nothing is deleted while the root folder is empty or unreadable (an unmounted share). The warmer learns the source of an older thumbnail when a pass meets that source again, so the thumbnails of files deleted before that pass stay until the thumbnail folder is emptied by hand.
@@ -261,8 +263,9 @@ Allows users to search for files recursively inside the current folder and its s
 - `debounceTime` (default: `300`): Delay before searching triggers.
 - `ignorecase` (default: `true`): Case-insensitive search.
 - `maxResults` (default: `1000`): Maximum number of results returned by one recursive search.
-- `maxDepth` (default: `64`): Maximum recursive directory depth visited by one search.
+- `maxDepth` (default: `64`): Maximum depth below the folder the search starts from.
 - `maxPatternLength` (default: `256`): Maximum regular-expression length accepted by the server.
+- `indexTtl` (default: `300`): Age in seconds after which a search asks for a background refresh of the search index. The stale index keeps answering in the meantime.
 
 #### `select`
 Enables checkboxes and select options to choose multiple files.

@@ -91,6 +91,23 @@ final class ContextTest extends H5aiTestCase {
         self::assertFileExists($marker);
     }
 
+    public function testAStaleSearchIndexStartsOneRefreshWorker(): void {
+        $this->fakeTools(['nice' => 'exit 0']);
+        $marker = $this->tmp . '/cache/search-index.requested';
+        $context = $this->context();
+
+        touch($marker);
+        self::assertFalse($context->trigger_search_index_refresh());
+        usleep(200000);
+        self::assertSame(0, $this->toolRuns('nice'), 'a refresh is already requested');
+
+        touch($marker, time() - 301);
+        self::assertTrue($context->trigger_search_index_refresh());
+        self::assertSame(1, $this->niceRuns(), 'a request older than five minutes is taken over');
+        self::assertSame('-n 19 php ' . $this->tmp . "/private/php/search-index.php\n", $this->toolLog('nice'));
+        self::assertFileExists($marker);
+    }
+
     // The browser sent a PDF type for an MP3 file: the capture finds the
     // audio cover and reports the corrected type.
     #[RequiresPhpExtension('gd')]

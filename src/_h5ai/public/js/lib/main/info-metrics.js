@@ -132,7 +132,7 @@ const coverageRows = (coverage, now) => {
 };
 
 const cacheRows = (cache, now) => {
-    const {thumbnails, thumbnailDb, folderSizes} = cache;
+    const {thumbnails, thumbnailDb, folderSizes, searchIndex} = cache;
     const average = thumbnails.files > 0 ? `, ${formatSize(Math.round(thumbnails.bytes / thumbnails.files))} on average` : '';
     let dbText = `${plural(thumbnailDb.sources || 0, 'source file')} recorded, used to prune thumbnails of deleted files. Purged with the thumbnail files.`;
     if (thumbnailDb.bytes === null) {
@@ -151,7 +151,10 @@ const cacheRows = (cache, now) => {
         ['Folder sizes',
             `${formatSize(folderSizes.bytes) || '0 B'} on disk. Entries are fresh for ${formatDuration(folderSizes.ttl)}; older ones are shown while they are recomputed.${newest}`,
             `${folderSizes.fresh.toLocaleString('en')} of ${plural(folderSizes.entries, 'entry', 'entries')} fresh`,
-            {kind: 'purge', name: 'folderSizes'}]
+            {kind: 'purge', name: 'folderSizes'}],
+        ['Search index',
+            `${searchIndex.entries.toLocaleString('en')} names in ${searchIndex.directories.toLocaleString('en')} directories. Refreshed in the background by the cache warmer, and by a search once it is older than search.indexTtl.`,
+            formatSize(searchIndex.bytes), {kind: 'purge', name: 'searchIndex'}]
     ];
 };
 

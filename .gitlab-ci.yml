@@ -256,10 +256,16 @@ test:php:
   script:
     - docker build -q -t h5ai-php-test:ci -f ci/php-test.Dockerfile ci
     - JOB_CONTAINER_ID=$(docker ps -q -f "label=com.gitlab.gitlab-runner.job.id=$CI_JOB_ID")
+    # The suite runs unprivileged, like the web server: as root, the
+    # permission tests skip themselves and the search index refuses to
+    # refresh. The checkout belongs to root, so only the folders the tests
+    # write to (the coverage report, the command probe cache) are handed over.
     - |
       docker run --rm --volumes-from "$JOB_CONTAINER_ID" -w "$CI_PROJECT_DIR" -e XDEBUG_MODE=coverage h5ai-php-test:ci sh -ec '
         find src test/php -name "*.php" -print0 | xargs -0 -n1 php -l
-        php /usr/local/bin/phpunit.phar --coverage-cobertura coverage/php/cobertura.xml --coverage-text --only-summary-for-coverage-text'
+        mkdir -p coverage/php
+        chown www-data: coverage/php src/_h5ai/private/cache
+        setpriv --reuid=www-data --regid=www-data --clear-groups php /usr/local/bin/phpunit.phar --coverage-cobertura coverage/php/cobertura.xml --coverage-text --only-summary-for-coverage-text'
   artifacts:
     paths:
       - coverage/php/

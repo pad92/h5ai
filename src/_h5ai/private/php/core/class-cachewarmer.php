@@ -168,6 +168,8 @@ class CacheWarmer {
         if ($this->is_stopped) {
             return 0;
         }
+        // Lists again only the folders changed since the previous refresh.
+        (new Search($this->context))->refresh_index();
         $pruned = $this->thumb_instance?->prune_orphans() ?? 0;
         if ($this->thumb_instance !== null) {
             $this->save_coverage();
