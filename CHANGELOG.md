@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.7.0 - *2026-11-04*
+
+Upgrading: the search index refresh refuses to run as root. If a scheduled task runs the cache warmer as root, run it as the web server user instead; in the Docker image, `docker exec -u angie h5ai nice -n 19 php /usr/share/h5ai/_h5ai/private/php/warm-cache.php`. A mounted `options.json` needs no change: `search.indexTtl` defaults to 300 seconds.
+
+* **Search index**: searches read a cached list of the share's file names, `_h5ai/private/cache/search-index.txt`, instead of walking the share, and check only their matches on disk. A slow NFS or SMB mount is no longer listed and `stat()`ed entry by entry on each search. A deleted file, or the old name of a renamed one, is never returned; a new file, or the new name, shows up after the next refresh.
+    * The cache warmer refreshes the index after its walk, and a search asks for a background refresh once the index is older than the new `search.indexTtl` option (300 s); the stale index keeps answering meanwhile. A refresh reads the times and permission bits of every folder and lists again only the folders that changed.
+    * Without a usable index (missing, written for another configuration or by another user), searches walk the share as before and request a refresh. The index does not follow symlinked folders, so a search started inside one walks it.
+    * The info page shows the number of indexed names and folders and the size of the index files, and its purge button deletes them unless a refresh is running. The Docker image adds `php84-posix` to check who wrote the index.
+* **Folder sizes**: an expired folder size stays on screen and blinks slowly (dimmed with reduced motion) until the background refresh replaces it; before, it showed as unknown in the meantime. With autorefresh disabled, the listing still refreshes every five seconds while a size blinks, for at most five minutes. Search results show the cached size without blinking, since they are never refreshed. The entries of deleted subfolders, or of a subfolder replaced by a symlink, leave `foldersizes.json` when their parent is computed again.
+* **Docker image**: the FFmpeg source comes from the official GitHub mirror, checked by its SHA-256, because ffmpeg.org could not be reached from the build hosts.
+* **CI**: the PHP suite runs as `www-data`, like the web server. As root, the permission tests skipped themselves and the search index refused to refresh.
+
 ## v1.6.0 - *2026-11-03*
 
 Upgrading: a mounted `options.json` keeps its own `view.hidden` list and thumbnail types, so copy the new entries from the shipped file into it. With the Docker image, which no longer renders PostScript, also drop `x-ps` from `thumbnails.doc`.
