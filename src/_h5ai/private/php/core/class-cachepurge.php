@@ -8,7 +8,8 @@
 class CachePurge {
     public const THUMBNAILS = 'thumbnails';
     public const FOLDER_SIZES = 'folderSizes';
-    public const CACHES = [self::THUMBNAILS, self::FOLDER_SIZES];
+    public const SEARCH_INDEX = 'searchIndex';
+    public const CACHES = [self::THUMBNAILS, self::FOLDER_SIZES, self::SEARCH_INDEX];
 
     private readonly string $private_cache;
 
@@ -28,8 +29,16 @@ class CachePurge {
         return match ($cache) {
             self::THUMBNAILS => $this->purge_thumbnails(),
             self::FOLDER_SIZES => ['entries' => Filesize::purge_cache($this->private_cache . '/foldersizes.json')],
+            self::SEARCH_INDEX => $this->purge_search_index(),
             default => throw new InvalidArgumentException('unknown cache: ' . $cache),
         };
+    }
+
+    private function purge_search_index(): array {
+        $path = $this->private_cache . '/search-index.json';
+        $stats = Search::stats($path);
+        @unlink($path);
+        return ['entries' => $stats['entries'], 'directories' => $stats['directories']];
     }
 
     // Every file of the thumbnail folder (a symlink is removed, never

@@ -94,7 +94,8 @@ const METRICS = {
     cache: {
         thumbnails: {files: 3, sources: 2, bytes: 3000000, coverage: {at: 9000, categories: {img: {files: 4, thumbnails: 3}}}},
         thumbnailDb: {bytes: 8192, sources: 2},
-        folderSizes: {entries: 5, fresh: 4, bytes: 512, ttl: 300, newest: 9940}
+        folderSizes: {entries: 5, fresh: 4, bytes: 512, ttl: 300, newest: 9940},
+        searchIndex: {bytes: 1024, entries: 45, directories: 12, updated: 9940}
     }
 };
 
@@ -158,6 +159,7 @@ test('info page: an admin sees task and cache metrics and can refresh them', asy
         assert.equal(rows['Thumbnail files'], '3.0 MB');
         assert.equal(rows.Images, '3 of 4 (75 %)');
         assert.equal(rows['Folder sizes'], '4 of 5 entries fresh');
+        assert.equal(rows['Search index'], '1 KB');
 
         document.querySelector('#metrics-refresh').click();
         assert.equal(document.querySelector('#metrics-refresh').disabled, true);
@@ -182,7 +184,7 @@ test('info page: each cache purges after a confirming second click, then the met
     });
     try {
         await page.settle();
-        assert.deepEqual(Object.keys(purgeButtons()), ['Thumbnail files', 'Folder sizes'],
+        assert.deepEqual(Object.keys(purgeButtons()), ['Thumbnail files', 'Folder sizes', 'Search index'],
             'the database goes with the thumbnail files, never alone');
 
         const button = purgeButtons()['Thumbnail files'];

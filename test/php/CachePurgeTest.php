@@ -115,4 +115,14 @@ final class CachePurgeTest extends H5aiTestCase {
         $this->expectException(InvalidArgumentException::class);
         $this->purge()->purge('../conf');
     }
+
+    public function testTheSearchIndexCanBePurged(): void {
+        $this->write($this->cache('search-index.json'), json_encode([
+            'paths' => ['/a.txt', '/b.txt'],
+            'dirs' => ['/root' => 1],
+        ]));
+
+        self::assertSame(['entries' => 2, 'directories' => 1], $this->purge()->purge(CachePurge::SEARCH_INDEX));
+        self::assertFileDoesNotExist($this->cache('search-index.json'));
+    }
 }

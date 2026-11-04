@@ -14,7 +14,8 @@ const EMPTY = {
     cache: {
         thumbnails: {files: 0, sources: 0, bytes: 0, coverage: null},
         thumbnailDb: {bytes: null, sources: null},
-        folderSizes: {entries: 0, fresh: 0, bytes: 0, ttl: 300, newest: null}
+        folderSizes: {entries: 0, fresh: 0, bytes: 0, ttl: 300, newest: null},
+        searchIndex: {bytes: 0, entries: 0, directories: 0, updated: null}
     }
 };
 
@@ -39,6 +40,7 @@ test('info metrics: a fresh install reads as unknown, never as zero coverage', (
     assert.equal(rows['Thumbnail database'].value, 'none');
     assert.equal(rows['Thumbnail database'].action, undefined, 'purged with the thumbnail files only');
     assert.deepEqual(rows['Folder sizes'].action, {kind: 'purge', name: 'folderSizes'});
+    assert.deepEqual(rows['Search index'].action, {kind: 'purge', name: 'searchIndex'});
     assert.deepEqual(rows['Thumbnail files'].action, {kind: 'purge', name: 'thumbnails'});
     assert.deepEqual(rows['Cache warmer'].action, {kind: 'start', name: 'warmer'}, 'idle: it can be started');
     assert.equal(rows['Folder sizes'].value, '0 of 0 entries fresh');

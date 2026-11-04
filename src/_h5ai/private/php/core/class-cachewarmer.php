@@ -9,6 +9,9 @@ class CacheWarmer {
     private ?Thumb $thumb_instance = null;
     // Thumbnail type => its category (img, mov, doc, ar, aud).
     private array $thumb_types = [];
+    // Search-index inputs collected during the same traversal as thumbnails.
+    private array $search_dirs = [];
+    private array $search_paths = [];
     // Category => files of that kind met by the walk, and how many of them
     // have a thumbnail. Written to COVERAGE_FILE for the info page.
     private array $coverage = [];
@@ -162,12 +165,15 @@ class CacheWarmer {
         $root = $this->setup->get('ROOT_PATH');
         $this->status = $status;
         $this->is_stopped = false;
+        $this->search_dirs = [];
+        $this->search_paths = [];
         $status?->phase('files');
         $this->coverage = array_fill_keys(array_unique(array_values($this->thumb_types)), ['files' => 0, 'thumbnails' => 0]);
         $this->warm_path($root);
         if ($this->is_stopped) {
             return 0;
         }
+        (new Search($this->context))->store_index($this->search_dirs, $this->search_paths);
         $pruned = $this->thumb_instance?->prune_orphans() ?? 0;
         if ($this->thumb_instance !== null) {
             $this->save_coverage();
@@ -191,7 +197,33 @@ class CacheWarmer {
             return;
         }
 
-        $files = $this->context->paths()->read_dir($path);
+        $all_files = $this->context->paths()->read_dir($path, true);
+        $files = [];
+        foreach ($all_files as $file) {
+            if (!is_readable($path . '/' . $file)) {
+                Util::log('permission denied while listing: ' . $path . '/' . $file);
+                if ($this->context->query_option('view.hideIf403', false)) {
+                    continue;
+                }
+            }
+            $files[] = $file;
+        }
+        $state = Search::directory_state($path);
+        if ($state !== null) {
+            $this->search_dirs[$path] = $state;
+        }
+        foreach ($all_files as $name) {
+            $child_path = $path . '/' . $name;
+            if (is_dir($child_path)) {
+                $this->search_paths[] = $child_path;
+                $child_state = Search::directory_state($child_path);
+                if ($child_state !== null && !is_link($child_path)) {
+                    $this->search_dirs[$child_path] = $child_state;
+                }
+            } elseif ($this->context->paths()->is_managed_file($child_path)) {
+                $this->search_paths[] = $child_path;
+            }
+        }
 
         foreach ($files as $file) {
             if ($this->is_stopped || $this->status?->stop_requested()) {

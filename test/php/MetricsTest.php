@@ -19,10 +19,24 @@ final class MetricsTest extends H5aiTestCase {
         self::assertSame(['files' => 0, 'sources' => 0, 'bytes' => 0, 'coverage' => null], $metrics['cache']['thumbnails']);
         self::assertSame(['bytes' => null, 'sources' => null], $metrics['cache']['thumbnailDb']);
         self::assertSame(['entries' => 0, 'fresh' => 0, 'bytes' => 0, 'ttl' => Filesize::CACHE_TTL, 'newest' => null], $metrics['cache']['folderSizes']);
+        self::assertSame(['bytes' => 0, 'entries' => 0, 'directories' => 0, 'updated' => null], $metrics['cache']['searchIndex']);
         self::assertSame(['running' => null, 'stopping' => false, 'last' => null], $metrics['tasks']['refresh']);
         self::assertSame(['enabled' => false, 'interval' => 86400, 'lastRun' => null, 'nextRun' => null], $metrics['tasks']['warmer']['schedule']);
         self::assertSame(['.', '..'], scandir($this->cache()), 'reading metrics must not create cache files');
         self::assertDirectoryDoesNotExist($this->tmp . '/cache-pub');
+    }
+
+    public function testSearchIndexMetricsExposeCountsWithoutPaths(): void {
+        $this->write($this->cache('search-index.json'), json_encode([
+            'paths' => ['/private/name.txt'],
+            'dirs' => ['/private' => 100],
+        ]));
+
+        self::assertSame(
+            ['bytes' => strlen((string) file_get_contents($this->cache('search-index.json'))), 'entries' => 1, 'directories' => 1, 'updated' => filemtime($this->cache('search-index.json'))],
+            $this->collect()['cache']['searchIndex'],
+        );
+        self::assertStringNotContainsString('/private/name.txt', json_encode($this->collect()));
     }
 
     public function testThumbnailsAreCountedPerFileAndPerSourceWithTheLastCoverage(): void {
