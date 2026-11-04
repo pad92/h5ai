@@ -1,6 +1,7 @@
 const event = require('../core/event');
 const location = require('../core/location');
 const allsettings = require('../core/settings');
+const {values} = require('../util');
 
 const win = global.window;
 const settings = Object.assign({
@@ -10,6 +11,13 @@ const settings = Object.assign({
 let timeoutId = null;
 // A heartbeat fell while the tab was hidden: refresh once it is shown again.
 let missed = false;
+// Without autorefresh, a listing that shows expired folder sizes still
+// refreshes until they are recomputed and stop blinking, for at most
+// STALE_FOLLOW_UP ms per folder (the server takes over a refresh request
+// left for five minutes).
+const STALE_INTERVAL = 5000;
+const STALE_FOLLOW_UP = 300000;
+let staleSince = null;
 
 
 // A hidden tab sends no request, so a forgotten tab does not list its folder
@@ -39,8 +47,33 @@ const after = () => {
     timeoutId = win.setTimeout(heartbeat, settings.interval);
 };
 
+const hasStaleSizes = item => values(item && item.content || {}).some(child => child.isSizeStale);
+
+const leaveFolder = () => {
+    staleSince = null;
+    before();
+};
+
+const followStaleSizes = item => {
+    win.clearTimeout(timeoutId);
+    if (!hasStaleSizes(item)) {
+        staleSince = null;
+        return;
+    }
+    const now = Date.now();
+    staleSince = staleSince === null ? now : staleSince;
+    if (now - staleSince < STALE_FOLLOW_UP) {
+        timeoutId = win.setTimeout(heartbeat, STALE_INTERVAL);
+    }
+};
+
 const init = () => {
+    win.document.addEventListener('visibilitychange', onVisibilityChange);
     if (!settings.enabled) {
+        event.sub('location.beforeChange', leaveFolder);
+        event.sub('location.beforeRefresh', before);
+        event.sub('location.changed', followStaleSizes);
+        event.sub('location.refreshed', followStaleSizes);
         return;
     }
 
@@ -50,7 +83,6 @@ const init = () => {
     event.sub('location.beforeRefresh', before);
     event.sub('location.changed', after);
     event.sub('location.refreshed', after);
-    win.document.addEventListener('visibilitychange', onVisibilityChange);
 };
 
 

@@ -80,9 +80,12 @@ test('location: reopening a loaded folder refreshes it and reports the differenc
     Item.get({href: '/nav-b/kept.txt', size: 1, time: 10});
     Item.get({href: '/nav-b/changed.txt', size: 1, time: 10});
     const gone = Item.get({href: '/nav-b/gone.txt', size: 1, time: 10});
+    // Recomputed to the same size: it must still stop blinking.
+    Item.get({href: '/nav-b/recomputed/', size: 5, time: 10, sizeStale: true});
     const responses = [{items: [
         {href: '/nav-b/kept.txt', size: 1, time: 10},
         {href: '/nav-b/changed.txt', size: 2, time: 10},
+        {href: '/nav-b/recomputed/', size: 5, time: 10},
         {href: '/nav-b/added.txt', size: 3, time: 10}
     ]}];
     await withLocation({fastBrowsing: true}, responses, async (location, calls) => {
@@ -96,7 +99,7 @@ test('location: reopening a loaded folder refreshes it and reports the differenc
         assert.equal(item, folder);
         assert.deepEqual(added.map(i => i.absHref), ['/nav-b/added.txt']);
         assert.deepEqual(removed, [gone]);
-        assert.deepEqual(updated.map(i => i.absHref), ['/nav-b/changed.txt']);
+        assert.deepEqual(updated.map(i => i.absHref), ['/nav-b/changed.txt', '/nav-b/recomputed/']);
 
         calls.history.length = 0;
         location.setLocation('/nav-b/');

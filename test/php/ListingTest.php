@@ -92,7 +92,8 @@ final class ListingTest extends H5aiTestCase {
         $entries->setValue(null, $expired(5));
         Filesize::begin_async_mode();
         self::assertSame(5, Filesize::get_cached_size($file, true, false), 'listings must keep regular file sizes while folder sizes refresh');
-        self::assertNull(Filesize::get_cached_size($dir, true, true), 'listings must leave an expired folder size unknown');
+        self::assertSame(5, Filesize::get_cached_size($dir, true, true), 'listings show an expired folder size while it is recomputed');
+        self::assertTrue(Filesize::is_size_stale($dir));
         self::assertSame([$dir], Filesize::end_async_mode(), 'expired listing sizes must be queued for refresh');
 
         foreach (['a much larger existing file', 'x'] as $content) {
@@ -104,6 +105,32 @@ final class ListingTest extends H5aiTestCase {
             Filesize::refresh_tree($this->root(), false);
             self::assertSame(filesize($dir) + filesize($file), self::folderSizeEntries()[$dir]['size'], 'an expired entry must be recomputed');
         }
+    }
+
+    // The listing flags an expired folder size, which the browser shows as
+    // refreshing; a fresh size and an unknown one carry no flag.
+    public function testListedItemsFlagExpiredFolderSizes(): void {
+        $folders = ['expired' => time() - Filesize::CACHE_TTL - 1, 'fresh' => time(), 'unknown' => null];
+        $entries = [];
+        foreach ($folders as $name => $cached_at) {
+            mkdir($this->root($name));
+            if ($cached_at !== null) {
+                $entries[$this->root($name)] = ['size' => 42, 'mtime' => filemtime($this->root($name)), 'cached_at' => $cached_at, 'children' => []];
+            }
+        }
+        self::resetFolderSizes($this->tmp . '/cache/foldersizes.json');
+        (new ReflectionProperty(Filesize::class, 'persistent_cache'))->setValue(null, $entries);
+        $context = $this->coldContext();
+
+        $json = $context->with_cached_folder_sizes(function () use ($context, $folders): array {
+            $cache = [];
+            return array_map(fn(string $name): array => Item::get($context, $this->root($name), $cache)->to_json_object(), array_combine(array_keys($folders), array_keys($folders)));
+        });
+
+        self::assertSame([42, true], [$json['expired']['size'], $json['expired']['sizeStale'] ?? null]);
+        self::assertSame([42, null], [$json['fresh']['size'], $json['fresh']['sizeStale'] ?? null]);
+        self::assertSame([null, null], [$json['unknown']['size'], $json['unknown']['sizeStale'] ?? null]);
+        self::assertEqualsCanonicalizing([$this->root('expired'), $this->root('unknown')], $context->refreshPaths, 'expired and unknown sizes are recomputed');
     }
 
     public function testTheCurrentPathIsTheRequestedFolder(): void {

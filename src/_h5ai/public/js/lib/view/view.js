@@ -48,6 +48,16 @@ const $items = $view.find('#items');
 const $hint = $view.find('#view-hint');
 
 
+// An expired folder size blinks until the refresh worker replaces it.
+const showSize = ($size, item) => {
+    $size.attr('data-bytes', item.size).text(format.formatSize(item.size));
+    if (item.isSizeStale) {
+        $size.addCls('stale');
+    } else {
+        $size.rmCls('stale');
+    }
+};
+
 const cropSize = (size, min, max) => Math.min(max, Math.max(min, size));
 
 const createStyles = size => {
@@ -149,7 +159,7 @@ const createHtml = item => {
 
     $label.text(item.label).attr('title', item.label);
     $date.attr('data-time', item.time).text(format.formatDate(item.time));
-    $size.attr('data-bytes', item.size).text(format.formatSize(item.size));
+    showSize($size, item);
     item.icon = resource.icon(item.type);
 
     if (item.isFolder() && !item.isManaged) {
@@ -249,7 +259,7 @@ const onLocationRefreshed = (item, added, removed, updated) => {
     if (updated) {
         each(updated, child => {
             if (child.$view) {
-                child.$view.find('.size').attr('data-bytes', child.size).text(format.formatSize(child.size));
+                showSize(child.$view.find('.size'), child);
                 child.$view.find('.date').attr('data-time', child.time).text(format.formatDate(child.time));
             }
         });

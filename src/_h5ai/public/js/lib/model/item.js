@@ -65,6 +65,11 @@ const getItem = options => {
     if (isNum(options.size)) {
         item.size = options.size;
     }
+    // Only a listing carries sizes: an item known by its href alone keeps
+    // its flag.
+    if (options.size !== undefined) {
+        item.isSizeStale = options.sizeStale === true;
+    }
     if (options.managed) {
         item.isManaged = true;
     }
@@ -128,6 +133,8 @@ const Item = absHref => {
         label: createLabel(absHref === '/' ? location.getDomain() : split.name),
         time: null,
         size: null,
+        // The size is an expired folder size the server is recomputing.
+        isSizeStale: false,
         parent: null,
         isManaged: null,
         content: {}
