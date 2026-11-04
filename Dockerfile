@@ -26,17 +26,16 @@ RUN H5AI_VERSION="${H5AI_VERSION}" npm run build
 FROM alpine:3.24@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a AS ffmpeg-builder
 
 ARG FFMPEG_VERSION=9.0.2
-# SHA-256 of the release tarball whose ffmpeg-devel GPG signature was checked
-# (key FCF986EA15E6E293A5644F10B4322F04D67658D8).
-ARG FFMPEG_SHA256=8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e
+# SHA-256 of GitHub's source archive for the official n9.0.2 mirror tag.
+ARG FFMPEG_SHA256=6e374ed621e48faa40639307dff48ba6fe574a509977956d2cce9669b7cc27e9
 
 # BuildKit fetches the tarball itself and fails the build on a checksum
 # mismatch; a remote archive is not unpacked by ADD.
-ADD --checksum=sha256:${FFMPEG_SHA256} "https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.xz" /tmp/ffmpeg.tar.xz
+ADD --checksum=sha256:${FFMPEG_SHA256} "https://github.com/FFmpeg/FFmpeg/archive/refs/tags/n${FFMPEG_VERSION}.tar.gz" /tmp/ffmpeg.tar.gz
 
 RUN apk add --no-cache build-base dav1d-dev nasm pkgconf xz zlib-dev \
     && mkdir /src \
-    && tar -C /src --strip-components=1 -xJf /tmp/ffmpeg.tar.xz \
+    && tar -C /src --strip-components=1 -xzf /tmp/ffmpeg.tar.gz \
     && cd /src \
     && ./configure --prefix=/opt/ffmpeg \
         --disable-everything --disable-autodetect --disable-doc --disable-debug --disable-network \
@@ -51,7 +50,7 @@ RUN apk add --no-cache build-base dav1d-dev nasm pkgconf xz zlib-dev \
     && make -j"$(nproc)" \
     && make install \
     && strip /opt/ffmpeg/bin/ffmpeg /opt/ffmpeg/bin/ffprobe /opt/ffmpeg/lib/lib*.so.* \
-    && rm -rf /src /tmp/ffmpeg.tar.xz /opt/ffmpeg/include /opt/ffmpeg/lib/pkgconfig /opt/ffmpeg/share
+    && rm -rf /src /tmp/ffmpeg.tar.gz /opt/ffmpeg/include /opt/ffmpeg/lib/pkgconfig /opt/ffmpeg/share
 
 # Stage 3: Fetch s6-overlay and compile the php-rar extension
 FROM php:8.4.27-alpine3.24@sha256:d8784155c4d37986be9ddd7a8950df7e78998cc48e35472cd69e2b9371424a65 AS deps-builder
