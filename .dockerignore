@@ -8,3 +8,5 @@ scripts
 !scripts/package-name.js
 !scripts/version.sh
 README.md
+
+.ffmpeg/tmp.*

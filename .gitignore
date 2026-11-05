@@ -17,3 +17,6 @@ Thumbs.db
 .vscode/
 *.sw?
 
+
+# Prepared FFmpeg binaries for the Docker build
+/.ffmpeg/

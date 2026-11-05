@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+* **CI**: FFmpeg is prepared separately for amd64 and arm64 and reused from the project Package Registry when its build recipe matches. The main Docker image consumes the prepared binaries. The recipe and source version live in `ci/ffmpeg.Dockerfile`. Local `make docker-build` prepares FFmpeg automatically; direct Docker or Compose builds need `make ffmpeg-prepare` first. Default-branch and tag pipelines reuse only packages signed with the protected `FFMPEG_SIGNING_KEY` variable and rebuild any other; `doc/development.md` explains how to create it.
+* **CI**: Docker jobs drive their own `docker:dind` service instead of the runner host's Docker socket, and node jobs, where npm runs, fail when they run privileged. Branch images are pushed by digest and tested from the registry; branch builds share a registry layer cache that default-branch and tag builds never read. The runner needs the configuration in `doc/development.md` ("CI runner").
+
 ## v1.7.0 - *2026-11-04*
 
 Upgrading: the search index refresh refuses to run as root. If a scheduled task runs the cache warmer as root, run it as the web server user instead; in the Docker image, `docker exec -u angie h5ai nice -n 19 php /usr/share/h5ai/_h5ai/private/php/warm-cache.php`. A mounted `options.json` needs no change: `search.indexTtl` defaults to 300 seconds.

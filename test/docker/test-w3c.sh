@@ -4,7 +4,8 @@
 # Checker, the engine behind validator.w3.org, run locally in Docker: no page
 # is published or sent anywhere. The pages are fetched inside the h5ai
 # container and piped to the checker, so the same script works with a local
-# Docker and with the CI runner's Docker socket (no port, no bind mount).
+# Docker and with the Docker daemon of a CI docker:dind service (no port, no
+# bind mount).
 #
 # Checked: the index page (the shell the JavaScript fills in), a fallback
 # listing (what text browsers and `view.fallbackMode` get), the info page and
