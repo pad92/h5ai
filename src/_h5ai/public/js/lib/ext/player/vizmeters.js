@@ -49,7 +49,6 @@ const scrollSpectrogram = (pixels, width, height, levels, palette) => {
 // alignment level, -18 dBFS (EBU R68); the scale runs from -20 to +3 VU and,
 // like a real one, is linear in voltage, so 0 VU sits at 71 % of the arc.
 const VU_REFERENCE_DBFS = -18;
-const VU_MIN = -20;
 const VU_MAX = 3;
 const VU_MARKS = [-20, -10, -7, -5, -3, -2, -1, 0, 1, 2, 3];
 // The needle reaches 99 % of a new level in 300 ms. A real needle overshoots
@@ -100,11 +99,7 @@ const vectorPoints = (left, right, count, radius) => {
 module.exports = {
     spectrogramPalette,
     scrollSpectrogram,
-    VU_REFERENCE_DBFS,
-    VU_MIN,
-    VU_MAX,
     VU_MARKS,
-    VU_RISE_SECONDS,
     rmsDbfs,
     vuPosition,
     vuNeedle,

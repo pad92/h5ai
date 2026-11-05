@@ -25,7 +25,6 @@ class TaskStatus {
     private const MIN_PROGRESS = 0.01;
 
     private readonly int $started;
-    private readonly array $last;
     private array $phases = [];
     private ?string $phase = null;
     private int $phase_started = 0;
@@ -38,7 +37,6 @@ class TaskStatus {
     // by an earlier run does not apply to this one.
     public function __construct(private readonly string $cache_path, private readonly string $name) {
         $this->started = time();
-        $this->last = self::read_json($this->last_file());
         @unlink(self::stop_path($cache_path, $name));
     }
 
@@ -93,7 +91,7 @@ class TaskStatus {
     // Records this run as the estimate of the next one, and drops the status.
     public function finish(): void {
         $this->close_phase();
-        self::write_json($this->last_file(), $this->phases);
+        self::write_json(self::last_path($this->cache_path, $this->name), $this->phases);
         @unlink($this->status_file());
         @unlink(self::stop_path($this->cache_path, $this->name));
     }
@@ -119,8 +117,8 @@ class TaskStatus {
         return self::status_path($this->cache_path, $this->name);
     }
 
-    private function last_file(): string {
-        return $this->cache_path . '/task-' . $this->name . '.last.json';
+    private static function last_path(string $cache_path, string $name): string {
+        return $cache_path . '/task-' . $name . '.last.json';
     }
 
     private static function stop_path(string $cache_path, string $name): string {
@@ -139,7 +137,7 @@ class TaskStatus {
     // The last finished run of $name: when it ended, how long it took and
     // the items and seconds of each phase. Null before the first run.
     public static function last_run(string $cache_path, string $name): ?array {
-        $file = $cache_path . '/task-' . $name . '.last.json';
+        $file = self::last_path($cache_path, $name);
         $finished = @filemtime($file);
         $phases = self::read_json($file);
         if ($finished === false || $phases === []) {
@@ -174,7 +172,7 @@ class TaskStatus {
             if (!isset($status['phase'], $status['started'], $status['phaseStarted'])) {
                 continue;
             }
-            $last = self::read_json($cache_path . '/task-' . $name . '.last.json');
+            $last = self::read_json(self::last_path($cache_path, $name));
             $tasks[] = ['id' => $name, ...self::estimate($name, $status, $last, $now)];
         }
         return $tasks;
