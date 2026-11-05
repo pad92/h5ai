@@ -31,7 +31,7 @@ class Search {
     // at most search.maxResults of them, search.maxDepth levels below $root.
     // An empty, oversized or invalid pattern, or an unmanaged root, yields [].
     public function get_paths(string $root, ?string $pattern = null, bool $ignorecase = false): array {
-        $max_pattern_length = max(1, (int) $this->context->query_option('search.maxPatternLength', 256));
+        $max_pattern_length = max(1, (int) $this->context->query_option('search.maxPatternLength', 1024));
         if (!$pattern || strlen($pattern) > $max_pattern_length) {
             return [];
         }

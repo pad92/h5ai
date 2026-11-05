@@ -264,7 +264,7 @@ Searches the current folder and its subfolders on the server, from the search fi
 - `ignorecase` (default: `true`): Case-insensitive search.
 - `maxResults` (default: `1000`): Maximum number of results returned by one recursive search.
 - `maxDepth` (default: `64`): Maximum depth below the folder the search starts from.
-- `maxPatternLength` (default: `256`): Maximum regular-expression length accepted by the server.
+- `maxPatternLength` (default: `1024`): Maximum regular-expression length accepted by the server, in bytes. In advanced mode, each typed letter becomes about four characters and each word adds eight, so a few words already make a long expression; a longer one finds nothing.
 - `indexTtl` (default: `300`): Age in seconds after which a search asks for a background refresh of the search index. The stale index keeps answering in the meantime.
 
 #### `select`

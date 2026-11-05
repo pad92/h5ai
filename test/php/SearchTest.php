@@ -253,6 +253,17 @@ final class SearchTest extends H5aiTestCase {
         self::assertSame([$both], (new Search($this->searchContext()))->get_paths($this->root(), $pattern, true));
     }
 
+    // An advanced pattern of a few words, as the browser builds it, stays
+    // under the default length limit: past it, a search would find nothing.
+    public function testALongAdvancedPatternIsAcceptedByDefault(): void {
+        $file = $this->write($this->root('vacances plage bretagne juillet famille 2024 photos souvenirs enfants.zip'), 'x');
+        $words = ['vacances', 'plage', 'bretagne', 'juillet', 'famille', '2024', 'photos', 'souvenirs', 'enfants'];
+        $pattern = '^' . implode('', array_map(static fn(string $word): string => '(?=.*?' . implode('.*?', str_split($word)) . ')', $words));
+        self::assertGreaterThan(256, strlen($pattern));
+
+        self::assertSame([$file], (new Search($this->searchContext()))->get_paths($this->root(), $pattern, true));
+    }
+
     public function testThePurgeWaitsForARunningRefresh(): void {
         $this->write($this->root('file.txt'), 'x');
         self::assertTrue((new Search($this->searchContext()))->refresh_index());

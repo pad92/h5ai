@@ -202,7 +202,7 @@
         "ignorecase": true,
         "maxResults": 1000,
         "maxDepth": 64,
-        "maxPatternLength": 256,
+        "maxPatternLength": 1024,
         "indexTtl": 300
     },
     "select": {
