@@ -179,7 +179,10 @@ build:app:
   before_script:
     - !reference [.dind, before_script]
     - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
-    - docker buildx create --name h5ai-ci --driver docker-container --driver-opt "image=$BUILDKIT_IMAGE" --bootstrap
+    # buildx does not create a builder from the TLS settings of the
+    # environment: a context records them first.
+    - docker context create h5ai-dind > /dev/null
+    - docker buildx create --name h5ai-ci --driver docker-container --driver-opt "image=$BUILDKIT_IMAGE" --bootstrap h5ai-dind
     # Version/build metadata consumed by the Dockerfile ARGs (image labels).
     # The tag of a tag pipeline, else the commit id (scripts/version.sh).
     - H5AI_VERSION=$(sh scripts/version.sh)
