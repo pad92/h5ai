@@ -5,7 +5,7 @@ root=$(CDPATH='' cd -- "$(dirname "$0")/../.." && pwd)
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 mkdir -p "$work/repo/scripts" "$work/repo/ci" "$work/bin" "$work/registry"
-cp "$root/scripts/ffmpeg-package.sh" "$root/scripts/hmac-sha256.sh" "$work/repo/scripts/"
+cp "$root/scripts/ffmpeg-package.sh" "$work/repo/scripts/"
 cp "$root/ci/ffmpeg.Dockerfile" "$work/repo/ci/"
 export MOCK_ROOT="$work"
 export CI=true CI_API_V4_URL=https://registry.invalid/api/v4 CI_PROJECT_ID=1 CI_JOB_TOKEN=test-only
@@ -94,8 +94,10 @@ expect_failure() {
 # or environment, nor print them.
 key=8f36a95c0b1e7d24c3f05a6b9e8d7c1f2a3b4c5d6e7f80916a5c36b4e2d1f0a9
 other_key=0b7e5c36d1a2f4e8c9b0a1d2e3f4c5b6a7d8e9f0c1b2a3d4e5f6a7b8c9d0e1f2
-# Independent HMAC-SHA256 to check the script's signatures.
+# HMAC-SHA256 oracle for the script's signatures, itself checked against
+# RFC 4231 test case 2 so a broken oracle cannot agree with a broken script.
 hmac() { printf '%s' "$2" | openssl mac -digest SHA256 -macopt "hexkey:$1" HMAC | tr 'A-F' 'a-f'; }
+[ "$(hmac 4a656665 'what do ya want for nothing?')" = 5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843 ]
 assert_signed() {
     sum=$(cat "$dir/linux-$1.sha256")
     [ "$(cat "$dir/linux-$1.sha256.hmac")" = "$(hmac "$key" "$recipe $1 $sum")" ]

@@ -121,8 +121,7 @@ wrong, or the payload is missing or does not match its checksum, the job logs
 a `WARNING`, compiles the package again and republishes it signed; a branch
 can make a release slower but cannot make it fail. Branch and MR pipelines do
 not receive the key: they reuse packages without checking signatures and
-publish nothing. `scripts/hmac-sha256.sh` computes the HMAC with shell
-builtins and `sha256sum`, so the key never appears in a command line.
+publish nothing. `openssl dgst` computes the HMAC.
 
 Create the variable in Settings > CI/CD > Variables, with the 64 hexadecimal
 characters printed by `openssl rand -hex 32`. Mark it Protected, so that only

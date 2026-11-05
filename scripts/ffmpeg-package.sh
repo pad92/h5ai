@@ -72,12 +72,15 @@ upload() {
     fetch "$1" "$work/verified" || fail 'Uploaded package is missing'
     cmp "$2" "$work/verified" || fail 'Uploaded package differs from local file'
 }
-# Set $mac to the signature of package $1 with checksum $2. The key goes to the
-# helper through its environment, never through argv. Callers may run with
-# errexit suspended (inside if), so failures are checked here.
+# Set $mac to the signature of package $1 with checksum $2. openssl takes the
+# key on its command line; the job environment already holds it, so hiding it
+# from argv would not protect it from code running in the job. Callers may run
+# with errexit suspended (inside if), so failures are checked here.
 sign() {
-    mac=$(printf '%s %s %s' "$recipe" "$1" "$2" | HMAC_KEY=$signing_key sh scripts/hmac-sha256.sh) ||
+    mac=$(printf '%s %s %s' "$recipe" "$1" "$2" |
+        openssl dgst -sha256 -mac HMAC -macopt "hexkey:$signing_key" -r) ||
         fail 'Package signing failed'
+    mac=${mac%% *}
     case "$mac" in *[!0-9a-f]*) fail 'Package signing failed' ;; esac
     [ "${#mac}" -eq 64 ] || fail 'Package signing failed'
 }
