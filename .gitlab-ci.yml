@@ -29,22 +29,20 @@ variables:
   # untagged manifest after 24 hours, so a candidate that is never published
   # leaves nothing behind, and a published one is kept by its tags.
   CANDIDATE_IMAGE: "$CI_REGISTRY_IMAGE"
-  # BuildKit's layer cache stays in the runner host's persistent `h5ai-ci`
-  # builder, not in the registry; it is pruned down to this size.
-  BUILDKIT_CACHE_MAX_USED: "20gb"
-  # BuildKit of the `h5ai-ci` builder, pinned by digest. Watchtower runs on
-  # the runner host and replaces a container whose tag gets a new image: when
-  # buildx's default `moby/buildkit:buildx-stable-1` moved, it stopped the
-  # builder in the middle of a build. It leaves an image pinned by digest
-  # alone. A new digest here recreates the builder (see .docker-build-base).
+  # BuildKit layer cache of branch and MR image builds. Any branch can write
+  # it, so publishing pipelines never read it (see build:candidate).
+  BRANCH_BUILD_CACHE: "$CI_REGISTRY_IMAGE/buildcache:branches"
+  # BuildKit of the `h5ai-ci` builder each Docker job creates in its own
+  # Docker daemon, pinned by digest.
   BUILDKIT_IMAGE: "moby/buildkit:v0.33.1@sha256:cec9f139f45e93c5c69c60f8b07cfad9f43f4ef6b6a6cd917527fea5ff2e3dea"
   # Job and scanner containers pinned by digest. These jobs receive registry
-  # credentials and, for the docker ones, the runner's Docker socket, so the
-  # container holding them must not be swappable — pinning only the scanners
-  # would leave that outer container mutable underneath them. Other job images
-  # (node, hadolint, the php test base, curl, release-cli) and the privileged helper are
-  # pinned as well.
+  # credentials and drive a Docker daemon, so the container holding them must
+  # not be swappable — pinning only the scanners would leave that outer
+  # container mutable underneath them. Other job images (node, hadolint, the
+  # php test base, curl, release-cli) and the privileged helper are pinned as
+  # well. DIND_IMAGE is the same image, run as the job's Docker daemon.
   DOCKER_IMAGE: "docker:28@sha256:2a232a42256f70d78e3cc5d2b5d6b3276710a0de0596c145f627ecfae90282ac"
+  DIND_IMAGE: "docker:28.5.2-dind@sha256:2a232a42256f70d78e3cc5d2b5d6b3276710a0de0596c145f627ecfae90282ac"
   GRYPE_IMAGE: "anchore/grype:v0.121.1@sha256:6b06708b036f74b2cd70e94b706b4586af96d1932e6ac46255940b2e39dd44a9"
   SYFT_IMAGE: "anchore/syft:v1.56.0@sha256:697ae864af1299cfa43c54b161cea3dd65c6d54de82e3dba66ea3dccb3acc313"
 
@@ -78,10 +76,46 @@ cache: &node_cache
   - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $DOCKERHUB_USERNAME && $DOCKERHUB_PASSWORD
   - if: $CI_COMMIT_TAG && $DOCKERHUB_USERNAME && $DOCKERHUB_PASSWORD
 
+# Docker jobs drive their own daemon, the job's docker:dind service, over TLS.
+# The runner mounts no Docker socket and runs only that service privileged
+# (doc/development.md, "CI runner"): node jobs, where npm code runs, cannot
+# reach any Docker daemon, and a branch job cannot reach the host's or another
+# job's. The daemon disappears with the job, along with its images and cache.
+.dind:
+  image: $DOCKER_IMAGE
+  services:
+    - name: $DIND_IMAGE
+      alias: docker
+  variables:
+    DOCKER_HOST: tcp://docker:2376
+    DOCKER_TLS_CERTDIR: /certs
+    DOCKER_TLS_VERIFY: "1"
+    DOCKER_CERT_PATH: /certs/client
+  before_script:
+    - |
+      # The service generates its TLS certificates before it listens.
+      for i in $(seq 1 30); do
+        if docker info > /dev/null 2>&1; then break; fi
+        if [ "$i" -eq 30 ]; then echo "docker:dind did not start" >&2; docker info; exit 1; fi
+        sleep 1
+      done
+      docker info --format 'Docker {{.ServerVersion}}, storage driver {{.Driver}}'
+
 # Shared by every node-based job to avoid repeating image + install.
+# npm runs dependency install scripts here: the job must not be privileged
+# nor reach a Docker daemon (doc/development.md, "CI runner").
 .node-job:
   image: node:24.22.2-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c
   before_script:
+    - |
+      capabilities=$(sed -n 's/^CapEff:[[:space:]]*//p' /proc/self/status)
+      if [ $((0x$capabilities & 0x200000)) -ne 0 ]; then
+        echo "ERROR: this job runs with CAP_SYS_ADMIN; the runner must not run job images privileged" >&2
+        exit 1
+      fi
+      if [ -S /var/run/docker.sock ]; then
+        echo "WARNING: the runner mounts the Docker socket into jobs; remove it from config.toml" >&2
+      fi
     - '[ -x node_modules/.bin/gulp ] || npm ci --prefer-offline --no-audit --no-fund'
 
 # ── Lint ─────────────────────────────────────────────────────────────────────
@@ -133,35 +167,25 @@ build:app:
   rules: *pipeline_rules
 
 .docker-build-base:
-  image: $DOCKER_IMAGE
-  # Serializes package publication, QEMU registration and the shared builder.
-  resource_group: docker-build
+  extends: .dind
   cache: []
   needs:
     - job: lint:dockerfile
   before_script:
+    - !reference [.dind, before_script]
     - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
-    - |
-      # Each job starts a new buildx client that does not know the builder,
-      # so it is created every time; create then reuses the host's container,
-      # whatever image it runs. A container from another BuildKit image (the
-      # default one before the pin, or an older digest) is removed first; its
-      # layer cache stays in the buildx_buildkit_h5ai-ci0_state volume.
-      BUILDER_IMAGE=$(docker inspect --format '{{.Config.Image}}' buildx_buildkit_h5ai-ci0 2>/dev/null) || BUILDER_IMAGE=
-      if [ -n "$BUILDER_IMAGE" ] && [ "$BUILDER_IMAGE" != "$BUILDKIT_IMAGE" ]; then
-        echo "Replacing the h5ai-ci builder container ($BUILDER_IMAGE)"
-        docker rm -f buildx_buildkit_h5ai-ci0
-      fi
-      docker buildx inspect h5ai-ci >/dev/null 2>&1 || docker buildx create --name h5ai-ci --driver docker-container --driver-opt "image=$BUILDKIT_IMAGE"
+    - docker buildx create --name h5ai-ci --driver docker-container --driver-opt "image=$BUILDKIT_IMAGE" --bootstrap
     # Version/build metadata consumed by the Dockerfile ARGs (image labels).
     # The tag of a tag pipeline, else the commit id (scripts/version.sh).
     - H5AI_VERSION=$(sh scripts/version.sh)
     - BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
     - BUILD_ARGS="--build-arg H5AI_VERSION=$H5AI_VERSION --build-arg BUILD_DATE=$BUILD_DATE --build-arg BUILD_VCSREF=$CI_COMMIT_SHORT_SHA"
-  after_script:
-    - docker buildx prune --builder h5ai-ci --force --max-used-space "$BUILDKIT_CACHE_MAX_USED" || true
   rules: *pipeline_rules
 
+# QEMU registration is kernel-wide on the runner host: prepare:ffmpeg and
+# build:candidate, which register it and emulate arm64, share the
+# docker-build resource group, so one does not unregister the emulator under
+# the other's build. It also serializes FFmpeg package publication.
 .docker-multiarch:
   before_script:
     - !reference [.docker-build-base, before_script]
@@ -172,6 +196,7 @@ build:app:
 # (doc/development.md).
 prepare:ffmpeg:
   extends: .docker-build-base
+  resource_group: docker-build
   needs:
     - job: lint:dockerfile
     - job: test:ffmpeg-package
@@ -204,12 +229,10 @@ prepare:ffmpeg:
       - .ffmpeg/
     expire_in: 1 day
 
-# Branch and MR image, single platform, left in the runner host's Docker for
-# test:docker and scan:grype:branch-image (all run on the same host through
-# its socket): no tarball artifact goes back and forth to GitLab. The
-# persistent `h5ai-ci` builder keeps BuildKit's layer cache between
-# pipelines. cleanup:image removes the image at the end of the pipeline;
-# images of cancelled pipelines are pruned after a day.
+# Branch and MR image, single platform, pushed by digest without a tag like
+# the candidate of publishing pipelines; test:docker and
+# scan:grype:branch-image pull it, and GitLab.com deletes it after 24 hours.
+# Its layer cache lives in the registry, shared by branch builds only.
 build:image:
   extends: .docker-build-base
   stage: build
@@ -219,20 +242,38 @@ build:image:
     - job: prepare:ffmpeg
       artifacts: true
   script:
-    - docker image prune --all --force --filter label=h5ai.ci-pipeline --filter until=24h
     - |
       docker buildx build \
         --builder h5ai-ci \
-        --load \
         --pull \
+        --provenance=false \
+        --metadata-file build-metadata.json \
+        --cache-from "type=registry,ref=$BRANCH_BUILD_CACHE" \
+        --cache-to "type=registry,ref=$BRANCH_BUILD_CACHE,mode=max" \
         $BUILD_ARGS \
-        --label "h5ai.ci-pipeline=$CI_PIPELINE_ID" \
-        -t "h5ai-ci:$CI_PIPELINE_ID" \
+        --output "type=image,name=$CANDIDATE_IMAGE,push-by-digest=true,name-canonical=true,push=true" \
         .
+    - !reference [.candidate-digest, script]
+  artifacts:
+    reports:
+      dotenv: build.env
+    expire_in: 1 day
+
+# Writes CANDIDATE_DIGEST, read by the test, scan and publish jobs.
+.candidate-digest:
+  script:
+    - |
+      CANDIDATE_DIGEST=$(sed -n 's/.*"containerimage\.digest"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' build-metadata.json | head -n1)
+      printf 'CANDIDATE_DIGEST=%s\n' "${CANDIDATE_DIGEST:-none}" > build.env
+      echo "Image pushed: $CANDIDATE_IMAGE@${CANDIDATE_DIGEST:-none}"
+      rm -f build-metadata.json
 
 # Publishable pipelines assemble both platforms using prepared FFmpeg packages.
+# They build without a layer cache: the registry cache is writable by every
+# branch, and the daemon of the job starts empty.
 build:candidate:
   extends: .docker-build-base
+  resource_group: docker-build
   stage: build
   rules: *publish_rules
   timeout: 2h
@@ -252,10 +293,7 @@ build:candidate:
         $BUILD_ARGS \
         --output "type=image,name=$CANDIDATE_IMAGE,push-by-digest=true,name-canonical=true,push=true" \
         .
-      CANDIDATE_DIGEST=$(sed -n 's/.*"containerimage\.digest"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' build-metadata.json | head -n1)
-      printf 'CANDIDATE_DIGEST=%s\n' "${CANDIDATE_DIGEST:-none}" > build.env
-      echo "Candidate pushed: $CANDIDATE_IMAGE@${CANDIDATE_DIGEST:-none}"
-      rm -f build-metadata.json
+    - !reference [.candidate-digest, script]
   artifacts:
     reports:
       dotenv: build.env
@@ -280,27 +318,32 @@ test:app:
     expire_in: 1 week
   rules: *pipeline_rules
 
-# The PHP environment (GD, Xdebug, PHPUnit) is built once on the runner host
-# and kept by its Docker layer cache; the tests run in it on this job's
-# checkout, shared with --volumes-from (see scan:grype:deps for why).
+# The PHP environment (GD, Xdebug, PHPUnit) is built in the job's daemon.
+# That daemon cannot see this job's checkout: the sources go into the test
+# container with docker cp, at the same path so the coverage report keeps the
+# project's paths, and the report comes back the same way.
 test:php:
+  extends: .dind
   stage: test
-  image: $DOCKER_IMAGE
   needs: []
   cache: []
   script:
     - docker build -q -t h5ai-php-test:ci -f ci/php-test.Dockerfile ci
-    - JOB_CONTAINER_ID=$(docker ps -q -f "label=com.gitlab.gitlab-runner.job.id=$CI_JOB_ID")
     # The suite runs unprivileged, like the web server: as root, the
     # permission tests skip themselves and the search index refuses to
-    # refresh. The checkout belongs to root, so only the folders the tests
+    # refresh. The copy belongs to root, so only the folders the tests
     # write to (the coverage report, the command probe cache) are handed over.
     - |
-      docker run --rm --volumes-from "$JOB_CONTAINER_ID" -w "$CI_PROJECT_DIR" -e XDEBUG_MODE=coverage h5ai-php-test:ci sh -ec '
+      docker create --name h5ai-php-test -w "$CI_PROJECT_DIR" -e XDEBUG_MODE=coverage h5ai-php-test:ci sh -ec '
         find src test/php -name "*.php" -print0 | xargs -0 -n1 php -l
         mkdir -p coverage/php
         chown www-data: coverage/php src/_h5ai/private/cache
         setpriv --reuid=www-data --regid=www-data --clear-groups php /usr/local/bin/phpunit.phar --coverage-cobertura coverage/php/cobertura.xml --coverage-text --only-summary-for-coverage-text'
+      project=${CI_PROJECT_DIR#/}
+      tar -C / -cf - "$project/phpunit.xml.dist" "$project/src" "$project/test" | docker cp - h5ai-php-test:/
+      docker start -a h5ai-php-test
+      mkdir -p coverage
+      docker cp "h5ai-php-test:$CI_PROJECT_DIR/coverage/php" coverage/
   artifacts:
     paths:
       - coverage/php/
@@ -327,33 +370,39 @@ test:coverage:
   rules: *pipeline_rules
 
 test:docker:
+  extends: .dind
   stage: test
-  image: $DOCKER_IMAGE
-  # Publishable pipelines test the exact candidate digest; branches and MRs
-  # keep the local single-platform image because they do not build a candidate.
+  # Tests the exact digest pushed by build:candidate (publishable pipelines)
+  # or build:image (branches and MRs).
   needs:
     - job: build:image
-      artifacts: false
+      artifacts: true
       optional: true
     - job: build:candidate
       artifacts: true
       optional: true
   cache: []
+  variables:
+    # Containers of the job's daemon are reached through ports published on
+    # the docker service (test/docker/lib.sh).
+    H5AI_TEST_BIND: 0.0.0.0
+    H5AI_TEST_HOST: docker
   before_script:
+    - !reference [.dind, before_script]
     # GNU tar: test-php-tar.sh extracts PAX long and Unicode names.
     - apk add --no-cache curl tar
   script:
     - sh test/docker/s6-config.sh
     - |
+      if [ -z "${CANDIDATE_DIGEST:-}" ] || [ "$CANDIDATE_DIGEST" = "none" ]; then
+        echo "ERROR: image digest missing" >&2
+        exit 1
+      fi
+      echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+      TEST_IMAGE_REF="$CANDIDATE_IMAGE@$CANDIDATE_DIGEST"
+      docker pull "$TEST_IMAGE_REF"
+      echo "Runtime checks use $TEST_IMAGE_REF"
       if [ -n "${CI_COMMIT_TAG:-}" ] || [ "${CI_COMMIT_BRANCH:-}" = "$CI_DEFAULT_BRANCH" ]; then
-        if [ -z "${CANDIDATE_DIGEST:-}" ] || [ "$CANDIDATE_DIGEST" = "none" ]; then
-          echo "ERROR: candidate digest missing on a publishable pipeline" >&2
-          exit 1
-        fi
-        echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
-        TEST_IMAGE_REF="$CANDIDATE_IMAGE@$CANDIDATE_DIGEST"
-        docker pull "$TEST_IMAGE_REF"
-        echo "Runtime checks use candidate $TEST_IMAGE_REF"
         RUNTIME_ARCH=$(docker info --format '{{.Architecture}}')
         case "$RUNTIME_ARCH" in
           x86_64|amd64) RUNTIME_PLATFORM=linux/amd64 ;;
@@ -361,18 +410,19 @@ test:docker:
           *) RUNTIME_PLATFORM="linux/$RUNTIME_ARCH" ;;
         esac
         echo "HTTP and authentication checks exercise $RUNTIME_PLATFORM only; the Grype scan covers linux/amd64 and linux/arm64."
-      else
-        # Left in the host's Docker by build:image.
-        TEST_IMAGE_REF="h5ai-ci:$CI_PIPELINE_ID"
-        echo "Runtime checks use branch image $TEST_IMAGE_REF"
       fi
     - |
+      # test_url <container>: URL of the container's port 80, published on the
+      # docker service.
+      test_url() {
+        printf 'http://%s:%s' "$H5AI_TEST_HOST" "$(docker port "$1" 80/tcp | sed -n '1s/.*://p')"
+      }
       # wait_http <curl extra args> <expected status> <ok msg> <fail msg> <container>
-      # Polls http://$TEST_IP/ until the status line matches (15 s max);
+      # Polls $TEST_URL/ until the status line matches (15 s max);
       # on failure removes the container and fails the job.
       wait_http() {
         for i in $(seq 1 15); do
-          if curl -s -I $1 "http://${TEST_IP}/" | grep -q "HTTP/1.1 $2"; then
+          if curl -s -I $1 "${TEST_URL}/" | grep -q "HTTP/1.1 $2"; then
             echo "✓ $3"
             return 0
           fi
@@ -383,8 +433,8 @@ test:docker:
         exit 1
       }
     - echo "Testing container without authentication..."
-    - docker run -d --name h5ai-test-noauth -v "$CI_PROJECT_DIR:/share:ro" "$TEST_IMAGE_REF"
-    - TEST_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' h5ai-test-noauth)
+    - docker run -d --name h5ai-test-noauth -p "$H5AI_TEST_BIND::80" "$TEST_IMAGE_REF"
+    - TEST_URL=$(test_url h5ai-test-noauth)
     - wait_http "" "200 OK" "Public index page returned 200 OK" "Public index page test failed" h5ai-test-noauth
     - |
       # The image must carry the build's version and the changelog it opens.
@@ -396,7 +446,7 @@ test:docker:
         [0-9]*.[0-9]*.[0-9]*) EXPECTED_LABEL="v$EXPECTED_VERSION" ;;
         *) EXPECTED_LABEL="$EXPECTED_VERSION" ;;
       esac
-      PAGE=$(curl -fsS "http://${TEST_IP}/") || PAGE=
+      PAGE=$(curl -fsS "${TEST_URL}/") || PAGE=
       case "$PAGE" in
         *"powered by h5ai $EXPECTED_LABEL "*|*"powered by h5ai $EXPECTED_LABEL<"*) ;;
         *)
@@ -406,7 +456,7 @@ test:docker:
           ;;
       esac
       echo "✓ The page shows version ${EXPECTED_LABEL}"
-      CHANGELOG=$(curl -fsS "http://${TEST_IP}/_h5ai/CHANGELOG.md") || CHANGELOG=
+      CHANGELOG=$(curl -fsS "${TEST_URL}/_h5ai/CHANGELOG.md") || CHANGELOG=
       case "$CHANGELOG" in
         "# Changelog"*) ;;
         *)
@@ -419,8 +469,8 @@ test:docker:
     - docker rm -f h5ai-test-noauth
 
     - echo "Testing container with basic authentication..."
-    - docker run -d --name h5ai-test-auth -e ENV_U=admin -e ENV_P=secret -v "$CI_PROJECT_DIR:/share:ro" "$TEST_IMAGE_REF"
-    - TEST_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' h5ai-test-auth)
+    - docker run -d --name h5ai-test-auth -p "$H5AI_TEST_BIND::80" -e ENV_U=admin -e ENV_P=secret "$TEST_IMAGE_REF"
+    - TEST_URL=$(test_url h5ai-test-auth)
     - wait_http "" "401 Unauthorized" "Unauthenticated request correctly blocked (401 Unauthorized)" "Unauthenticated request test failed (did not return 401)" h5ai-test-auth
     - wait_http "-u admin:secret" "200 OK" "Authenticated request successfully bypassed basic auth" "Authenticated request test failed (rejected credentials or PHP-FPM not ready)" h5ai-test-auth
     - docker rm -f h5ai-test-auth
@@ -451,7 +501,8 @@ test:docker-publish:
 
 # Grype and Syft ship as `FROM scratch` images with no shell, so they cannot be
 # used as a GitLab CI job `image:` (GitLab needs a shell to run `script:`).
-# They are invoked through `docker run` from the Docker image instead.
+# They are invoked through `docker run` from the Docker image instead. The
+# job's daemon starts empty, so each scan downloads the Grype database.
 #
 # Gate policy: `--only-fixed --fail-on high`, i.e. parity with the Trivy policy
 # this replaces. Measured on the published image, dropping `--only-fixed` and
@@ -459,15 +510,12 @@ test:docker-publish:
 # were ffmpeg CVEs awaiting an Alpine fix), so publishing would currently block
 # on predominantly unfixed findings.
 scan:grype:image:
+  extends: .dind
   stage: scan
-  # The Grype database lives in the runner host's `h5ai-grype-db` volume:
-  # only updates are downloaded. One scan at a time may update it.
-  resource_group: grype-db
   needs:
     - job: build:candidate
       artifacts: true
   cache: []
-  image: $DOCKER_IMAGE
   script:
     - |
       if [ -z "$CANDIDATE_DIGEST" ] || [ "$CANDIDATE_DIGEST" = "none" ]; then
@@ -488,7 +536,6 @@ scan:grype:image:
           -e GRYPE_REGISTRY_AUTH_AUTHORITY="$CI_REGISTRY" \
           -e GRYPE_REGISTRY_AUTH_USERNAME="$CI_REGISTRY_USER" \
           -e GRYPE_REGISTRY_AUTH_PASSWORD="$CI_REGISTRY_PASSWORD" \
-          -e GRYPE_DB_CACHE_DIR=/grype-db -v h5ai-grype-db:/grype-db \
           "$GRYPE_IMAGE" "registry:$CANDIDATE_REF" \
           --platform "$platform" --only-fixed --fail-on high
         rc=$?
@@ -502,23 +549,27 @@ scan:grype:image:
       exit $status
   rules: *publish_rules
 
-# Branch and MR image, scanned where build:image left it, through the host's
-# Docker socket: a Dockerfile change shows its findings before the merge,
-# with the gate of scan:grype:image. Single platform (the runner's).
+# Branch and MR image, scanned from the registry by the digest build:image
+# pushed: a Dockerfile change shows its findings before the merge, with the
+# gate of scan:grype:image. Single platform (the runner's).
 scan:grype:branch-image:
+  extends: .dind
   stage: scan
-  resource_group: grype-db
   needs:
     - job: build:image
-      artifacts: false
+      artifacts: true
   cache: []
-  image: $DOCKER_IMAGE
   script:
     - |
+      if [ -z "${CANDIDATE_DIGEST:-}" ] || [ "$CANDIDATE_DIGEST" = "none" ]; then
+        echo "ERROR: CANDIDATE_DIGEST not exported by build:image" >&2
+        exit 1
+      fi
       docker run --rm \
-        -v /var/run/docker.sock:/var/run/docker.sock \
-        -e GRYPE_DB_CACHE_DIR=/grype-db -v h5ai-grype-db:/grype-db \
-        "$GRYPE_IMAGE" "docker:h5ai-ci:$CI_PIPELINE_ID" \
+        -e GRYPE_REGISTRY_AUTH_AUTHORITY="$CI_REGISTRY" \
+        -e GRYPE_REGISTRY_AUTH_USERNAME="$CI_REGISTRY_USER" \
+        -e GRYPE_REGISTRY_AUTH_PASSWORD="$CI_REGISTRY_PASSWORD" \
+        "$GRYPE_IMAGE" "registry:$CANDIDATE_IMAGE@$CANDIDATE_DIGEST" \
         --only-fixed --fail-on high
   rules: *build_image_rules
 
@@ -535,36 +586,36 @@ scan:grype:branch-image:
 # This scan is blocking: a release must not proceed when the lockfile contains
 # a fixable high-severity dependency vulnerability.
 #
-# This runner uses Docker socket binding (no dind service): `docker run` here
-# talks to the host daemon and spawns *sibling* containers, so `-v
-# "$CI_PROJECT_DIR:...` resolves against the host's filesystem, not this job
-# container's — a mismatch that either sees an empty/stale directory or, for a
-# file this job itself just wrote (npm-sbom.json), fails outright with "no
-# such file or directory". `--volumes-from` against this job's own container
-# reuses its real mounts instead of guessing a host path.
+# The job's daemon (the docker:dind service) cannot see this job's checkout,
+# and a `-v` bind mount would resolve inside that daemon. The scanner images
+# have no shell, so the files go into created containers with docker cp:
+# the checkout, without node_modules, build output and npm cache, for Syft,
+# then the SBOM for Grype.
 scan:grype:deps:
+  extends: .dind
   stage: scan
-  # The Grype database lives in the runner host's `h5ai-grype-db` volume:
-  # only updates are downloaded. One scan at a time may update it.
-  resource_group: grype-db
   needs: []
   cache: []
-  image: $DOCKER_IMAGE
   script:
     - |
-      JOB_CONTAINER_ID=$(docker ps -q -f "label=com.gitlab.gitlab-runner.job.id=$CI_JOB_ID")
-      docker run --rm \
-        --volumes-from "$JOB_CONTAINER_ID:ro" \
+      docker create --name h5ai-syft \
         -e SYFT_JAVASCRIPT_INCLUDE_DEV_DEPENDENCIES=true \
         "$SYFT_IMAGE" dir:"$CI_PROJECT_DIR" \
         --source-name h5ai --source-version "$CI_COMMIT_SHORT_SHA" \
         --exclude './node_modules/**' \
         --exclude './build/**' \
         --exclude './.npm/**' \
-        -o syft-json > npm-sbom.json
-      docker run --rm --volumes-from "$JOB_CONTAINER_ID:ro" \
-        -e GRYPE_DB_CACHE_DIR=/grype-db -v h5ai-grype-db:/grype-db \
-        "$GRYPE_IMAGE" sbom:"$CI_PROJECT_DIR/npm-sbom.json" --only-fixed --fail-on high
+        -o syft-json > /dev/null
+      # docker cp extracts into an existing directory: the archive carries the
+      # checkout's absolute path and goes to /.
+      project=${CI_PROJECT_DIR#/}
+      tar -C / --exclude "$project/node_modules" --exclude "$project/build" \
+        --exclude "$project/.npm" --exclude "$project/.git" \
+        -cf - "$project" | docker cp - h5ai-syft:/
+      docker start -a h5ai-syft > npm-sbom.json
+      docker create --name h5ai-grype "$GRYPE_IMAGE" sbom:/npm-sbom.json --only-fixed --fail-on high > /dev/null
+      docker cp npm-sbom.json h5ai-grype:/npm-sbom.json
+      docker start -a h5ai-grype
   artifacts:
     paths:
       - npm-sbom.json
@@ -615,12 +666,13 @@ publish:app:
 # the final tags with `docker buildx imagetools create`, so the published
 # images are bit-identical to what the scan stage validated.
 .docker-publish-template:
+  extends: .dind
   stage: publish
-  image: $DOCKER_IMAGE
   # Keep tag-plan evaluation and alias promotion serialized across both registries.
   resource_group: docker-publish
   cache: []
   before_script:
+    - !reference [.dind, before_script]
     - apk add --no-cache curl jq
   # `needs` puts this job in DAG mode, so it only waits for what it lists here
   # — it does NOT automatically wait for the rest of the `scan`/`test` stages
@@ -715,20 +767,3 @@ create_release:
       release-cli create --name "$VERSION" \
         --description "$(cat release_notes.txt)" \
         --assets-link "{\"name\":\"h5ai-${CLEAN_VERSION}.zip\",\"url\":\"${PACKAGE_URL}\",\"link_type\":\"package\"}"
-
-# ── Cleanup ──────────────────────────────────────────────────────────────────
-
-# Removes the branch image once test:docker and scan:grype:branch-image are
-# done, whatever their result. A cancelled pipeline skips .post; build:image
-# prunes what it left after a day.
-cleanup:image:
-  stage: .post
-  image: $DOCKER_IMAGE
-  cache: []
-  script:
-    - docker rmi "h5ai-ci:$CI_PIPELINE_ID" >/dev/null 2>&1 || true
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-      when: always
-    - if: $CI_COMMIT_BRANCH && $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH
-      when: always
