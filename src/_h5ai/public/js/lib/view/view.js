@@ -248,9 +248,10 @@ const changeItems = (add, remove) => {
     event.pub('view.changed', add, remove);
 };
 
-// Only one hint at a time: i18n would write each l10n- class in turn.
+// One hint at a time, as i18n writes each l10n- class in turn; checkHint()
+// then sets whether it is hidden.
 const setHint = l10nKey => {
-    $hint.rmCls(...Array.from($hint[0].classList).filter(cls => cls.startsWith('l10n-'))).addCls('l10n-' + l10nKey);
+    $hint[0].className = 'l10n-' + l10nKey;
     checkHint();
 };
 

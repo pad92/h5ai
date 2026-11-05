@@ -264,6 +264,22 @@ final class SearchTest extends H5aiTestCase {
         self::assertSame([$file], (new Search($this->searchContext()))->get_paths($this->root(), $pattern, true));
     }
 
+    // A search from a subfolder reads the index only up to the end of that
+    // folder's entries: a line after them is not read, even if it matches.
+    public function testASubfolderSearchStopsAfterItsEntries(): void {
+        $first = $this->write($this->root('sub/match-1.txt'), 'x');
+        $this->write($this->root('zzz/match-2.txt'), 'x');
+        $late = $this->write($this->root('sub/match-3.txt'), 'x');
+        $context = $this->searchContext();
+        self::assertTrue((new Search($context))->refresh_index());
+        $index = (string) file_get_contents($this->tmp . self::INDEX);
+        $index = str_replace("fsub/match-3.txt\n", '', $index) . "fsub/match-3.txt\n";
+        file_put_contents($this->tmp . self::INDEX, $index);
+
+        self::assertSame([$first], (new Search($context))->get_paths($this->root('sub'), 'match'));
+        self::assertContains($late, (new Search($context))->get_paths($this->root(), 'match'), 'from the root, every line is read');
+    }
+
     public function testThePurgeWaitsForARunningRefresh(): void {
         $this->write($this->root('file.txt'), 'x');
         self::assertTrue((new Search($this->searchContext()))->refresh_index());

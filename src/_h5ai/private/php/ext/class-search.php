@@ -121,11 +121,18 @@ class Search {
             $prefix = $relative_root === '' ? '' : self::escape($relative_root) . '/';
             $hide_unreadable = (bool) $this->context->query_option('view.hideIf403', false);
             $paths = [];
+            // The index lists each folder's entries right after it, so the
+            // entries below $root follow each other: past them, stop.
+            $is_below_root = false;
             while (($line = fgets($handle)) !== false) {
                 $entry = substr($line, 1, -1);
                 if (!str_starts_with($entry, $prefix)) {
+                    if ($is_below_root) {
+                        break;
+                    }
                     continue;
                 }
+                $is_below_root = true;
                 $below_root = substr($entry, strlen($prefix));
                 if (substr_count($below_root, '/') > $max_depth) {
                     continue;

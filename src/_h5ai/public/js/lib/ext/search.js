@@ -51,9 +51,11 @@ let request = 0;
 let timer = null;
 
 // Names are compared in NFC, as typed, whatever the file system stores.
+const patternOf = settings => parsePattern(text.normalize('NFC'), settings.advanced);
+
 const regExpOf = settings => {
     try {
-        return new RegExp(parsePattern(text.normalize('NFC'), settings.advanced), settings.ignorecase ? 'i' : '');
+        return new RegExp(patternOf(settings), settings.ignorecase ? 'i' : '');
     } catch {
         return null;
     }
@@ -75,13 +77,17 @@ const updateDeeper = () => {
     }
 };
 
-// Drops any running search and shows the current folder: all of it, or the
-// items that match the field. An invalid expression leaves the view as is.
-const showFolder = () => {
+// Drops any running search.
+const stopSearch = () => {
     request += 1;
     isDeep = false;
     $tool.rmCls('pending');
+};
 
+// Drops any running search and shows the current folder: all of it, or the
+// items that match the field. An invalid expression leaves the view as is.
+const showFolder = () => {
+    stopSearch();
     if (!text || !canFilter) {
         view.setLocation();
     } else {
@@ -110,7 +116,7 @@ const searchSubfolders = () => {
         action: 'get',
         search: {
             href: location.getAbsHref(),
-            pattern: parsePattern(text.normalize('NFC'), searchSettings.advanced),
+            pattern: patternOf(searchSettings),
             ignorecase: searchSettings.ignorecase
         }
     }).then(response => {
@@ -159,9 +165,7 @@ const close = (render = true) => {
     if (showsMatches) {
         showFolder();
     } else {
-        request += 1;
-        isDeep = false;
-        $tool.rmCls('pending');
+        stopSearch();
         updateDeeper();
     }
 };
