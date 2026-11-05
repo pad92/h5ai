@@ -90,6 +90,33 @@ test('search field: typing filters the folder without a request and offers the s
     });
 });
 
+test('search field: when nothing in the folder matches, typing searches the subfolders', async () => {
+    await withFolder(async ({deep, requests, respond}) => {
+        await toggle();
+        await type('alpi');
+        assert.equal(requests.length, 1, 'no Enter needed');
+        assert.equal(requests[0].data.search.pattern, 'a.*?l.*?p.*?i');
+        assert.equal(isDeeperShown(), false);
+
+        await respond(0, [deep]);
+        assert.deepEqual(labels(), ['sub/deeper/alpine.txt']);
+    });
+});
+
+test('search field: typing a match into the folder drops the search it started', async () => {
+    await withFolder(async ({deep, requests, respond}) => {
+        await toggle();
+        await type('alpi');
+        await type('al');
+        await respond(0, [deep]);
+
+        assert.equal(requests.length, 1);
+        assert.deepEqual(labels(), ['alpha.txt']);
+        assert.equal(isPending(), false);
+        assert.equal(isDeeperShown(), true);
+    });
+});
+
 test('search field: Enter searches the subfolders and shows the folder of each match', async () => {
     await withFolder(async ({alpha, deep, requests, respond}) => {
         await toggle();
@@ -332,6 +359,14 @@ test('search field: with the search disabled, it only filters and offers no subf
         assert.equal(deeper.classList.contains('hidden'), true);
         input.dispatchEvent(new window.KeyboardEvent('keydown', {key: 'Enter', bubbles: true}));
         await drain();
+        assert.equal(requests.length, 0);
+    });
+});
+
+test('search field: with the search disabled, nothing matching in the folder sends no request', async () => {
+    await withMode({search: {enabled: false}, filter: {enabled: true, advanced: true, debounceTime: 0}}, async ({typeIn, requests}) => {
+        await typeIn('zzz');
+        assert.deepEqual(labels(), []);
         assert.equal(requests.length, 0);
     });
 });

@@ -10,8 +10,9 @@ const view = require('../view/view');
 
 // One field for the filter and the search: typing filters the current folder
 // at once, without a request, and a line under the listing, or Enter,
-// searches its subfolders on the server. With only one of the two enabled,
-// the field does that one.
+// searches its subfolders on the server. When nothing in the folder matches,
+// the subfolders are searched without waiting for either. With only one of
+// the two enabled, the field does that one.
 const filterSettings = Object.assign({
     enabled: false,
     advanced: false,
@@ -86,18 +87,23 @@ const stopSearch = () => {
 
 // Drops any running search and shows the current folder: all of it, or the
 // items that match the field. An invalid expression leaves the view as is.
+// Returns whether the field filtered the folder down to nothing.
 const showFolder = () => {
     stopSearch();
+    let isNoMatch = false;
     if (!text || !canFilter) {
         view.setLocation();
     } else {
         const re = regExpOf(filterSettings);
         if (re) {
             const accepts = item => labelMatches(re, item);
-            view.setMatches(filter(location.getItem().content, accepts), accepts);
+            const matches = filter(location.getItem().content, accepts);
+            view.setMatches(matches, accepts);
+            isNoMatch = matches.length === 0;
         }
     }
     updateDeeper();
+    return isNoMatch;
 };
 
 const searchSubfolders = () => {
@@ -141,11 +147,18 @@ const onInput = () => {
         showFolder();
         return;
     }
-    const run = canFilter ? showFolder : searchSubfolders;
+    if (!canFilter) {
+        timer = setTimeout(searchSubfolders, searchSettings.debounceTime);
+        return;
+    }
     timer = setTimeout(() => {
         timer = null;
-        run();
-    }, canFilter ? filterSettings.debounceTime : searchSettings.debounceTime);
+        // Nothing here: look below once the typing pauses, as the search
+        // alone does.
+        if (showFolder() && canSearch) {
+            timer = setTimeout(searchSubfolders, searchSettings.debounceTime);
+        }
+    }, filterSettings.debounceTime);
 };
 
 const open = () => {
