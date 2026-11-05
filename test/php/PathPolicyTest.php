@@ -131,6 +131,15 @@ final class PathPolicyTest extends H5aiTestCase {
         self::assertFalse($this->context->paths()->is_managed_path($this->tmp), 'a folder outside the root');
     }
 
+    public function testAManagedEntryIsCheckedAsTheGivenType(): void {
+        $paths = $this->context->paths();
+        self::assertTrue($paths->is_managed_entry($this->root('inside.txt'), false));
+        self::assertTrue($paths->is_managed_entry($this->root(), true));
+        self::assertFalse($paths->is_managed_entry($this->root('inside.txt'), true), 'a file is not a managed folder');
+        self::assertFalse($paths->is_managed_entry($this->root(), false), 'a folder is not a managed file');
+        self::assertFalse($paths->is_managed_entry($this->root('outside-link.txt'), false));
+    }
+
     public function testUnmanagedMarkersAndNestedInstallsLeaveFoldersUnmanaged(): void {
         $this->write($this->root('skipped/.nomedia'), '');
         mkdir($this->root('nested/_h5ai/private/conf'), 0700, true);

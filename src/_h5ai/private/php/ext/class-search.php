@@ -187,9 +187,7 @@ class Search {
             }
             $path = $folder . '/' . $name;
             $is_directory = @is_dir($path);
-            if ($matches($name)
-                && (($is_directory && $this->context->paths()->is_managed_path($path))
-                    || (!$is_directory && $this->context->paths()->is_managed_file($path)))) {
+            if ($matches($name) && $this->context->paths()->is_managed_entry($path, $is_directory)) {
                 $paths[] = $path;
             }
             if ($is_directory && !@is_link($path)) {
