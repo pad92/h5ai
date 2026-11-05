@@ -18,16 +18,18 @@ const isPending = () => $('#search').classList.contains('pending');
 const isDeeperShown = () => !$('#search-deeper').classList.contains('hidden');
 const hint = () => $('#view-hint').className;
 
-const type = async value => {
-    $('#search input').value = value;
-    $('#search input').dispatchEvent(new window.Event('input', {bubbles: true}));
+const typeInto = async (input, value) => {
+    input.value = value;
+    input.dispatchEvent(new window.Event('input', {bubbles: true}));
     await drain();
 };
+const type = value => typeInto($('#search input'), value);
 
-const press = async key => {
-    $('#search input').dispatchEvent(new window.KeyboardEvent('keydown', {key, bubbles: true}));
+const keydown = async (el, key) => {
+    el.dispatchEvent(new window.KeyboardEvent('keydown', {key, bubbles: true}));
     await drain();
 };
+const press = key => keydown($('#search input'), key);
 
 const toggle = async () => {
     $('#search img').click();
@@ -337,11 +339,7 @@ const withMode = async (settings, run) => {
     const tool = Array.from(document.querySelectorAll('#search')).pop();
     const deeper = Array.from(document.querySelectorAll('#search-deeper')).pop();
     const input = tool.querySelector('input');
-    const typeIn = async value => {
-        input.value = value;
-        input.dispatchEvent(new window.Event('input', {bubbles: true}));
-        await drain();
-    };
+    const typeIn = value => typeInto(input, value);
     try {
         tool.querySelector('img').click();
         await withFolder(context => run({...context, input, deeper, typeIn}));
@@ -357,8 +355,7 @@ test('search field: with the search disabled, it only filters and offers no subf
         await typeIn('be');
         assert.deepEqual(labels(), ['beta.md']);
         assert.equal(deeper.classList.contains('hidden'), true);
-        input.dispatchEvent(new window.KeyboardEvent('keydown', {key: 'Enter', bubbles: true}));
-        await drain();
+        await keydown(input, 'Enter');
         assert.equal(requests.length, 0);
     });
 });
@@ -387,13 +384,11 @@ test('search field: the icon opens and closes it from the keyboard, and says whe
         assert.equal(icon.getAttribute('tabindex'), '0');
         assert.equal(icon.getAttribute('role'), 'button');
 
-        icon.dispatchEvent(new window.KeyboardEvent('keydown', {key: 'Enter', bubbles: true}));
-        await drain();
+        await keydown(icon, 'Enter');
         assert.equal(isOpen(), true);
         assert.equal(icon.getAttribute('aria-expanded'), 'true');
 
-        icon.dispatchEvent(new window.KeyboardEvent('keydown', {key: ' ', bubbles: true}));
-        await drain();
+        await keydown(icon, ' ');
         assert.equal(isOpen(), false);
         assert.equal(icon.getAttribute('aria-expanded'), 'false');
         assert.ok($('#search input').getAttribute('aria-label'), 'the field has a name of its own');
