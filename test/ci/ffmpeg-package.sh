@@ -26,17 +26,32 @@ ln -s libavutil.so.1 "$dest/opt/ffmpeg/lib/libavutil.so"
 MOCK
 cat > "$work/bin/curl" <<'MOCK'
 #!/bin/sh
+# Like curl, --location resends custom headers to the redirect host.
 set -eu
-out= upload= url=
+out= upload= url= header= writeout= follow=0
 while [ "$#" -gt 0 ]; do
     case "$1" in
         --output) out=$2; shift ;;
         --upload-file) upload=$2; shift ;;
-        --header|--write-out|--proto|--proto-redir|--connect-timeout|--max-time|--retry) shift ;;
+        --header) header=$2; shift ;;
+        --write-out) writeout=$2; shift ;;
+        --location) follow=1 ;;
+        --proto|--proto-redir|--connect-timeout|--max-time|--retry) shift ;;
         https://*) url=$1 ;;
     esac
     shift
 done
+reply() {
+    [ -z "$writeout" ] || printf '%s' "$writeout" | sed "s|%{http_code}|$1|; s|%{redirect_url}|$2|"
+}
+case "$url" in
+    https://storage.invalid/*)
+        [ -z "$header" ] || echo "$header" >> "$MOCK_ROOT/leaked"
+        cp "$MOCK_ROOT/registry/${url#https://storage.invalid/}" "$out"
+        reply 200 ''
+        exit 0
+        ;;
+esac
 relative=${url##*/generic/}
 file="$MOCK_ROOT/registry/$relative"
 if [ -n "$upload" ]; then
@@ -46,13 +61,20 @@ if [ -n "$upload" ]; then
     cp "$upload" "$file"
 elif [ -n "${HTTP_ERROR:-}" ]; then
     : > "$out"
-    printf '%s' "$HTTP_ERROR"
+    reply "$HTTP_ERROR" ''
+elif [ -f "$file" ] && [ "${MOCK_REDIRECT:-0}" = 1 ]; then
+    location="https://storage.invalid/$relative"
+    if [ "$follow" = 1 ]; then
+        exec "$0" --header "$header" --output "$out" --write-out "$writeout" "$location"
+    fi
+    : > "$out"
+    reply 302 "$location"
 elif [ -f "$file" ]; then
     cp "$file" "$out"
-    printf 200
+    reply 200 ''
 else
     : > "$out"
-    printf 404
+    reply 404 ''
 fi
 MOCK
 chmod +x "$work/bin/"*
@@ -71,6 +93,16 @@ run amd64 arm64
 [ "$(count "$work/builds")" = 2 ]
 [ "$(count "$work/uploads")" = 4 ]
 echo 'PASS: publish both architectures, then reuse without compiling or uploading'
+printf '\n# logic change\n' >> scripts/ffmpeg-package.sh
+run amd64 arm64
+[ "$(count "$work/builds")" = 2 ]
+echo 'PASS: editing the package script keeps reusing published packages'
+rm -rf .ffmpeg
+MOCK_REDIRECT=1 run amd64
+[ ! -e "$work/leaked" ]
+[ -x .ffmpeg/amd64/opt/ffmpeg/bin/ffmpeg ]
+[ "$(count "$work/builds")" = 2 ]
+echo 'PASS: storage redirects are followed without the job token'
 for HTTP_ERROR in 401 403 500; do
     export HTTP_ERROR
     expect_failure
@@ -101,7 +133,14 @@ echo 'PASS: recipe change rebuilds, branches do not publish'
 export FFMPEG_PUBLISH=1 FAIL_MANIFEST=1
 expect_failure
 unset FAIL_MANIFEST
+recipe=$(sed -n 's/^ffmpeg: compiling amd64 (\(.*\))$/\1/p' "$work/log")
+[ -n "$recipe" ]
+# The payload went first; without its manifest the package is not ready.
+[ ! -e "$work/registry/ffmpeg/$recipe/linux-amd64.sha256" ]
+ls "$work/registry/ffmpeg/$recipe"/linux-amd64-*.tar.gz > /dev/null
 run amd64
+checksum=$(cat "$work/registry/ffmpeg/$recipe/linux-amd64.sha256")
+[ -f "$work/registry/ffmpeg/$recipe/linux-amd64-$checksum.tar.gz" ]
 before=$(count "$work/builds")
 run amd64
 [ "$(count "$work/builds")" = "$before" ]

@@ -4,7 +4,11 @@ set -eu
 cd "$(dirname "$0")/.."
 
 fail() { echo "ffmpeg: $*" >&2; exit 1; }
-recipe=$(cat ci/ffmpeg.Dockerfile scripts/ffmpeg-package.sh | sha256sum | cut -d ' ' -f 1)
+# The key covers what shapes the binaries: the build recipe and the archive
+# layout. Edits to this script's logic keep reusing published packages; bump
+# PACKAGE_FORMAT only when the archive content or layout changes.
+PACKAGE_FORMAT=1
+recipe=$({ printf 'format %s\n' "$PACKAGE_FORMAT"; cat ci/ffmpeg.Dockerfile; } | sha256sum | cut -d ' ' -f 1)
 registry=
 if [ -n "${CI:-}" ]; then
     : "${CI_API_V4_URL:?}" "${CI_PROJECT_ID:?}" "${CI_JOB_TOKEN:?}"
@@ -26,14 +30,24 @@ work=$(mktemp -d .ffmpeg/tmp.XXXXXX)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
 # Only 404 means missing. Authentication, server and transport failures stop CI.
+# Redirects are not followed with the job token: curl resends custom headers to
+# every redirect host, and storage redirects are pre-signed URLs anyway.
 fetch() {
-    status=$(curl --silent --show-error --location --proto '=https' --proto-redir '=https' \
+    result=$(curl --silent --show-error --proto '=https' \
         --connect-timeout 20 --max-time 300 --retry 3 \
         --header "JOB-TOKEN: $CI_JOB_TOKEN" --output "$2" \
-        --write-out '%{http_code}' "$registry/$1") || fail 'Registry download failed'
+        --write-out '%{http_code} %{redirect_url}' "$registry/$1") || fail 'Registry download failed'
+    status=${result%% *}
     case "$status" in
         200) return 0 ;;
         404) return 1 ;;
+        301|302|303|307|308)
+            location=${result#* }
+            case "$location" in https://*) ;; *) fail 'Registry redirect is not HTTPS' ;; esac
+            curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' \
+                --connect-timeout 20 --max-time 300 --retry 3 \
+                --output "$2" "$location" || fail 'Package storage download failed'
+            return 0 ;;
         *) fail "Registry returned HTTP $status" ;;
     esac
 }
@@ -72,9 +86,12 @@ for arch do
         if [ -n "${FFMPEG_BUILDER:-}" ]; then
             set -- --builder "$FFMPEG_BUILDER"
         fi
+        # ci/ffmpeg.Dockerfile copies nothing from the context: an empty one
+        # keeps the checkout and the prepared .ffmpeg/ trees out of BuildKit.
+        mkdir -p "$work/context"
         docker buildx build "$@" --platform "linux/$arch" \
             --file ci/ffmpeg.Dockerfile --target package \
-            --output "type=local,dest=$work/output-$arch" .
+            --output "type=local,dest=$work/output-$arch" "$work/context"
         tar -czf "$work/package.tar.gz" -C "$work/output-$arch" opt
         checksum=$(sha256sum "$work/package.tar.gz" | cut -d ' ' -f 1)
         printf '%s\n' "$checksum" > "$work/checksum"

@@ -94,16 +94,19 @@ deletes an untagged candidate that was never published after 24 hours.
 
 The `prepare:ffmpeg` job checks the project's Generic Package Registry on
 every pipeline. Packages are keyed by the SHA-256 of `ci/ffmpeg.Dockerfile`
-and `scripts/ffmpeg-package.sh`, with separate amd64 and arm64 files. Changes
-to the source version, checksum, base image, compiler options or packaging
-script produce a new key. Bump the recipe when refreshing Alpine build
+and the archive format number (`PACKAGE_FORMAT` in `scripts/ffmpeg-package.sh`),
+with separate amd64 and arm64 files. Changes to the source version, checksum,
+base image or compiler options produce a new key; other edits to the script do
+not, so they never trigger a rebuild. Bump `PACKAGE_FORMAT` when the archive
+content or layout changes. Bump the recipe when refreshing Alpine build
 dependencies: package repository updates alone do not change the key.
 
 A missing package is compiled. Default-branch and tag pipelines prepare and
 publish both amd64 and arm64; branch and MR pipelines prepare the runner
 architecture only. Branches and merge requests use the registry when possible
 and otherwise pass their local build to the image job as a one-day artifact. Authentication
-errors and registry outages fail the job. Payloads are named by their checksum;
+errors and registry outages fail the job. A redirect to package storage is
+followed without the job token. Payloads are named by their checksum;
 the checksum file is uploaded last and each upload is read back and verified.
 The shared `docker-build` resource group serializes package publication.
 
