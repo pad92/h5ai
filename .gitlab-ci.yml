@@ -83,9 +83,14 @@ cache: &node_cache
 # job's. The daemon disappears with the job, along with its images and cache.
 .dind:
   image: $DOCKER_IMAGE
+  # GitLab names the service `docker` after its image.
   services:
     - name: $DIND_IMAGE
-      alias: docker
+      variables:
+        # The runner's volumes reach services too: while it still mounts the
+        # host's socket at /var/run/docker.sock, dockerd must listen on
+        # another path, or it fails to start ("device or resource busy").
+        DOCKER_HOST: unix:///run/dind.sock
   variables:
     DOCKER_HOST: tcp://docker:2376
     DOCKER_TLS_CERTDIR: /certs

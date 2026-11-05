@@ -182,6 +182,9 @@ dependencies. Only the `docker:dind` service runs privileged:
   without the client certificates of its job.
 - The `gitlab-runner` container itself keeps its own Docker socket: it needs
   it to start the jobs.
+- The runner's `volumes` also reach services. The service's `dockerd`
+  listens on `/run/dind.sock`, so a host socket still mounted at
+  `/var/run/docker.sock` does not stop it from starting.
 
 Node jobs fail when they run with `CAP_SYS_ADMIN`, the capability a
 privileged container has, and warn when they see a Docker socket. A
