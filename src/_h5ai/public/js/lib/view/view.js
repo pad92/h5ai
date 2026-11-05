@@ -21,6 +21,10 @@ const settings = Object.assign({
 const sortedSizes = settings.sizes.sort((a, b) => a - b);
 const checkedModes = intersection(settings.modes, modes);
 const storekey = 'view';
+// While a filter or a search shows its matches, a refresh of the folder must
+// not bring back what they left out: it adds only the items this accepts.
+// Null while the view lists the folder.
+let acceptsAdded = null;
 const viewTpl =
         `<div id="view">
             <ul id="items" class="clearfix">
@@ -210,8 +214,11 @@ const changeItems = (add, remove) => {
         createHtml(item).hide().appTo($items).show();
     });
 
+    // An item the view never showed (a hidden folder, say) has no $view.
     each(remove, item => {
-        item.$view.hide().rm();
+        if (item.$view) {
+            item.$view.hide().rm();
+        }
     });
 
     checkHint();
@@ -223,12 +230,21 @@ const setHint = l10nKey => {
     checkHint();
 };
 
+// Shows the matches of a filter or a search instead of the folder. A later
+// refresh adds only the new items accepts(item) is true for.
+const setMatches = (items, accepts) => {
+    acceptsAdded = accepts;
+    setHint('noMatch');
+    setItems(items);
+};
+
 const onLocationChanged = item => {
     if (!item) {
         item = location.getItem();
     }
 
     const items = [];
+    acceptsAdded = null;
 
     if (item.parent && !settings.hideParentFolder) {
         items.push(item.parent);
@@ -247,13 +263,17 @@ const onLocationChanged = item => {
 const onLocationRefreshed = (item, added, removed, updated) => {
     const add = [];
 
+    const isListing = acceptsAdded === null;
+
     each(added, child => {
-        if (!(child.isFolder() && settings.hideFolders)) {
+        if (!(child.isFolder() && settings.hideFolders) && (isListing || acceptsAdded(child))) {
             add.push(child);
         }
     });
 
-    setHint('empty');
+    if (isListing) {
+        setHint('empty');
+    }
     changeItems(add, removed);
 
     if (updated) {
@@ -299,6 +319,7 @@ module.exports = {
     changeItems,
     setLocation: onLocationChanged,
     setHint,
+    setMatches,
     getModes,
     getMode,
     setMode,

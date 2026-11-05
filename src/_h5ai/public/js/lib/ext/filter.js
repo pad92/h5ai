@@ -1,9 +1,7 @@
-const {filter, debounce, parsePattern, dom} = require('../util');
-const event = require('../core/event');
+const {filter} = require('../util');
 const location = require('../core/location');
-const resource = require('../core/resource');
 const allsettings = require('../core/settings');
-const view = require('../view/view');
+const {createPatternTool} = require('../view/pattern-tool');
 
 
 const settings = Object.assign({
@@ -12,77 +10,35 @@ const settings = Object.assign({
     debounceTime: 100,
     ignorecase: true
 }, allsettings.filter);
-const tpl =
-        `<div id="filter" class="tool">
-            <img class="l10n_alt-filter" src="${resource.image('filter')}" alt="filter"/>
-            <input class="l10n_ph-filter" type="text" value="filter"/>
-        </div>`;
-let inputIsVisible = false;
-let prevPattern = '';
-let $filter;
-let $input;
 
-
-const filterItems = (pattern = '') => {
-    if (pattern === prevPattern) {
-        return;
-    }
-    prevPattern = pattern;
-
-    if (!pattern) {
-        view.setLocation();
-        return;
-    }
-
-    $filter.addCls('pending');
-
-    let re;
+// The regular expression of a pattern, or null while it is invalid.
+const toRegExp = pattern => {
     try {
-        re = new RegExp(pattern, settings.ignorecase ? 'i' : '');
+        return new RegExp(pattern, settings.ignorecase ? 'i' : '');
     } catch {
-        $filter.rmCls('pending');
-        return;
-    }
-    const items = filter(location.getItem().content, item => re.test(item.label));
-
-    $filter.rmCls('pending');
-    view.setHint('noMatch');
-    view.setItems(items);
-};
-
-const update = () => {
-    if (inputIsVisible) {
-        $filter.addCls('active');
-        $input[0].focus();
-        filterItems(parsePattern($input.val(), settings.advanced));
-    } else {
-        filterItems();
-        $filter.rmCls('active');
+        return null;
     }
 };
 
-const toggle = () => {
-    inputIsVisible = !inputIsVisible;
-    update();
-};
-
-const reset = () => {
-    inputIsVisible = false;
-    $input.val('');
-    update();
-};
+const matches = (re, item) => re.test(item.label);
 
 const init = () => {
     if (!settings.enabled) {
         return;
     }
 
-    $filter = dom(tpl).appTo('#toolbar');
-    $input = $filter.find('input');
-
-    $filter.find('img').on('click', toggle);
-    $input.on('keyup', debounce(update, settings.debounceTime));
-    event.sub('location.changed', reset);
+    createPatternTool({
+        id: 'filter',
+        settings,
+        find: pattern => {
+            const re = toRegExp(pattern);
+            return re && filter(location.getItem().content, item => matches(re, item));
+        },
+        accepts: (pattern, item) => {
+            const re = toRegExp(pattern);
+            return Boolean(re) && matches(re, item);
+        }
+    });
 };
 
 

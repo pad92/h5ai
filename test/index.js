@@ -73,6 +73,7 @@ require('./tests/unit/ext/playerTags');
 require('./tests/unit/ext/playerViz');
 require('./tests/unit/ext/tasksProgress');
 require('./tests/unit/ext/select');
+require('./tests/unit/ext/patternTool');
 require('./tests/unit/packageName');
 require('./tests/unit/versionScript');
 require('./tests/unit/view/changelog');
