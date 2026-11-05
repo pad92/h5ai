@@ -220,11 +220,8 @@ prepare:packages:
         PACKAGE_ARCHES="amd64 arm64"
         PACKAGE_PUBLISH=1
       else
-        case "$(docker info --format '{{.Architecture}}')" in
-          x86_64|amd64) PACKAGE_ARCHES=amd64 ;;
-          aarch64|arm64) PACKAGE_ARCHES=arm64 ;;
-          *) echo "Unsupported Docker host architecture" >&2; exit 1 ;;
-        esac
+        # Empty: native-package.sh builds for the Docker host's architecture.
+        PACKAGE_ARCHES=
         PACKAGE_PUBLISH=0
       fi
       export PACKAGE_ARCHES PACKAGE_PUBLISH

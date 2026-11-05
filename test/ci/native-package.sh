@@ -13,6 +13,11 @@ export PATH="$work/bin:$PATH"
 cat > "$work/bin/docker" <<'MOCK'
 #!/bin/sh
 set -eu
+# MOCK_ARCH: the architecture the Docker host reports.
+if [ "${1:-}" = info ]; then
+    printf '%s\n' "${MOCK_ARCH:-x86_64}"
+    exit 0
+fi
 echo build >> "$MOCK_ROOT/builds"
 printf '%s\n' "$*" >> "$MOCK_ROOT/argv"
 env >> "$MOCK_ROOT/environ"
@@ -344,5 +349,13 @@ unset CI CI_JOB_TOKEN FFMPEG_SIGNING_KEY
 run amd64
 [ "$(count "$work/builds")" = "$before" ]
 echo 'PASS: local preparation reuses matching recipe'
+# Without an architecture (CI branch pipelines), the Docker host's is used.
+rm -rf .ffmpeg
+MOCK_ARCH=aarch64 run
+[ -x .ffmpeg/arm64/opt/ffmpeg/bin/ffmpeg ]
+[ ! -e .ffmpeg/amd64 ]
+if MOCK_ARCH=riscv64 run; then echo 'Unsupported host architecture accepted' >&2; exit 1; fi
+grep -q 'Unsupported Docker host architecture' "$work/log"
+echo 'PASS: no architecture means the Docker host architecture'
 if run ../bad; then echo 'Invalid architecture accepted' >&2; exit 1; fi
 echo 'PASS: invalid architecture rejected'
