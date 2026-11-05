@@ -346,6 +346,25 @@ test('search field: with the filter disabled, typing searches the subfolders', a
     });
 });
 
+test('search field: the icon opens and closes it from the keyboard, and says whether it is open', async () => {
+    await withFolder(async () => {
+        const icon = $('#search img');
+        assert.equal(icon.getAttribute('tabindex'), '0');
+        assert.equal(icon.getAttribute('role'), 'button');
+
+        icon.dispatchEvent(new window.KeyboardEvent('keydown', {key: 'Enter', bubbles: true}));
+        await drain();
+        assert.equal(isOpen(), true);
+        assert.equal(icon.getAttribute('aria-expanded'), 'true');
+
+        icon.dispatchEvent(new window.KeyboardEvent('keydown', {key: ' ', bubbles: true}));
+        await drain();
+        assert.equal(isOpen(), false);
+        assert.equal(icon.getAttribute('aria-expanded'), 'false');
+        assert.ok($('#search input').getAttribute('aria-label'), 'the field has a name of its own');
+    });
+});
+
 test('view: a hint replaces the previous one', () => {
     view.setHint('noMatch');
     view.setHint('empty');

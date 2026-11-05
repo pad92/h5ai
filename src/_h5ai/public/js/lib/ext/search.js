@@ -29,8 +29,8 @@ const canSearch = searchSettings.enabled;
 
 const tpl =
         `<div id="search" class="tool">
-            <img class="l10n_alt-search" src="${resource.image('search')}" alt="search"/>
-            <input class="l10n_ph-search" type="text"/>
+            <img class="l10n_alt-search" src="${resource.image('search')}" alt="search" role="button" tabindex="0" aria-expanded="false"/>
+            <input class="l10n_ph-search l10n_aria-search" type="text" aria-label="search"/>
         </div>`;
 const deeperTpl =
         `<button id="search-deeper" type="button">
@@ -151,6 +151,7 @@ const onInput = () => {
 const open = () => {
     isOpen = true;
     $tool.addCls('active');
+    $tool.find('img').attr('aria-expanded', 'true');
     $input[0].focus();
 };
 
@@ -162,6 +163,7 @@ const close = (render = true) => {
     text = '';
     $input.val('');
     $tool.rmCls('active');
+    $tool.find('img').attr('aria-expanded', 'false');
     if (showsMatches) {
         showFolder();
     } else {
@@ -196,11 +198,19 @@ const init = () => {
     $input = $tool.find('input');
     $deeper = dom(deeperTpl).hide().appTo('#view');
 
-    $tool.find('img').on('click', () => {
+    const toggle = () => {
         if (isOpen) {
             close();
         } else {
             open();
+        }
+    };
+    // The icon is the field's button: a click, Enter or Space opens or
+    // closes it.
+    $tool.find('img').on('click', toggle).on('keydown', ev => {
+        if (ev.key === 'Enter' || ev.key === ' ') {
+            ev.preventDefault();
+            toggle();
         }
     });
     $input.on('input', onInput).on('keydown', onKeydown);
