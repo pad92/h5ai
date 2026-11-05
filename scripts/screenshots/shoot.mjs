@@ -92,7 +92,8 @@ const SHOTS = [
             await c.evaluate(`(() => {
                 const input = document.querySelector('#search input');
                 input.value = 'jpg';
-                input.dispatchEvent(new KeyboardEvent('keyup'));
+                input.dispatchEvent(new Event('input'));
+                input.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter'}));
             })()`);
         }},
     {name: 'select-download', path: '/Photos/Landscapes/', size: [1280, 600], act: c => c.drag(1240, 190, 700, 400)},

@@ -128,9 +128,9 @@ Allows packaging and downloading of selected directory entries.
 - `timeout` (default: `300`): Maximum archive execution time in seconds.
 
 #### `filter`
-Allows the user to filter the files displayed in the current folder using a text box in the toolbar.
+Filters the current folder as you type in the search field of the toolbar, without asking the server. Under the filtered listing, a line (or the Enter key) searches the subfolders for the same text when `search` is enabled too. Escape clears and closes the field. With `filter` disabled and `search` enabled, the field searches the subfolders as you type.
 - `enabled` (default: `true`).
-- `advanced` (default: `true`): If `true`, checks for characters in the right order (e.g., "ab" matches "axb"). Allows spaces to OR query terms. Prefixing a query with `re:` enables regex search.
+- `advanced` (default: `true`): If `true`, each word matches a name holding its characters in that order (e.g., "ab" matches "axb"), and a name must match every word, in any order: `photos 2024` finds `2024-06 Photos.zip`. Prefixing a query with `re:` enables regex search.
 - `debounceTime` (default: `100`): Debounce wait time in milliseconds before filtering.
 - `ignorecase` (default: `true`): Case-insensitive filtering.
 
@@ -257,10 +257,10 @@ starting with a two- or three-letter code sets the track language. The native
 player reads WebVTT (`.vtt`) files only.
 
 #### `search`
-Allows users to search for files recursively inside the current folder and its subfolders.
+Searches the current folder and its subfolders on the server, from the search field of the toolbar (see `filter`). Each result shows its folder in the details view, and in its tooltip in the other views. Names are compared as characters, so case is ignored for accented letters too (`É` matches `é`); a name that is not valid UTF-8 is compared byte by byte. With the PHP `intl` extension, names are compared in NFC, so a name written in decomposed form (as macOS does) matches what was typed; the Docker image does not ship that extension.
 - `enabled` (default: `true`).
-- `advanced` (default: `true`): Support fuzzy matching, spaces to OR terms, or `re:` prefix for regex.
-- `debounceTime` (default: `300`): Delay before searching triggers.
+- `advanced` (default: `true`): Same as `filter.advanced`.
+- `debounceTime` (default: `300`): Delay before searching when `filter` is disabled and the field searches as you type.
 - `ignorecase` (default: `true`): Case-insensitive search.
 - `maxResults` (default: `1000`): Maximum number of results returned by one recursive search.
 - `maxDepth` (default: `64`): Maximum depth below the folder the search starts from.
@@ -371,7 +371,6 @@ Here is an example translation file layout:
     "download": "download",
     "empty": "empty",
     "files": "files",
-    "filter": "filter",
     "folders": "folders",
     "grid": "grid",
     "icons": "icons",
@@ -381,6 +380,7 @@ Here is an example translation file layout:
     "noMatch": "no match",
     "parentDirectory": "Parent Directory",
     "search": "search",
+    "searchSubfolders": "Search subfolders for",
     "size": "Size",
     "tree": "Tree",
     "view": "View"

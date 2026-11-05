@@ -226,6 +226,33 @@ final class SearchTest extends H5aiTestCase {
         self::assertSame([$file], (new Search($context))->get_paths($this->root(), '^caf'), 'a reused entry keeps the exact name');
     }
 
+    // Searched like the browser's filter: as characters, case ignored for
+    // accented letters too, with or without the index; a name that is not
+    // valid UTF-8 is still compared byte by byte.
+    public function testAccentedNamesIgnoreCaseAndOtherBytesStillMatch(): void {
+        $summer = $this->write($this->root("sub/\u{e9}t\u{e9}.txt"), 'x');
+        $latin1 = $this->write($this->root("sub/caf\xE9.txt"), 'x');
+        $context = $this->searchContext();
+
+        foreach (['walk' => false, 'index' => true] as $source => $has_index) {
+            if ($has_index) {
+                self::assertTrue((new Search($context))->refresh_index());
+            }
+            self::assertSame([$summer], (new Search($context))->get_paths($this->root(), "^\u{c9}T\u{c9}", true), $source);
+            self::assertSame([], (new Search($context))->get_paths($this->root(), "^\u{c9}T\u{c9}", false), "$source, case kept");
+            self::assertSame([$latin1], (new Search($context))->get_paths($this->root(), '^caf.\\.txt$', true), $source);
+        }
+    }
+
+    // The browser sends a name match for every typed word, in any order.
+    public function testEveryWordOfAnAdvancedPatternMustMatch(): void {
+        $both = $this->write($this->root('2024-06 Photos.zip'), 'x');
+        $this->write($this->root('Photos.zip'), 'x');
+        $pattern = '^(?=.*?p.*?h.*?o.*?t.*?o.*?s)(?=.*?2.*?0.*?2.*?4)';
+
+        self::assertSame([$both], (new Search($this->searchContext()))->get_paths($this->root(), $pattern, true));
+    }
+
     public function testThePurgeWaitsForARunningRefresh(): void {
         $this->write($this->root('file.txt'), 'x');
         self::assertTrue((new Search($this->searchContext()))->refresh_index());

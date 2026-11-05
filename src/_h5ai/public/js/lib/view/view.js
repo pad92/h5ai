@@ -25,6 +25,9 @@ const storekey = 'view';
 // not bring back what they left out: it adds only the items this accepts.
 // Null while the view lists the folder.
 let acceptsAdded = null;
+// Whether the items shown come from subfolders: each label then starts with
+// its folder, relative to the current one.
+let showsFolders = false;
 const viewTpl =
         `<div id="view">
             <ul id="items" class="clearfix">
@@ -146,6 +149,14 @@ const onMouseleave = ev => {
     event.pub('item.mouseleave', item);
 };
 
+// The folders between the current one and the item, as 'a/b/', or '' for an
+// item of the current folder.
+const relativeFolder = item => {
+    const crumb = item.parent ? item.parent.getCrumb() : [];
+    const index = crumb.indexOf(location.getItem());
+    return index < 0 ? '' : crumb.slice(index + 1).map(folder => folder.label + '/').join('');
+};
+
 const createHtml = item => {
     const $html = dom(itemTpl);
     const $a = $html.find('a');
@@ -162,6 +173,11 @@ const createHtml = item => {
     location.setLink($a, item);
 
     $label.text(item.label).attr('title', item.label);
+    const folder = showsFolders ? relativeFolder(item) : '';
+    if (folder) {
+        $label.attr('title', folder + item.label);
+        $label[0].insertBefore(dom('<span class="path"></span>').text(folder)[0], $label[0].firstChild);
+    }
     $date.attr('data-time', item.time).text(format.formatDate(item.time));
     showSize($size, item);
     item.icon = resource.icon(item.type);
@@ -230,10 +246,11 @@ const setHint = l10nKey => {
     checkHint();
 };
 
-// Shows the matches of a filter or a search instead of the folder. A later
-// refresh adds only the new items accepts(item) is true for.
-const setMatches = (items, accepts) => {
+// Shows matches instead of the folder. A later refresh adds only the new
+// items accepts(item) is true for. fromSubfolders: show each item's folder.
+const setMatches = (items, accepts, fromSubfolders = false) => {
     acceptsAdded = accepts;
+    showsFolders = fromSubfolders;
     setHint('noMatch');
     setItems(items);
 };
@@ -245,6 +262,7 @@ const onLocationChanged = item => {
 
     const items = [];
     acceptsAdded = null;
+    showsFolders = false;
 
     if (item.parent && !settings.hideParentFolder) {
         items.push(item.parent);

@@ -35,8 +35,8 @@ class Search {
         if (!$pattern || strlen($pattern) > $max_pattern_length) {
             return [];
         }
-        $re = Util::wrap_pattern('(*LIMIT_MATCH=100000)(*LIMIT_DEPTH=1000)' . $pattern) . ($ignorecase ? 'i' : '');
-        if (@preg_match($re, '') === false) {
+        $matches = self::name_matcher($pattern, $ignorecase);
+        if ($matches === null) {
             return [];
         }
         $root = Util::normalize_path($root);
@@ -49,16 +49,43 @@ class Search {
         // The index never goes into a symlinked folder, but a search started
         // from inside one walks it, as before the index.
         $is_in_symlink = $this->is_in_symlinked_folder($root);
-        $paths = $is_in_symlink ? null : $this->search_index($root, $re, $max_depth, $max_results);
+        $paths = $is_in_symlink ? null : $this->search_index($root, $matches, $max_depth, $max_results);
         if ($paths === null) {
             if (!$is_in_symlink) {
                 $this->context->trigger_search_index_refresh();
             }
             $paths = [];
             $visited = [];
-            $this->walk($root, $re, 0, $max_depth, $max_results, $visited, $paths);
+            $this->walk($root, $matches, 0, $max_depth, $max_results, $visited, $paths);
         }
         return $paths;
+    }
+
+    // Whether a name matches $pattern, read as the browser's filter reads it:
+    // characters, not bytes, so that the case of É is ignored like that of E,
+    // and in NFC when the intl extension can normalize the name. A name that
+    // is not valid UTF-8 is matched byte by byte. Null for an invalid pattern.
+    private static function name_matcher(string $pattern, bool $ignorecase): ?Closure {
+        $re = Util::wrap_pattern('(*LIMIT_MATCH=100000)(*LIMIT_DEPTH=1000)' . $pattern) . ($ignorecase ? 'i' : '');
+        if (@preg_match($re, '') === false) {
+            return null;
+        }
+        $re_unicode = $re . 'u';
+        if (@preg_match($re_unicode, '') === false) {
+            return static fn(string $name): bool => @preg_match($re, $name) === 1;
+        }
+        $can_normalize = class_exists('Normalizer');
+        return static function (string $name) use ($re, $re_unicode, $can_normalize): bool {
+            // The empty UTF-8 expression only checks the encoding, and needs
+            // no extension: a match limit hit later is not a bad name.
+            if (@preg_match('//u', $name) !== 1) {
+                return @preg_match($re, $name) === 1;
+            }
+            if ($can_normalize && !Normalizer::isNormalized($name, Normalizer::FORM_C)) {
+                $name = Normalizer::normalize($name, Normalizer::FORM_C) ?: $name;
+            }
+            return @preg_match($re_unicode, $name) === 1;
+        };
     }
 
     // Whether $root or one of its parents below ROOT_PATH is a symlink. A
@@ -75,7 +102,7 @@ class Search {
 
     // Matches read from the index, or null without a usable one. An index
     // older than search.indexTtl still answers and asks for a refresh.
-    private function search_index(string $root, string $re, int $max_depth, int $max_results): ?array {
+    private function search_index(string $root, Closure $matches, int $max_depth, int $max_results): ?array {
         $relative_root = $this->relative_path($root);
         $handle = $relative_root === null ? false : @fopen($this->cache_file(self::INDEX_FILE), 'r');
         if ($handle === false) {
@@ -103,7 +130,7 @@ class Search {
                 }
                 $slash = strrpos($below_root, '/');
                 $name = self::unescape($slash === false ? $below_root : substr($below_root, $slash + 1));
-                if (@preg_match($re, $name) !== 1) {
+                if (!$matches($name)) {
                     continue;
                 }
                 $path = $this->absolute_path(self::unescape($entry));
@@ -132,7 +159,7 @@ class Search {
     }
 
     // The walk used before the index existed, and still used without one.
-    private function walk(string $folder, string $re, int $depth, int $max_depth, int $max_results, array &$visited, array &$paths): void {
+    private function walk(string $folder, Closure $matches, int $depth, int $max_depth, int $max_results, array &$visited, array &$paths): void {
         if ($depth > $max_depth || count($paths) >= $max_results) {
             return;
         }
@@ -151,13 +178,13 @@ class Search {
             }
             $path = $folder . '/' . $name;
             $is_directory = @is_dir($path);
-            if (@preg_match($re, $name)
+            if ($matches($name)
                 && (($is_directory && $this->context->paths()->is_managed_path($path))
                     || (!$is_directory && $this->context->paths()->is_managed_file($path)))) {
                 $paths[] = $path;
             }
             if ($is_directory && !@is_link($path)) {
-                $this->walk($path, $re, $depth + 1, $max_depth, $max_results, $visited, $paths);
+                $this->walk($path, $matches, $depth + 1, $max_depth, $max_results, $visited, $paths);
             }
         }
     }

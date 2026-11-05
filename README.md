@@ -81,8 +81,8 @@ archives (comic books, for example), then cached.
 
 ### Search and download
 
-Search the current folder and all its subfolders, or filter the listing as you
-type. Drag a rectangle or Ctrl-click to select files, then download them
+One field filters the listing as you type and, on Enter, searches all the
+subfolders too. Drag a rectangle or Ctrl-click to select files, then download them
 together as a ZIP or TAR archive.
 
 | | |
