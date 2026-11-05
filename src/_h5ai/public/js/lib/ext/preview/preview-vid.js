@@ -1,4 +1,4 @@
-const {dom} = require('../../util');
+const {dom, isActivationKey} = require('../../util');
 const allsettings = require('../../core/settings');
 const event = require('../../core/event');
 const i18n = require('../../core/i18n');
@@ -93,7 +93,7 @@ const addCastButton = el => {
 
     dom('#pv-buttons').app($button);
     $button.on('click', cast.prompt).on('keydown', ev => {
-        if (ev.key === 'Enter' || ev.key === ' ') {
+        if (isActivationKey(ev)) {
             // The preview reads Enter on the window as "next item".
             ev.preventDefault();
             ev.stopPropagation();

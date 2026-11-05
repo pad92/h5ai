@@ -1,4 +1,4 @@
-const {dom} = require('../util');
+const {dom, isActivationKey} = require('../util');
 const event = require('../core/event');
 const resource = require('../core/resource');
 
@@ -35,8 +35,7 @@ const init = () => {
     const $theme = dom(tpl).appTo('#toolbar');
     $theme.on('click', toggleTheme);
     $theme.on('keydown', e => {
-        const key = e.key || e.keyCode;
-        if (key === 'Enter' || key === ' ' || key === 13 || key === 32) {
+        if (isActivationKey(e)) {
             e.preventDefault();
             toggleTheme();
         }

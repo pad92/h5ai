@@ -4,7 +4,7 @@
 // the bar is hidden (player.less). Where Web Audio exists, a click on the
 // cover swaps it for the visualizer and back, and a menu below it picks
 // which visualizer.
-const {dom} = require('../../util');
+const {dom, isActivationKey} = require('../../util');
 const format = require('../../core/format');
 const i18n = require('../../core/i18n');
 const resource = require('../../core/resource');
@@ -196,7 +196,7 @@ const mount = on => {
     dom('#np-viz-select').on('change', ev => on.choose(ev.target.value));
     const $cover = dom('#np-cover');
     $cover.on('keydown', ev => {
-        if ($cover.hasCls('np-cover-switchable') && (ev.key === 'Enter' || ev.key === ' ')) {
+        if ($cover.hasCls('np-cover-switchable') && isActivationKey(ev)) {
             ev.preventDefault();
             $cover[0].click();
         }

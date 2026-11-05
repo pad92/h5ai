@@ -1,4 +1,4 @@
-const {filter, map, parsePattern, dom} = require('../util');
+const {filter, map, parsePattern, isActivationKey, dom} = require('../util');
 const server = require('../server');
 const event = require('../core/event');
 const location = require('../core/location');
@@ -221,7 +221,7 @@ const init = () => {
     // The icon is the field's button: a click, Enter or Space opens or
     // closes it.
     $tool.find('img').on('click', toggle).on('keydown', ev => {
-        if (ev.key === 'Enter' || ev.key === ' ') {
+        if (isActivationKey(ev)) {
             ev.preventDefault();
             toggle();
         }
