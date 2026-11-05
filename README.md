@@ -132,6 +132,30 @@ See the [changelog](CHANGELOG.md) for the details of each release.
 
 ## Install
 
+### Hardware
+
+h5ai runs on a 64-bit x86-64 or ARM64 machine; the Docker image is built for
+both. A 32-bit PHP shows sizes above about 2 GB wrongly, and the info page
+flags it.
+
+* Minimum: 1 CPU core and 256 MB of RAM for h5ai, enough for a few visitors.
+  The Docker image uses about 30 MB idle and 164 MB of disk.
+* Recommended: 2 cores or more, and 512 MB to 1 GB of RAM when several
+  visitors open folders of large photos or videos at once.
+
+Thumbnails take most of the CPU and memory, the first time each one is made.
+A JPEG is decoded whole, at about 4 bytes per pixel: a 12 MP photo needs
+about 50 MB while its thumbnail is made, a 50 MP one about 200 MB. PHP caps
+each request at 512 MB in the Docker image, which runs up to 20 PHP workers.
+The cache warmer, when enabled, works through the share on about one core.
+Listing a folder and searching are light: a search through 20,000 names
+answers in about 25 ms.
+
+For reference, measured with the Docker image on amd64 and a share of 20,000
+files: about 30 MB idle; 140 MB for the cache warmer; and 330 MB with 3 cores
+busy for 25 seconds while 20 requests at once made thumbnails for 200 photos
+of 12 MP and 20 videos.
+
 ### Docker (recommended)
 
 The [`pad92/docker-h5ai`][dockerhub] image bundles Angie, PHP 8.4 and the
