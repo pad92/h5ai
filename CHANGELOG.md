@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-* **CI**: FFmpeg is prepared separately for amd64 and arm64 and reused from the project Package Registry when its build recipe matches. The main Docker image consumes the prepared binaries. The recipe and source version live in `ci/ffmpeg.Dockerfile`. Local `make docker-build` prepares FFmpeg automatically; direct Docker or Compose builds need `make ffmpeg-prepare` first.
+* **CI**: FFmpeg is prepared separately for amd64 and arm64 and reused from the project Package Registry when its build recipe matches. The main Docker image consumes the prepared binaries. The recipe and source version live in `ci/ffmpeg.Dockerfile`. Local `make docker-build` prepares FFmpeg automatically; direct Docker or Compose builds need `make ffmpeg-prepare` first. Default-branch and tag pipelines reuse only packages signed with the protected `FFMPEG_SIGNING_KEY` variable and rebuild any other; `doc/development.md` explains how to create it.
 
 ## v1.7.0 - *2026-11-04*
 

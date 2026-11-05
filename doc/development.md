@@ -110,6 +110,29 @@ followed without the job token. Payloads are named by their checksum;
 the checksum file is uploaded last and each upload is read back and verified.
 The shared `docker-build` resource group serializes package publication.
 
+Every job of the project, branch jobs included, gets a `CI_JOB_TOKEN` that
+can write to the Generic Package Registry, and anyone can compute the package
+key from the repository. Default-branch and tag pipelines, the only ones that
+publish, therefore reuse a package only when it carries a valid signature:
+`linux-<arch>.sha256.hmac` holds the HMAC-SHA256 of `<recipe> <arch> <checksum>`
+keyed with the `FFMPEG_SIGNING_KEY` CI/CD variable. They upload the payload,
+then the signature, then the checksum file. When the signature is missing or
+wrong, or the payload is missing or does not match its checksum, the job logs
+a `WARNING`, compiles the package again and republishes it signed; a branch
+can make a release slower but cannot make it fail. Branch and MR pipelines do
+not receive the key: they reuse packages without checking signatures and
+publish nothing. `scripts/hmac-sha256.sh` computes the HMAC with shell
+builtins and `sha256sum`, so the key never appears in a command line.
+
+Create the variable in Settings > CI/CD > Variables, with the 64 hexadecimal
+characters printed by `openssl rand -hex 32`. Mark it Protected, so that only
+protected branches and tags receive it, and Masked; also mark it Hidden when
+GitLab offers the option. Release tags must match a protected tag rule. A
+publishing pipeline without the key, or with a malformed one, fails before
+compiling or uploading anything. After a key change, the next default-branch
+or tag pipeline rejects every existing package once and rebuilds both
+architectures.
+
 The main Dockerfile copies the prepared binaries from `.ffmpeg/`. FFmpeg
 compilation survives a purge of the runner's BuildKit cache. PHP-RAR still
 builds in the main Dockerfile. The existing image tests and Grype scan run

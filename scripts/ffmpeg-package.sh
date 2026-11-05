@@ -1,6 +1,8 @@
 #!/bin/sh
 # Resolve FFmpeg by recipe and architecture. No registry credentials enter Docker.
 set -eu
+# Never trace this script: it handles the package signing key.
+set +x
 cd "$(dirname "$0")/.."
 
 fail() { echo "ffmpeg: $*" >&2; exit 1; }
@@ -14,6 +16,18 @@ if [ -n "${CI:-}" ]; then
     : "${CI_API_V4_URL:?}" "${CI_PROJECT_ID:?}" "${CI_JOB_TOKEN:?}"
     case "$CI_API_V4_URL" in https://*) ;; *) fail 'Registry requires HTTPS' ;; esac
     registry="$CI_API_V4_URL/projects/$CI_PROJECT_ID/packages/generic/ffmpeg/$recipe"
+fi
+# Any branch job token can write to the registry, so publishing pipelines only
+# reuse packages signed with a key that protected refs alone receive. Missing
+# key: fail before compiling rather than publish unsigned packages.
+signing=0 signing_key=
+if [ -n "$registry" ] && [ "${FFMPEG_PUBLISH:-0}" = 1 ]; then
+    [ -n "${FFMPEG_SIGNING_KEY:-}" ] || fail 'FFMPEG_PUBLISH=1 requires FFMPEG_SIGNING_KEY: define it as a protected, masked CI/CD variable and publish from protected branches and tags only (doc/development.md)'
+    case "$FFMPEG_SIGNING_KEY" in *[!0-9a-fA-F]*) fail 'FFMPEG_SIGNING_KEY must be hexadecimal (openssl rand -hex 32)' ;; esac
+    [ "${#FFMPEG_SIGNING_KEY}" -eq 64 ] || fail 'FFMPEG_SIGNING_KEY must be 64 hexadecimal characters (openssl rand -hex 32)'
+    # Keep the key out of the environment of docker, curl and tar.
+    signing=1 signing_key=$FFMPEG_SIGNING_KEY
+    unset FFMPEG_SIGNING_KEY
 fi
 if [ "$#" -eq 0 ]; then
     case "$(docker info --format '{{.Architecture}}')" in
@@ -58,6 +72,52 @@ upload() {
     fetch "$1" "$work/verified" || fail 'Uploaded package is missing'
     cmp "$2" "$work/verified" || fail 'Uploaded package differs from local file'
 }
+# Set $mac to the signature of package $1 with checksum $2. The key goes to the
+# helper through its environment, never through argv. Callers may run with
+# errexit suspended (inside if), so failures are checked here.
+sign() {
+    mac=$(printf '%s %s %s' "$recipe" "$1" "$2" | HMAC_KEY=$signing_key sh scripts/hmac-sha256.sh) ||
+        fail 'Package signing failed'
+    case "$mac" in *[!0-9a-f]*) fail 'Package signing failed' ;; esac
+    [ "${#mac}" -eq 64 ] || fail 'Package signing failed'
+}
+distrust() {
+    echo "WARNING: ffmpeg: registry $arch package ($recipe) $1; rebuilding and republishing it" >&2
+}
+# Leave the published package in $work/package.tar.gz, or return 1 to build it.
+# Publishing pipelines rebuild what they cannot trust instead of failing: a
+# branch job writing to the registry must not be able to block a release.
+# Other pipelines publish nothing and fail on an inconsistent package.
+download() {
+    fetch "$manifest" "$work/checksum" || return 1
+    checksum=$(cat "$work/checksum")
+    if [ "$signing" -eq 1 ]; then
+        if ! fetch "$signature" "$work/signature"; then
+            distrust 'has no signature'
+            return 1
+        fi
+        sign "$arch" "$checksum"
+        # Plain string equality: no pattern matching on registry content.
+        if [ "$(cat "$work/signature")" != "$mac" ]; then
+            distrust 'has an invalid signature'
+            return 1
+        fi
+    fi
+    case "$checksum" in ''|*[!0-9a-f]*) fail 'Invalid package checksum' ;; esac
+    [ "${#checksum}" -eq 64 ] || fail 'Invalid checksum length'
+    archive="linux-$arch-$checksum.tar.gz"
+    # A manifest is a completed publication: missing payload is corruption.
+    if ! fetch "$archive" "$work/package.tar.gz"; then
+        [ "$signing" -eq 1 ] || fail 'Package payload is missing'
+        distrust 'payload is missing'
+        return 1
+    fi
+    if ! printf '%s  %s\n' "$checksum" "$work/package.tar.gz" | sha256sum -c -; then
+        [ "$signing" -eq 1 ] || fail 'Package payload does not match its checksum'
+        distrust 'payload does not match its checksum'
+        return 1
+    fi
+}
 
 for arch do
     destination=".ffmpeg/$arch"
@@ -68,15 +128,9 @@ for arch do
         continue
     fi
     manifest="linux-$arch.sha256"
+    signature="$manifest.hmac"
     found=0
-    if [ -n "$registry" ] && fetch "$manifest" "$work/checksum"; then
-        checksum=$(cat "$work/checksum")
-        case "$checksum" in ''|*[!0-9a-f]*) fail 'Invalid package checksum' ;; esac
-        [ "${#checksum}" -eq 64 ] || fail 'Invalid checksum length'
-        archive="linux-$arch-$checksum.tar.gz"
-        # A manifest is a completed publication: missing payload is corruption.
-        fetch "$archive" "$work/package.tar.gz" || fail 'Package payload is missing'
-        printf '%s  %s\n' "$checksum" "$work/package.tar.gz" | sha256sum -c -
+    if [ -n "$registry" ] && download; then
         found=1
         echo "ffmpeg: downloaded $arch package ($recipe)"
     fi
@@ -95,15 +149,19 @@ for arch do
         tar -czf "$work/package.tar.gz" -C "$work/output-$arch" opt
         checksum=$(sha256sum "$work/package.tar.gz" | cut -d ' ' -f 1)
         printf '%s\n' "$checksum" > "$work/checksum"
-        if [ -n "$registry" ] && [ "${FFMPEG_PUBLISH:-0}" = 1 ]; then
+        if [ "$signing" -eq 1 ]; then
             archive="linux-$arch-$checksum.tar.gz"
-            # Content-addressed payload first, completion marker last. A failed
-            # upload can leave an unreferenced payload, never a ready package.
-            if fetch "$archive" "$work/existing"; then
-                cmp "$work/package.tar.gz" "$work/existing" || fail 'Existing payload differs'
-            else
+            # Content-addressed payload, then its signature, completion marker
+            # last. A failed upload can leave an unreferenced payload or a
+            # signature that does not match the previous manifest, never a
+            # ready package without a valid signature. A different payload
+            # under this name is corrupt: upload ours, the latest file wins.
+            if ! fetch "$archive" "$work/existing" || ! cmp -s "$work/package.tar.gz" "$work/existing"; then
                 upload "$archive" "$work/package.tar.gz"
             fi
+            sign "$arch" "$checksum"
+            printf '%s\n' "$mac" > "$work/signature"
+            upload "$signature" "$work/signature"
             upload "$manifest" "$work/checksum"
         fi
     fi

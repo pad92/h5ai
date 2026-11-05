@@ -168,6 +168,8 @@ build:app:
     - sh scripts/ffmpeg-qemu.sh
 
 # Check the registry on every pipeline, compile only missing packages.
+# Publishing pipelines need the protected FFMPEG_SIGNING_KEY variable
+# (doc/development.md).
 prepare:ffmpeg:
   extends: .docker-build-base
   needs:
