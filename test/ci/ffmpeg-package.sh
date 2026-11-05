@@ -205,11 +205,14 @@ forge() {
     esac
 }
 # A release run rebuilds, warns and republishes a genuinely signed package.
+# A rebuild need not reproduce the earlier archive byte for byte (tar follows
+# the file system's directory order), so the republished package is checked
+# by its signature, not compared with the first one.
 assert_rebuilt() {
     [ "$(count "$work/builds")" = "$1" ]
     grep -q "^WARNING: ffmpeg: registry amd64 package ($recipe) $2; rebuilding" "$work/log"
     refute grep -q forged .ffmpeg/amd64/opt/ffmpeg/bin/ffmpeg
-    [ "$(cat "$manifest")" = "$(cat "$work/good-checksum")" ]
+    [ "$(cat "$manifest")" != "${forged:-}" ]
     assert_signed amd64
 }
 export FFMPEG_PUBLISH=1 FFMPEG_SIGNING_KEY="$key"
@@ -232,10 +235,12 @@ run amd64
 builds=$((builds + 1))
 assert_rebuilt "$builds" 'has an invalid signature'
 # A duplicate upload under the genuine payload name is what GitLab serves.
+payload="$dir/linux-amd64-$(cat "$manifest").tar.gz"
 printf corrupt > "$payload"
 run amd64
 builds=$((builds + 1))
 assert_rebuilt "$builds" 'payload does not match its checksum'
+payload="$dir/linux-amd64-$(cat "$manifest").tar.gz"
 rm "$payload"
 run amd64
 builds=$((builds + 1))
