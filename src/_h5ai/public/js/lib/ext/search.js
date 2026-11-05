@@ -50,6 +50,8 @@ let isDeep = false;
 // Counts what was asked for: a search answer to an older request is dropped.
 let request = 0;
 let timer = null;
+// Text whose subfolder search, from this folder, found nothing; null if none.
+let foundNothingFor = null;
 
 // Names are compared in NFC, as typed, whatever the file system stores.
 const patternOf = settings => parsePattern(text.normalize('NFC'), settings.advanced);
@@ -63,6 +65,13 @@ const regExpOf = settings => {
 };
 
 const labelMatches = (re, item) => re.test(item.label.normalize('NFC'));
+
+// Whether a search for the field can only find nothing again: added letters
+// or words narrow a literal or advanced pattern, but not an expression
+// typed after re:.
+const canOnlyFindNothing = () => foundNothingFor !== null &&
+    text.startsWith(foundNothingFor) &&
+    !(searchSettings.advanced && text.startsWith('re:'));
 
 const cancelTimer = () => {
     clearTimeout(timer);
@@ -114,6 +123,7 @@ const searchSubfolders = () => {
 
     request += 1;
     const current = request;
+    const asked = text;
     isDeep = true;
     updateDeeper();
     $tool.addCls('pending');
@@ -128,6 +138,9 @@ const searchSubfolders = () => {
     }).then(response => {
         if (current === request) {
             $tool.rmCls('pending');
+            if (!response.search || !response.search.length) {
+                foundNothingFor = asked;
+            }
             // The results answer the field at the time of the request: a
             // file added to the folder since then waits for the next one.
             view.setMatches(map(response.search, item => Item.get(item)), () => false, true);
@@ -147,15 +160,19 @@ const onInput = () => {
         showFolder();
         return;
     }
+    // Typing searches by itself only when it may find something; Enter and
+    // the line under the listing always search.
     if (!canFilter) {
-        timer = setTimeout(searchSubfolders, searchSettings.debounceTime);
+        if (!canOnlyFindNothing()) {
+            timer = setTimeout(searchSubfolders, searchSettings.debounceTime);
+        }
         return;
     }
     timer = setTimeout(() => {
         timer = null;
         // Nothing here: look below once the typing pauses, as the search
         // alone does.
-        if (showFolder() && canSearch) {
+        if (showFolder() && canSearch && !canOnlyFindNothing()) {
             timer = setTimeout(searchSubfolders, searchSettings.debounceTime);
         }
     }, filterSettings.debounceTime);
@@ -174,6 +191,7 @@ const close = (render = true) => {
     cancelTimer();
     isOpen = false;
     text = '';
+    foundNothingFor = null;
     $input.val('');
     $tool.rmCls('active');
     $tool.find('img').attr('aria-expanded', 'false');

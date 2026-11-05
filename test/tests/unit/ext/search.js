@@ -105,6 +105,51 @@ test('search field: when nothing in the folder matches, typing searches the subf
     });
 });
 
+test('search field: after a subfolder search found nothing, longer text does not search again', async () => {
+    await withFolder(async ({requests, respond}) => {
+        await toggle();
+        await type('zz');
+        assert.equal(requests.length, 1);
+        await respond(0, []);
+
+        await type('zzy');
+        await type('zzy q');
+        assert.equal(requests.length, 1, 'longer text can only match fewer names');
+        assert.deepEqual(labels(), []);
+        assert.equal(isDeeperShown(), true, 'the line still searches on demand');
+
+        await press('Enter');
+        assert.equal(requests.length, 2, 'Enter still searches');
+        await respond(1, []);
+
+        await type('z');
+        assert.equal(requests.length, 3, 'shorter text may match more');
+    });
+});
+
+test('search field: a regular expression is searched at each pause, even after an empty answer', async () => {
+    await withFolder(async ({requests, respond}) => {
+        await toggle();
+        await type('re:zz');
+        await respond(0, []);
+        await type('re:zz|alpine');
+        assert.equal(requests.length, 2);
+    });
+});
+
+test('search field: an empty answer in another folder does not stop the searches here', async () => {
+    await withFolder(async ({requests, respond}) => {
+        await toggle();
+        await type('zz');
+        await respond(0, []);
+        event.pub('location.changed', location.getItem());
+        await drain();
+        await toggle();
+        await type('zzy');
+        assert.equal(requests.length, 2);
+    });
+});
+
 test('search field: typing a match into the folder drops the search it started', async () => {
     await withFolder(async ({deep, requests, respond}) => {
         await toggle();
