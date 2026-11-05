@@ -3,6 +3,10 @@ const esc_pattern = sequence => {
     return sequence.replace(/[\-\[\]{}()*+?.,\\$\^|#\s]/g, '\\$&');
 };
 
+// The regular expression of what was typed. Advanced: each word matches a
+// name holding its characters in that order, and a name must match every
+// word, in any order (lookaheads, read alike by JavaScript and PCRE);
+// `re:` gives the expression itself.
 const parse_pattern = (sequence, advanced) => {
     if (!advanced) {
         return esc_pattern(sequence);
@@ -12,9 +16,12 @@ const parse_pattern = (sequence, advanced) => {
         return sequence.substr(3);
     }
 
-    return sequence.trim().split(/\s+/).map(part => {
-        return part.split('').map(char => esc_pattern(char)).join('.*?');
-    }).join('|');
+    const words = sequence.trim().split(/\s+/).filter(Boolean)
+        .map(word => Array.from(word, esc_pattern).join('.*?'));
+    if (words.length < 2) {
+        return words.join('');
+    }
+    return '^' + words.map(word => `(?=.*?${word})`).join('');
 };
 
 const escape_html = str => {

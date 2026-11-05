@@ -1,0 +1,62 @@
+#search {
+    input {
+        display: none;
+        border: none;
+        font-size: 16px;
+        color: @col-text;
+        background: transparent;
+        outline: 0;
+        width: 160px;
+        padding: 0 12px 0 4px;
+        line-height: 48px;
+        vertical-align: top;
+    }
+
+    &.active {
+        input {
+            display: inline-block;
+        }
+    }
+
+    &.pending {
+        input {
+            color: @col-text-disabled-black;
+        }
+    }
+}
+
+// Under the filtered listing: search the subfolders for the same text.
+#view #search-deeper {
+    .eased-transition;
+
+    display: block;
+    margin: 24px auto 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    padding: 8px 16px;
+    text-align: center;
+    opacity: 0.6;
+
+    &:hover {
+        opacity: 1;
+        color: @col-text-hover;
+    }
+
+    .pattern {
+        font-weight: bold;
+    }
+}
+
+// A match from a subfolder starts with its folder, dimmed. Grid and icon
+// labels are too short for it: their title still gives the whole path.
+#view .label .path {
+    opacity: 0.54;
+}
+
+#view.view-grid .label .path,
+#view.view-icons .label .path {
+    display: none;
+}

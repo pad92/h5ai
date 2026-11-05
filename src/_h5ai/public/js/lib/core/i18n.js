@@ -19,7 +19,6 @@ const defaults = {
     download: 'download',
     empty: 'empty',
     files: 'files',
-    filter: 'filter',
     folders: 'folders',
     grid: 'grid',
     icons: 'icons',
@@ -32,6 +31,8 @@ const defaults = {
     parentDirectory: 'Parent Directory',
     qrCode: 'QR code of the link',
     search: 'search',
+    // Followed by what was typed, in quotes.
+    searchSubfolders: 'Search subfolders for',
     selected: 'selected',
     sidebar: 'sidebar',
     size: 'Size',

@@ -62,7 +62,6 @@ window.Audio = FakeAudio;
 reqlib('ext/player');
 reqlib('ext/download');
 reqlib('ext/search');
-reqlib('ext/filter');
 const preview = reqlib('ext/preview/preview');
 reqlib('ext/preview/preview-img');
 reqlib('ext/preview/preview-vid');
@@ -970,7 +969,7 @@ test('download extension packages selected items through browser form submission
     }
 });
 
-test('search and filter extensions update the listing and restore it when cleared', async () => {
+test('search field filters the listing, searches subfolders on Enter, and restores it when closed', async () => {
     const folder = Item.get('/query-folder/');
     const alpha = Item.get('/query-folder/alpha.txt');
     const beta = Item.get('/query-folder/beta.md');
@@ -985,24 +984,20 @@ test('search and filter extensions update the listing and restore it when cleare
 
     try {
         view.setItems([alpha, beta]);
-        const filter = document.querySelector('#filter input');
-        document.querySelector('#filter img').click();
-        filter.value = 're:^alpha\\.txt$';
-        filter.dispatchEvent(new window.KeyboardEvent('keyup', {bubbles: true}));
+        const input = document.querySelector('#search input');
+        document.querySelector('#search img').click();
+        input.value = 're:^alpha\\.txt$';
+        input.dispatchEvent(new window.Event('input', {bubbles: true}));
         await new Promise(resolve => setTimeout(resolve, 5));
         assert.equal(document.querySelectorAll('#items .item').length, 1);
         assert.equal(document.querySelector('#items .item .label').textContent, 'alpha.txt');
-        document.querySelector('#filter img').click();
-        assert.equal(document.querySelectorAll('#items .item').length, 3);
 
-        const search = document.querySelector('#search input');
-        document.querySelector('#search img').click();
-        search.value = 're:^alpha\\.txt$';
-        search.dispatchEvent(new window.KeyboardEvent('keyup', {bubbles: true}));
+        input.dispatchEvent(new window.KeyboardEvent('keydown', {key: 'Enter', bubbles: true}));
         await new Promise(resolve => setTimeout(resolve, 5));
         assert.equal(document.querySelectorAll('#items .item').length, 1);
-        assert.equal(document.querySelector('#items .item .label').textContent, 'alpha.txt');
+
         document.querySelector('#search img').click();
+        assert.equal(document.querySelectorAll('#items .item').length, 3);
         assert.equal(document.querySelector('#search').classList.contains('active'), false);
     } finally {
         locationModule.getItem = originalGetItem;
