@@ -251,6 +251,58 @@ test('search field: Enter and Escape that pick an input method candidate are lef
     });
 });
 
+test('search field: the Enter Safari sends to end a composition is left alone', async () => {
+    await withFolder(async ({requests}) => {
+        await toggle();
+        await type('al');
+        const ev = new window.KeyboardEvent('keydown', {key: 'Enter', bubbles: true});
+        Object.defineProperty(ev, 'keyCode', {value: 229});
+        $('#search input').dispatchEvent(ev);
+        await drain();
+        assert.equal(requests.length, 0);
+    });
+});
+
+test('search field: Escape closes the field only, not the panels listening on the window', async () => {
+    await withFolder(async () => {
+        let reached = 0;
+        const listener = ev => { reached += ev.key === 'Escape' ? 1 : 0; };
+        window.addEventListener('keydown', listener);
+        try {
+            await toggle();
+            await type('be');
+            await press('Escape');
+            assert.equal(isOpen(), false);
+            assert.equal(reached, 0);
+        } finally {
+            window.removeEventListener('keydown', listener);
+        }
+    });
+});
+
+test('search field: moving to another folder during a search drops its answer and lists the folder once', async () => {
+    await withFolder(async ({folder, deep, respond}) => {
+        await toggle();
+        await type('al');
+        await press('Enter');
+
+        let renders = 0;
+        const count = () => { renders += 1; };
+        event.sub('view.changed', count);
+        try {
+            event.pub('location.changed', folder);
+            await respond(0, [deep]);
+        } finally {
+            event.unsub('view.changed', count);
+        }
+        assert.equal(renders, 1, 'the view lists the new folder, the field does not list it again');
+        assert.deepEqual(labels(), ['alpha.txt', 'beta.md', 'sub']);
+        assert.equal(isOpen(), false);
+        assert.equal(isPending(), false);
+        assert.equal(isDeeperShown(), false);
+    });
+});
+
 // Loads another copy of the field with these settings: its elements are the
 // last #search and #search-deeper, removed afterwards.
 const withMode = async (settings, run) => {
@@ -291,6 +343,27 @@ test('search field: with the filter disabled, typing searches the subfolders', a
         assert.equal(deeper.classList.contains('hidden'), true);
         await respond(0, [deep]);
         assert.deepEqual(labels(), ['sub/deeper/alpine.txt']);
+    });
+});
+
+test('view: a hint replaces the previous one', () => {
+    view.setHint('noMatch');
+    view.setHint('empty');
+    assert.deepEqual(Array.from($('#view-hint').classList).filter(cls => cls.startsWith('l10n-')), ['l10n-empty']);
+});
+
+test('view: items set after a search are listed as they are, and a refresh adds to them', async () => {
+    await withFolder(async ({folder, alpha, deep, respond}) => {
+        await toggle();
+        await type('al');
+        await press('Enter');
+        await respond(0, [deep]);
+
+        view.setItems([alpha]);
+        const added = Item.get('/search-field/added.txt');
+        folder.content[added.absHref] = added;
+        event.pub('location.refreshed', folder, [added], [], []);
+        assert.deepEqual(labels(), ['added.txt', 'alpha.txt']);
     });
 });
 

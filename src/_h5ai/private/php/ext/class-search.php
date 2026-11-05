@@ -76,15 +76,17 @@ class Search {
         }
         $can_normalize = class_exists('Normalizer');
         return static function (string $name) use ($re, $re_unicode, $can_normalize): bool {
-            // The empty UTF-8 expression only checks the encoding, and needs
-            // no extension: a match limit hit later is not a bad name.
-            if (@preg_match('//u', $name) !== 1) {
-                return @preg_match($re, $name) === 1;
-            }
+            // Normalizing fails on a name that is not UTF-8, which is kept.
             if ($can_normalize && !Normalizer::isNormalized($name, Normalizer::FORM_C)) {
                 $name = Normalizer::normalize($name, Normalizer::FORM_C) ?: $name;
             }
-            return @preg_match($re_unicode, $name) === 1;
+            $result = @preg_match($re_unicode, $name);
+            // Only a bad encoding goes byte by byte: a match limit hit on a
+            // good name is no match.
+            if ($result === false && preg_last_error() === PREG_BAD_UTF8_ERROR) {
+                $result = @preg_match($re, $name);
+            }
+            return $result === 1;
         };
     }
 

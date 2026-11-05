@@ -33,10 +33,10 @@ const tpl =
             <input class="l10n_ph-search" type="text"/>
         </div>`;
 const deeperTpl =
-        `<a id="search-deeper" href="#">
+        `<button id="search-deeper" type="button">
             <span class="l10n-searchSubfolders"></span>
             <q class="pattern"></q>
-        </a>`;
+        </button>`;
 
 let $tool;
 let $input;
@@ -148,8 +148,9 @@ const open = () => {
     $input[0].focus();
 };
 
-const close = () => {
-    const showsMatches = text !== '' || isDeep;
+// render: false when the view lists a new folder anyway.
+const close = (render = true) => {
+    const showsMatches = render && (text !== '' || isDeep);
     cancelTimer();
     isOpen = false;
     text = '';
@@ -159,21 +160,25 @@ const close = () => {
         showFolder();
     } else {
         request += 1;
+        isDeep = false;
         $tool.rmCls('pending');
         updateDeeper();
     }
 };
 
 const onKeydown = ev => {
-    // Enter and Escape pick or drop an input method's candidate first.
-    if (ev.isComposing) {
+    // Enter and Escape pick or drop an input method's candidate first;
+    // Safari sends the Enter that ends one with keyCode 229 only.
+    if (ev.isComposing || ev.keyCode === 229) {
         return;
     }
     if (ev.key === 'Enter' && canSearch) {
         ev.preventDefault();
         searchSubfolders();
     } else if (ev.key === 'Escape') {
+        // Meant for the field only, not for the panels that close on it.
         ev.preventDefault();
+        ev.stopPropagation();
         close();
     }
 };
@@ -195,12 +200,11 @@ const init = () => {
         }
     });
     $input.on('input', onInput).on('keydown', onKeydown);
-    $deeper.on('click', ev => {
-        ev.preventDefault();
+    $deeper.on('click', () => {
         searchSubfolders();
         $input[0].focus();
     });
-    event.sub('location.changed', close);
+    event.sub('location.changed', () => close(false));
 };
 
 

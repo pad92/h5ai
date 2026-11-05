@@ -212,7 +212,7 @@ const checkHint = () => {
     }
 };
 
-const setItems = items => {
+const showItems = items => {
     const removed = map($items.find('.item'), el => el._item);
 
     $items.find('.item').rm();
@@ -223,6 +223,13 @@ const setItems = items => {
     base.$content[0].scrollTop = 0;
     checkHint();
     event.pub('view.changed', items, removed);
+};
+
+// Shows these items as they are: a later refresh adds every new one.
+const setItems = items => {
+    acceptsAdded = null;
+    showsFolders = false;
+    showItems(items);
 };
 
 const changeItems = (add, remove) => {
@@ -241,8 +248,9 @@ const changeItems = (add, remove) => {
     event.pub('view.changed', add, remove);
 };
 
+// Only one hint at a time: i18n would write each l10n- class in turn.
 const setHint = l10nKey => {
-    $hint.rmCls().addCls('l10n-' + l10nKey);
+    $hint.rmCls(...Array.from($hint[0].classList).filter(cls => cls.startsWith('l10n-'))).addCls('l10n-' + l10nKey);
     checkHint();
 };
 
@@ -252,7 +260,7 @@ const setMatches = (items, accepts, fromSubfolders = false) => {
     acceptsAdded = accepts;
     showsFolders = fromSubfolders;
     setHint('noMatch');
-    setItems(items);
+    showItems(items);
 };
 
 const onLocationChanged = item => {
@@ -261,8 +269,6 @@ const onLocationChanged = item => {
     }
 
     const items = [];
-    acceptsAdded = null;
-    showsFolders = false;
 
     if (item.parent && !settings.hideParentFolder) {
         items.push(item.parent);
