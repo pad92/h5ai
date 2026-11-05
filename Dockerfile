@@ -1,5 +1,7 @@
 # Stage 1: Build h5ai application from source
-FROM node:24.22.2-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS h5ai-builder
+# The zip holds only PHP, JS and CSS: build it once on the build host instead
+# of under QEMU for each target platform.
+FROM --platform=$BUILDPLATFORM node:24.22.2-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS h5ai-builder
 
 WORKDIR /build
 ARG H5AI_VERSION
