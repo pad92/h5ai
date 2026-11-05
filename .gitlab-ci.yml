@@ -67,15 +67,15 @@ cache: &node_cache
   - if: $CI_COMMIT_TAG
 
 .publish-rules: &publish_rules
-  - if: $CI_COMMIT_BRANCH == "master"
+  - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   - if: $CI_COMMIT_TAG
 
 .build-image-rules: &build_image_rules
   - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-  - if: $CI_COMMIT_BRANCH && $CI_COMMIT_BRANCH != "master"
+  - if: $CI_COMMIT_BRANCH && $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH
 
 .dockerhub-publish-rules: &dockerhub_publish_rules
-  - if: $CI_COMMIT_BRANCH == "master" && $DOCKERHUB_USERNAME && $DOCKERHUB_PASSWORD
+  - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $DOCKERHUB_USERNAME && $DOCKERHUB_PASSWORD
   - if: $CI_COMMIT_TAG && $DOCKERHUB_USERNAME && $DOCKERHUB_PASSWORD
 
 # Shared by every node-based job to avoid repeating image + install.
@@ -343,7 +343,7 @@ test:docker:
   script:
     - sh test/docker/s6-config.sh
     - |
-      if [ -n "${CI_COMMIT_TAG:-}" ] || [ "${CI_COMMIT_BRANCH:-}" = "master" ]; then
+      if [ -n "${CI_COMMIT_TAG:-}" ] || [ "${CI_COMMIT_BRANCH:-}" = "$CI_DEFAULT_BRANCH" ]; then
         if [ -z "${CANDIDATE_DIGEST:-}" ] || [ "$CANDIDATE_DIGEST" = "none" ]; then
           echo "ERROR: candidate digest missing on a publishable pipeline" >&2
           exit 1
@@ -728,5 +728,5 @@ cleanup:image:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       when: always
-    - if: $CI_COMMIT_BRANCH && $CI_COMMIT_BRANCH != "master"
+    - if: $CI_COMMIT_BRANCH && $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH
       when: always
