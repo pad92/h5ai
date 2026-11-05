@@ -14,7 +14,8 @@ in folder `build` (tested on linux only, might work on other configurations):
 Do **not** install any files from the `src` folder: they need to be
 preprocessed to work correctly.
 
-To try a build with sample media, `docker compose -f docker-compose.dev.yml up --build`
+Prepare FFmpeg with `make ffmpeg-prepare` first. To try a build with sample
+media, `docker compose -f docker-compose.dev.yml up --build`
 serves the test fixtures and the Markdown docs on <http://localhost:8888/>.
 `test/docker/generate-fixtures.sh` recreates the fixtures.
 
@@ -91,11 +92,32 @@ candidate and push it to the GitLab registry by digest, without a tag; the
 publish jobs promote that digest once the tests and scans pass. GitLab.com
 deletes an untagged candidate that was never published after 24 hours.
 
-Both builds use the runner's persistent `h5ai-ci` BuildKit builder, which
-keeps the layer cache between pipelines and is pruned to
-`BUILDKIT_CACHE_MAX_USED`. Nothing is cached in the registry. The arm64
-layers are built under QEMU, so a change to `FFMPEG_VERSION` or to the base
-images recompiles ffmpeg in emulation once.
+The `prepare:ffmpeg` job checks the project's Generic Package Registry on
+every pipeline. Packages are keyed by the SHA-256 of `ci/ffmpeg.Dockerfile`
+and `scripts/ffmpeg-package.sh`, with separate amd64 and arm64 files. Changes
+to the source version, checksum, base image, compiler options or packaging
+script produce a new key. Bump the recipe when refreshing Alpine build
+dependencies: package repository updates alone do not change the key.
+
+A missing package is compiled. Default-branch and tag pipelines prepare and
+publish both amd64 and arm64; branch and MR pipelines prepare the runner
+architecture only. Branches and merge requests use the registry when possible
+and otherwise pass their local build to the image job as a one-day artifact. Authentication
+errors and registry outages fail the job. Payloads are named by their checksum;
+the checksum file is uploaded last and each upload is read back and verified.
+The shared `docker-build` resource group serializes package publication.
+
+The main Dockerfile copies the prepared binaries from `.ffmpeg/`. FFmpeg
+compilation survives a purge of the runner's BuildKit cache. PHP-RAR still
+builds in the main Dockerfile. The existing image tests and Grype scan run
+against the assembled image before image publication.
+
+For local builds, `make docker-build` prepares FFmpeg automatically and caches
+it in `.ffmpeg/`. Before using `docker buildx build` or Compose directly, run
+`make ffmpeg-prepare`. For a multi-platform build, prepare both platforms with
+`sh scripts/ffmpeg-package.sh amd64 arm64`; the Docker builder must support
+both platforms. Local preparation does not use the registry. Keep packages
+for recipes used by supported releases when configuring registry cleanup.
 
 
 ## Version

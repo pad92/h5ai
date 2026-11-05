@@ -1,5 +1,6 @@
 stages:
   - lint
+  - dependencies
   - build
   - test
   - scan
@@ -103,7 +104,16 @@ lint:dockerfile:
   needs: []
   cache: []
   script:
-    - hadolint --failure-threshold error Dockerfile ci/php-test.Dockerfile
+    - hadolint --failure-threshold error Dockerfile ci/php-test.Dockerfile ci/ffmpeg.Dockerfile
+  rules: *pipeline_rules
+
+test:ffmpeg-package:
+  stage: lint
+  image: $DOCKER_IMAGE
+  needs: []
+  cache: []
+  script:
+    - sh test/ci/ffmpeg-package.sh
   rules: *pipeline_rules
 
 # ── Build ────────────────────────────────────────────────────────────────────
@@ -124,8 +134,7 @@ build:app:
 
 .docker-build-base:
   image: $DOCKER_IMAGE
-  # Serializes the jobs below: build:candidate mutates the runner host's QEMU
-  # registration, and both use the host's `h5ai-ci` builder.
+  # Serializes package publication, QEMU registration and the shared builder.
   resource_group: docker-build
   cache: []
   needs:
@@ -153,6 +162,46 @@ build:app:
     - docker buildx prune --builder h5ai-ci --force --max-used-space "$BUILDKIT_CACHE_MAX_USED" || true
   rules: *pipeline_rules
 
+.docker-multiarch:
+  before_script:
+    - !reference [.docker-build-base, before_script]
+    - sh scripts/ffmpeg-qemu.sh
+
+# Check the registry on every pipeline, compile only missing packages.
+prepare:ffmpeg:
+  extends: .docker-build-base
+  needs:
+    - job: lint:dockerfile
+    - job: test:ffmpeg-package
+  stage: dependencies
+  timeout: 2h
+  before_script:
+    - !reference [.docker-build-base, before_script]
+    - apk add --no-cache curl
+    - |
+      if [ -n "${CI_COMMIT_TAG:-}" ] || [ "${CI_COMMIT_BRANCH:-}" = "$CI_DEFAULT_BRANCH" ]; then
+        FFMPEG_ARCHES="amd64 arm64"
+        FFMPEG_PUBLISH=1
+      else
+        case "$(docker info --format '{{.Architecture}}')" in
+          x86_64|amd64) FFMPEG_ARCHES=amd64 ;;
+          aarch64|arm64) FFMPEG_ARCHES=arm64 ;;
+          *) echo "Unsupported Docker host architecture" >&2; exit 1 ;;
+        esac
+        FFMPEG_PUBLISH=0
+      fi
+      export FFMPEG_ARCHES FFMPEG_PUBLISH
+    - |
+      if [ "$FFMPEG_PUBLISH" = 1 ]; then
+        sh scripts/ffmpeg-qemu.sh
+      fi
+  script:
+    - FFMPEG_BUILDER=h5ai-ci sh scripts/ffmpeg-package.sh $FFMPEG_ARCHES
+  artifacts:
+    paths:
+      - .ffmpeg/
+    expire_in: 1 day
+
 # Branch and MR image, single platform, left in the runner host's Docker for
 # test:docker and scan:grype:branch-image (all run on the same host through
 # its socket): no tarball artifact goes back and forth to GitLab. The
@@ -163,6 +212,10 @@ build:image:
   extends: .docker-build-base
   stage: build
   rules: *build_image_rules
+  needs:
+    - job: lint:dockerfile
+    - job: prepare:ffmpeg
+      artifacts: true
   script:
     - docker image prune --all --force --filter label=h5ai.ci-pipeline --filter until=24h
     - |
@@ -175,38 +228,18 @@ build:image:
         -t "h5ai-ci:$CI_PIPELINE_ID" \
         .
 
-# Multi-arch candidate is only needed by the publish stage: build it (and scan
-# it) only on pipelines that can publish, instead of paying the emulated arm64
-# build on every MR/branch pipeline. It shares the persistent `h5ai-ci`
-# builder, so the arm64 layers (ffmpeg is compiled under QEMU) are rebuilt
-# only when their inputs change. The 2 h timeout covers such a rebuild,
-# which has not been measured yet.
+# Publishable pipelines assemble both platforms using prepared FFmpeg packages.
 build:candidate:
   extends: .docker-build-base
   stage: build
   rules: *publish_rules
   timeout: 2h
+  needs:
+    - job: lint:dockerfile
+    - job: prepare:ffmpeg
+      artifacts: true
   before_script:
-    - !reference [.docker-build-base, before_script]
-    - docker run --privileged --rm tonistiigi/binfmt:qemu-v10.2.3-68@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0 --uninstall qemu-* || true
-    - docker run --privileged --rm tonistiigi/binfmt:qemu-v10.2.3-68@sha256:400a4873b838d1b89194d982c45e5fb3cda4593fbfd7e08a02e76b03b21166f0 --install all || true
-    - |
-      # BuildKit lists the platforms it can emulate when it starts: a builder
-      # started before QEMU was registered restarts to see arm64. The output
-      # is read whole: the runner sets pipefail, and `| grep -q` closing the
-      # pipe early made docker fail (SIGPIPE) although arm64 was listed.
-      builder=$(docker buildx inspect --bootstrap h5ai-ci)
-      case "$builder" in
-        *linux/arm64*) ;;
-        *)
-          docker buildx stop h5ai-ci
-          builder=$(docker buildx inspect --bootstrap h5ai-ci)
-          case "$builder" in
-            *linux/arm64*) ;;
-            *) printf '%s\n' "$builder"; echo "ERROR: builder h5ai-ci cannot emulate linux/arm64" >&2; exit 1 ;;
-          esac
-          ;;
-      esac
+    - !reference [.docker-multiarch, before_script]
   script:
     - |
       docker buildx build \

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+* **CI**: FFmpeg is prepared separately for amd64 and arm64 and reused from the project Package Registry when its build recipe matches. The main Docker image consumes the prepared binaries. The recipe and source version live in `ci/ffmpeg.Dockerfile`. Local `make docker-build` prepares FFmpeg automatically; direct Docker or Compose builds need `make ffmpeg-prepare` first.
+
 ## v1.7.0 - *2026-11-04*
 
 Upgrading: the search index refresh refuses to run as root. If a scheduled task runs the cache warmer as root, run it as the web server user instead; in the Docker image, `docker exec -u angie h5ai nice -n 19 php /usr/share/h5ai/_h5ai/private/php/warm-cache.php`. A mounted `options.json` needs no change: `search.indexTtl` defaults to 300 seconds.

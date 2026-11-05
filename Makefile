@@ -45,6 +45,7 @@ help:
 	@echo "  scan          Scan npm dependencies with Syft + Grype"
 	@echo ""
 	@echo "Docker image targets (image: $(TEST_IMAGE)):"
+	@echo "  ffmpeg-prepare  Prepare and cache FFmpeg for the local architecture"
 	@echo "  docker-build  Build the Docker image"
 	@echo "  docker-test   Build the image and run the container test suite"
 	@echo "  docker-w3c    Build the image and validate its HTML and CSS (local W3C checker; installs Chromium)"
@@ -93,7 +94,7 @@ coverage: node_modules $(PHPUNIT_PHAR)
 # Builds the image with the version of HEAD (its tag, else its commit id;
 # `H5AI_VERSION=1.6.0 make screenshots` shows a release number), serves a generated sample share on 127.0.0.1 only, and shoots it.
 # The container and the sample share are removed even when a step fails.
-screenshots:
+screenshots: ffmpeg-prepare
 	@test -n "$(CHROME)" || { echo "screenshots: no Chrome or Chromium found, set CHROME=/path/to/chrome"; exit 1; }
 	@for tool in docker ffmpeg magick node; do command -v $$tool >/dev/null || { echo "screenshots: $$tool is required"; exit 1; }; done
 	docker buildx build --load --tag $(SCREENSHOT_IMAGE) --build-arg H5AI_VERSION=$(VERSION) .
@@ -158,7 +159,7 @@ define assert_passhash
 	}
 endef
 
-docker-build:
+docker-build: ffmpeg-prepare
 	docker buildx build --load --tag $(TEST_IMAGE) \
 		--build-arg H5AI_VERSION=$(VERSION) \
 		--build-arg BUILD_DATE=$$(date -u +%Y-%m-%dT%H:%M:%SZ) \
@@ -329,3 +330,7 @@ docker-clean:
 	docker rm -f $(SCREENSHOT_CONTAINER) 2>/dev/null || true
 	docker rmi $(SCREENSHOT_IMAGE) 2>/dev/null || true
 	rm -f /tmp/h5ai-test-options.json
+
+.PHONY: ffmpeg-prepare
+ffmpeg-prepare:
+	sh scripts/ffmpeg-package.sh
