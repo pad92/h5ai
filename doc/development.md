@@ -77,20 +77,29 @@ thumbnail scripts of `test/docker/`: `test-php-tar.sh`,
 `test-document-thumbs.sh` and `test-media-thumbs.sh`. The media test is the
 one that checks the image's own ffmpeg build. The scripts copy their fixtures
 into the container and reach it by its IP, or by a random port on
-`127.0.0.1` where the IP is not reachable (Docker Desktop), so they work the
-same from a CI job that drives the runner host's Docker through its socket.
+`127.0.0.1` where the IP is not reachable (Docker Desktop). In CI the
+container runs in the job's `docker:dind` service: `H5AI_TEST_BIND=0.0.0.0`
+and `H5AI_TEST_HOST=docker` publish its port on the service and reach it
+there.
 To cover a new format, add a sample to `test/docker/fixtures/media/` and a
 line to the cases of `test-media-thumbs.sh`.
 
 
 ## CI images
 
-Branch and merge request pipelines build a single-platform image in the
-runner host's Docker, then test it and scan it with Grype there; a `.post`
-job removes it. Pipelines on `master` and tags build the amd64 and arm64
-candidate and push it to the GitLab registry by digest, without a tag; the
-publish jobs promote that digest once the tests and scans pass. GitLab.com
-deletes an untagged candidate that was never published after 24 hours.
+Branch and merge request pipelines build a single-platform image, and
+pipelines on the default branch and tags an amd64 and arm64 candidate. Both
+are pushed to the GitLab registry by digest, without a tag; the test and scan
+jobs pull that digest, and the publish jobs promote the candidate once they
+pass. GitLab.com deletes an untagged image that was never published after
+24 hours.
+
+Every Docker job drives its own Docker daemon, the job's `docker:dind`
+service, which starts empty and disappears with the job. Branch builds keep
+their BuildKit layer cache in the registry (`buildcache:branches`). Any
+branch can write that cache, so default-branch and tag builds never read it
+and build without a cache; FFmpeg still comes from the signed packages
+below. Each Grype scan downloads its vulnerability database.
 
 The `prepare:ffmpeg` job checks the project's Generic Package Registry on
 every pipeline. Packages are keyed by the SHA-256 of `ci/ffmpeg.Dockerfile`
@@ -132,8 +141,8 @@ compiling or uploading anything. After a key change, the next default-branch
 or tag pipeline rejects every existing package once and rebuilds both
 architectures.
 
-The main Dockerfile copies the prepared binaries from `.ffmpeg/`. FFmpeg
-compilation survives a purge of the runner's BuildKit cache. PHP-RAR still
+The main Dockerfile copies the prepared binaries from `.ffmpeg/`, so FFmpeg
+is not compiled again when a job's daemon starts empty. PHP-RAR still
 builds in the main Dockerfile. The existing image tests and Grype scan run
 against the assembled image before image publication.
 
@@ -143,6 +152,47 @@ it in `.ffmpeg/`. Before using `docker buildx build` or Compose directly, run
 `sh scripts/ffmpeg-package.sh amd64 arm64`; the Docker builder must support
 both platforms. Local preparation does not use the registry. Keep packages
 for recipes used by supported releases when configuring registry cleanup.
+
+
+## CI runner
+
+The pipeline runs on the `chataigne` project runner (Docker executor). The
+runner mounts no Docker socket into jobs: a job that reached the host's
+daemon would be root on the host, and npm runs install scripts from
+dependencies. Only the `docker:dind` service runs privileged:
+
+```toml
+[[runners]]
+  [runners.docker]
+    privileged = true
+    allowed_privileged_services = ["docker:*-dind*"]
+    allowed_privileged_images = ["no-privileged-job-image"]
+    volumes = ["/certs/client", "/rpool/docker/gitlab-runner/cache:/cache"]
+```
+
+- `allowed_privileged_images` must name an image that no job uses. Without
+  the list, every job image would run privileged.
+- `/certs/client` shares the client certificates that the service generates
+  with the job: the jobs talk to it over TLS on port 2376.
+- Leave `FF_NETWORK_PER_BUILD` off. On a per-job network, the service's DNS
+  is Docker's embedded resolver, which the containers it starts cannot use:
+  they fall back to 8.8.8.8, which the local network blocks, and builds fail
+  to resolve package mirrors. On the default bridge the service gets the
+  host's resolvers. Other jobs on that bridge cannot drive the service
+  without the client certificates of its job.
+- The `gitlab-runner` container itself keeps its own Docker socket: it needs
+  it to start the jobs.
+
+Node jobs fail when they run with `CAP_SYS_ADMIN`, the capability a
+privileged container has, and warn when they see a Docker socket. A
+misconfigured service fails on its own: `docker:dind` does not start
+without privileges, and the jobs do not reach it without the certificates.
+A job declared in `.gitlab-ci.yml` can still request the service, so
+whoever can push a branch keeps root access to the host through it.
+
+Registering QEMU for arm64 changes the host kernel. `prepare:ffmpeg` and
+`build:candidate` do it inside their `docker:dind` service and share the
+`docker-build` resource group.
 
 
 ## Version
