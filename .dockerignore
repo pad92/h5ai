@@ -10,3 +10,4 @@ scripts
 README.md
 
 .ffmpeg/tmp.*
+.php-rar/tmp.*

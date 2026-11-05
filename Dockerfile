@@ -1,5 +1,7 @@
 # Stage 1: Build h5ai application from source
-FROM node:24.22.2-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS h5ai-builder
+# The zip holds only PHP, JS and CSS: build it once on the build host instead
+# of under QEMU for each target platform.
+FROM --platform=$BUILDPLATFORM node:24.22.2-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS h5ai-builder
 
 WORKDIR /build
 ARG H5AI_VERSION
@@ -11,12 +13,17 @@ COPY gulpfile.js LICENSE CHANGELOG.md ./
 COPY scripts/package-name.js scripts/version.sh ./scripts/
 RUN H5AI_VERSION="${H5AI_VERSION}" npm run build
 
-# Prepared by scripts/ffmpeg-package.sh (CI package or local compilation).
+# Prepared by scripts/native-package.sh (CI package or local compilation).
 FROM scratch AS ffmpeg-builder
 ARG TARGETARCH
 COPY .ffmpeg/${TARGETARCH}/opt/ffmpeg /opt/ffmpeg
 
-# Stage 3: Fetch s6-overlay and compile the php-rar extension
+# php-rar, prepared the same way from ci/php-rar.Dockerfile.
+FROM scratch AS php-rar-builder
+ARG TARGETARCH
+COPY .php-rar/${TARGETARCH}/opt/php-rar/rar.so /rar.so
+
+# Stage 3: Fetch s6-overlay and unpack the h5ai build
 FROM php:8.4.27-alpine3.24@sha256:d8784155c4d37986be9ddd7a8950df7e78998cc48e35472cd69e2b9371424a65 AS deps-builder
 
 ARG S6_OVERLAY_VERSION=3.2.3.2
@@ -44,20 +51,6 @@ COPY --from=h5ai-builder /build/build/h5ai-*.zip /tmp/h5ai.zip
 RUN mkdir -p /h5ai/build/_h5ai \
     && unzip /tmp/h5ai.zip -d /h5ai/build/_h5ai \
     && rm /tmp/h5ai.zip
-
-# Build php-rar extension from git source because PECL 4.2.0 is incompatible with PHP 8.4 zend_resolve_path API
-ARG PHP_RAR_COMMIT=9c8fcd9ebc9feaf36f945d6d7407fdcd57b7136f
-RUN apk add --no-cache --virtual .build-deps git autoconf g++ make \
-    && git clone https://github.com/cataphract/php-rar.git /tmp/php-rar \
-    && cd /tmp/php-rar \
-    && git checkout ${PHP_RAR_COMMIT} \
-    && phpize \
-    && ./configure \
-    && make -j$(nproc) \
-    && make install \
-    && cp $(php-config --extension-dir)/rar.so /tmp/rar.so \
-    && apk del .build-deps \
-    && rm -rf /tmp/php-rar
 
 FROM docker.angie.software/angie:1.12.4-minimal@sha256:91305b12951efced43afae0d872bc972655d5f7053721c94eff9d28e54b8ab9c
 
@@ -113,7 +106,7 @@ COPY --from=deps-builder /s6-overlay/ /
 # each library's symlinks into two more full copies.
 COPY --from=ffmpeg-builder /opt/ffmpeg/bin/ffmpeg /opt/ffmpeg/bin/ffprobe /usr/bin/
 COPY --from=ffmpeg-builder /opt/ffmpeg/lib/ /usr/local/lib/
-COPY --from=deps-builder /tmp/rar.so /usr/lib/php84/modules/rar.so
+COPY --from=php-rar-builder /rar.so /usr/lib/php84/modules/rar.so
 
 COPY slash/     /
 
