@@ -14,8 +14,8 @@ in folder `build` (tested on linux only, might work on other configurations):
 Do **not** install any files from the `src` folder: they need to be
 preprocessed to work correctly.
 
-Prepare FFmpeg and php-rar with `make packages-prepare` first. To try a build with sample
-media, `docker compose -f docker-compose.dev.yml up --build`
+Prepare FFmpeg and php-rar with `make packages-prepare` first. To try a
+build with sample media, `docker compose -f docker-compose.dev.yml up --build`
 serves the test fixtures and the Markdown docs on <http://localhost:8888/>.
 `test/docker/generate-fixtures.sh` recreates the fixtures.
 
@@ -105,9 +105,10 @@ The `prepare:packages` job checks the project's Generic Package Registry on
 every pipeline for two packages, `ffmpeg` and `php-rar`, each built from its
 recipe in `ci/<package>.Dockerfile` by `scripts/native-package.sh`. A package
 is keyed by the SHA-256 of its recipe and the archive format number
-(`PACKAGE_FORMAT` in the script), with separate amd64 and arm64 files. Changes to the source version, checksum,
-base image or compiler options produce a new key; other edits to the script do
-not, so they never trigger a rebuild. Bump `PACKAGE_FORMAT` when the archive
+(`PACKAGE_FORMAT` in the script), with separate amd64 and arm64 files.
+Changes to the source version, checksum, base image or compiler options
+produce a new key; other edits to the script do not, so they never trigger a
+rebuild. Bump `PACKAGE_FORMAT` when the archive
 content or layout changes; that rebuilds both packages. The php-rar recipe
 pins its own PHP base image: bump it together with the PHP version the main
 Dockerfile requires. Bump the recipe when refreshing Alpine build
@@ -128,9 +129,9 @@ key from the repository. Default-branch and tag pipelines, the only ones that
 publish, therefore reuse a package only when it carries a valid signature:
 `linux-<arch>.sha256.hmac` holds the HMAC-SHA256 of `<recipe> <arch> <checksum>`
 keyed with the `FFMPEG_SIGNING_KEY` CI/CD variable, which signs both packages
-(its name predates php-rar). The recipe in the message keeps a signature from
-validating the other package. They upload the payload,
-then the signature, then the checksum file. When the signature is missing or
+(its name predates php-rar). The recipe is part of the signed message, so a
+signature made for one package does not validate the other. They upload the
+payload, then the signature, then the checksum file. When the signature is missing or
 wrong, or the payload is missing or does not match its checksum, the job logs
 a `WARNING`, compiles the package again and republishes it signed; a branch
 can make a release slower but cannot make it fail. Branch and MR pipelines do
