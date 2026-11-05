@@ -24,3 +24,40 @@
         }
     }
 }
+
+// Under the filtered listing: search the subfolders for the same text.
+#view #search-deeper {
+    .eased-transition;
+
+    display: block;
+    margin: 24px auto 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    padding: 8px 16px;
+    text-align: center;
+    opacity: 0.6;
+
+    &:hover,
+    &:focus-visible {
+        opacity: 1;
+        color: @col-text-hover;
+    }
+
+    .pattern {
+        font-weight: bold;
+    }
+}
+
+// A match from a subfolder starts with its folder, dimmed. Grid and icon
+// labels are too short for it: their title still gives the whole path.
+#view .label .path {
+    opacity: 0.54;
+}
+
+#view.view-grid .label .path,
+#view.view-icons .label .path {
+    display: none;
+}

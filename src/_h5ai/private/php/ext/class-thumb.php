@@ -202,8 +202,7 @@ class Thumb {
         }
 
         $is_directory = is_dir($this->source_path);
-        if (($is_directory && !$this->context->paths()->is_managed_path($this->source_path))
-            || (!$is_directory && !$this->context->paths()->is_managed_file($this->source_path))) {
+        if (!$this->context->paths()->is_managed_entry($this->source_path, $is_directory)) {
             return null;
         }
         $custom_thumb_source_path = self::check_custom_thumb($this->source_path);

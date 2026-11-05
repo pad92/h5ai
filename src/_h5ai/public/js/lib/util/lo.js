@@ -37,13 +37,6 @@ const sortBy = (obj, sel) => {
     const cmpFn = (x, y) => cmp(selFn(x), selFn(y));
     return values(obj).sort(cmpFn);
 };
-const debounce = (fn, delay) => {
-    let id = null;
-    return () => {
-        clearTimeout(id);
-        id = setTimeout(fn, delay);
-    };
-};
 
 module.exports = {
     is,
@@ -63,6 +56,5 @@ module.exports = {
     difference,
     intersection,
     cmp,
-    sortBy,
-    debounce
+    sortBy
 };

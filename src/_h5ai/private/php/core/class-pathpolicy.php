@@ -74,6 +74,12 @@ class PathPolicy {
         return $this->is_contained_file($path) && !$this->is_hidden(basename($path));
     }
 
+    // A managed folder if $is_dir, else a managed file. Callers that already
+    // know the type pass it, to save the filesystem call.
+    public function is_managed_entry(string $path, bool $is_dir): bool {
+        return $is_dir ? $this->is_managed_path($path) : $this->is_managed_file($path);
+    }
+
     // Like is_managed_file(), but hidden names are allowed and the file must
     // be readable.
     public function is_custom_file(string $path): bool {

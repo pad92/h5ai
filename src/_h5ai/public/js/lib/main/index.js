@@ -4,7 +4,6 @@ require('../ext/autorefresh');
 require('../ext/crumb');
 require('../ext/custom');
 require('../ext/download');
-require('../ext/filter');
 require('../ext/info');
 require('../ext/l10n');
 require('../ext/piwik-analytics');

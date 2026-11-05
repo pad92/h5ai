@@ -28,7 +28,6 @@ const GROUPS = [
             back: ['solid', 'arrow-left', '#555'],
             crumb: ['solid', 'chevron-right', '#555'],
             download: ['solid', 'download', '#555'],
-            filter: ['solid', 'filter', '#555'],
             'info-toggle': ['solid', 'circle-info', '#555'],
             'preview-close': ['solid', 'xmark', '#fff'],
             'preview-fullscreen': ['solid', 'expand', '#fff'],

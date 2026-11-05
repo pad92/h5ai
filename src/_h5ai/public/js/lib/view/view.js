@@ -21,6 +21,13 @@ const settings = Object.assign({
 const sortedSizes = settings.sizes.sort((a, b) => a - b);
 const checkedModes = intersection(settings.modes, modes);
 const storekey = 'view';
+// While a filter or a search shows its matches, a refresh of the folder must
+// not bring back what they left out: it adds only the items this accepts.
+// Null while the view lists the folder.
+let acceptsAdded = null;
+// Whether the items shown come from subfolders: each label then starts with
+// its folder, relative to the current one.
+let showsFolders = false;
 const viewTpl =
         `<div id="view">
             <ul id="items" class="clearfix">
@@ -142,6 +149,14 @@ const onMouseleave = ev => {
     event.pub('item.mouseleave', item);
 };
 
+// The folders between the current one and the item, as 'a/b/', or '' for an
+// item of the current folder.
+const relativeFolder = item => {
+    const crumb = item.parent ? item.parent.getCrumb() : [];
+    const index = crumb.indexOf(location.getItem());
+    return index < 0 ? '' : crumb.slice(index + 1).map(folder => folder.label + '/').join('');
+};
+
 const createHtml = item => {
     const $html = dom(itemTpl);
     const $a = $html.find('a');
@@ -158,6 +173,11 @@ const createHtml = item => {
     location.setLink($a, item);
 
     $label.text(item.label).attr('title', item.label);
+    const folder = showsFolders ? relativeFolder(item) : '';
+    if (folder) {
+        $label.attr('title', folder + item.label);
+        $label[0].insertBefore(dom('<span class="path"></span>').text(folder)[0], $label[0].firstChild);
+    }
     $date.attr('data-time', item.time).text(format.formatDate(item.time));
     showSize($size, item);
     item.icon = resource.icon(item.type);
@@ -192,7 +212,7 @@ const checkHint = () => {
     }
 };
 
-const setItems = items => {
+const showItems = items => {
     const removed = map($items.find('.item'), el => el._item);
 
     $items.find('.item').rm();
@@ -205,22 +225,43 @@ const setItems = items => {
     event.pub('view.changed', items, removed);
 };
 
+// Shows these items as they are: a later refresh adds every new one.
+const setItems = items => {
+    acceptsAdded = null;
+    showsFolders = false;
+    showItems(items);
+};
+
 const changeItems = (add, remove) => {
     each(add, item => {
         createHtml(item).hide().appTo($items).show();
     });
 
+    // An item the view never showed (a hidden folder, say) has no $view.
     each(remove, item => {
-        item.$view.hide().rm();
+        if (item.$view) {
+            item.$view.hide().rm();
+        }
     });
 
     checkHint();
     event.pub('view.changed', add, remove);
 };
 
+// One hint at a time, as i18n writes each l10n- class in turn; checkHint()
+// then sets whether it is hidden.
 const setHint = l10nKey => {
-    $hint.rmCls().addCls('l10n-' + l10nKey);
+    $hint[0].className = 'l10n-' + l10nKey;
     checkHint();
+};
+
+// Shows matches instead of the folder. A later refresh adds only the new
+// items accepts(item) is true for. fromSubfolders: show each item's folder.
+const setMatches = (items, accepts, fromSubfolders = false) => {
+    acceptsAdded = accepts;
+    showsFolders = fromSubfolders;
+    setHint('noMatch');
+    showItems(items);
 };
 
 const onLocationChanged = item => {
@@ -247,13 +288,17 @@ const onLocationChanged = item => {
 const onLocationRefreshed = (item, added, removed, updated) => {
     const add = [];
 
+    const isListing = acceptsAdded === null;
+
     each(added, child => {
-        if (!(child.isFolder() && settings.hideFolders)) {
+        if (!(child.isFolder() && settings.hideFolders) && (isListing || acceptsAdded(child))) {
             add.push(child);
         }
     });
 
-    setHint('empty');
+    if (isListing) {
+        setHint('empty');
+    }
     changeItems(add, removed);
 
     if (updated) {
@@ -299,6 +344,7 @@ module.exports = {
     changeItems,
     setLocation: onLocationChanged,
     setHint,
+    setMatches,
     getModes,
     getMode,
     setMode,

@@ -5,7 +5,7 @@
 //
 // The ids and classes keep their audio-era names (audio-player-bar, ap-*,
 // aq-*): custom style sheets may target them.
-const {dom, compact} = require('../../util');
+const {dom, compact, isActivationKey} = require('../../util');
 const i18n = require('../../core/i18n');
 const resource = require('../../core/resource');
 const base = require('../../view/base');
@@ -478,7 +478,7 @@ const mount = on => {
         }
     });
     $cover.on('keydown', ev => {
-        if ($cover.hasCls('ap-cover-expandable') && (ev.key === 'Enter' || ev.key === ' ')) {
+        if ($cover.hasCls('ap-cover-expandable') && isActivationKey(ev)) {
             ev.preventDefault();
             on.toggleNowPlaying();
         }
