@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.8.0 - *2026-11-05*
 
 Upgrading: a mounted `options.json` that sets `search.maxPatternLength` to 256 refuses advanced searches longer than about 50 letters; raise it to 1024, the new default, or drop the key. Custom translation files can drop the `filter` key and add `searchSubfolders`. The style sheet no longer defines the classes `raised`, `popup`, `rounded`, `clear-appearance`, `eased-transition`, `flex-base`, `flex-column`, `flex-row` and `el-button`, which h5ai only used inside its own styles; a custom header or footer that relied on one of them must style itself.
 
