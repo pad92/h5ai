@@ -143,16 +143,16 @@ lint:dockerfile:
   needs: []
   cache: []
   script:
-    - hadolint --failure-threshold error Dockerfile ci/php-test.Dockerfile ci/ffmpeg.Dockerfile
+    - hadolint --failure-threshold error Dockerfile ci/php-test.Dockerfile ci/ffmpeg.Dockerfile ci/php-rar.Dockerfile
   rules: *pipeline_rules
 
-test:ffmpeg-package:
+test:native-package:
   stage: lint
   image: $DOCKER_IMAGE
   needs: []
   cache: []
   script:
-    - sh test/ci/ffmpeg-package.sh
+    - sh test/ci/native-package.sh
   rules: *pipeline_rules
 
 # ── Build ────────────────────────────────────────────────────────────────────
@@ -190,24 +190,26 @@ build:app:
     - BUILD_ARGS="--build-arg H5AI_VERSION=$H5AI_VERSION --build-arg BUILD_DATE=$BUILD_DATE --build-arg BUILD_VCSREF=$CI_COMMIT_SHORT_SHA"
   rules: *pipeline_rules
 
-# QEMU registration is kernel-wide on the runner host: prepare:ffmpeg and
+# QEMU registration is kernel-wide on the runner host: prepare:packages and
 # build:candidate, which register it and emulate arm64, share the
 # docker-build resource group, so one does not unregister the emulator under
-# the other's build. It also serializes FFmpeg package publication.
+# the other's build. It also serializes package publication.
 .docker-multiarch:
   before_script:
     - !reference [.docker-build-base, before_script]
     - sh scripts/ffmpeg-qemu.sh
 
-# Check the registry on every pipeline, compile only missing packages.
+# Check the registry on every pipeline, compile only missing packages
+# (FFmpeg and php-rar, in one job: each lookup takes seconds, a second job
+# would start a second docker:dind service).
 # Publishing pipelines need the protected FFMPEG_SIGNING_KEY variable
 # (doc/development.md).
-prepare:ffmpeg:
+prepare:packages:
   extends: .docker-build-base
   resource_group: docker-build
   needs:
     - job: lint:dockerfile
-    - job: test:ffmpeg-package
+    - job: test:native-package
   stage: dependencies
   timeout: 2h
   before_script:
@@ -215,26 +217,28 @@ prepare:ffmpeg:
     - apk add --no-cache curl
     - |
       if [ -n "${CI_COMMIT_TAG:-}" ] || [ "${CI_COMMIT_BRANCH:-}" = "$CI_DEFAULT_BRANCH" ]; then
-        FFMPEG_ARCHES="amd64 arm64"
-        FFMPEG_PUBLISH=1
+        PACKAGE_ARCHES="amd64 arm64"
+        PACKAGE_PUBLISH=1
       else
         case "$(docker info --format '{{.Architecture}}')" in
-          x86_64|amd64) FFMPEG_ARCHES=amd64 ;;
-          aarch64|arm64) FFMPEG_ARCHES=arm64 ;;
+          x86_64|amd64) PACKAGE_ARCHES=amd64 ;;
+          aarch64|arm64) PACKAGE_ARCHES=arm64 ;;
           *) echo "Unsupported Docker host architecture" >&2; exit 1 ;;
         esac
-        FFMPEG_PUBLISH=0
+        PACKAGE_PUBLISH=0
       fi
-      export FFMPEG_ARCHES FFMPEG_PUBLISH
+      export PACKAGE_ARCHES PACKAGE_PUBLISH
     - |
-      if [ "$FFMPEG_PUBLISH" = 1 ]; then
+      if [ "$PACKAGE_PUBLISH" = 1 ]; then
         sh scripts/ffmpeg-qemu.sh
       fi
   script:
-    - FFMPEG_BUILDER=h5ai-ci sh scripts/ffmpeg-package.sh $FFMPEG_ARCHES
+    - PACKAGE_BUILDER=h5ai-ci sh scripts/native-package.sh ffmpeg $PACKAGE_ARCHES
+    - PACKAGE_BUILDER=h5ai-ci sh scripts/native-package.sh php-rar $PACKAGE_ARCHES
   artifacts:
     paths:
       - .ffmpeg/
+      - .php-rar/
     expire_in: 1 day
 
 # Branch and MR image, single platform, pushed by digest without a tag like
@@ -247,7 +251,7 @@ build:image:
   rules: *build_image_rules
   needs:
     - job: lint:dockerfile
-    - job: prepare:ffmpeg
+    - job: prepare:packages
       artifacts: true
   script:
     - |
@@ -276,7 +280,8 @@ build:image:
       echo "Image pushed: $CANDIDATE_IMAGE@${CANDIDATE_DIGEST:-none}"
       rm -f build-metadata.json
 
-# Publishable pipelines assemble both platforms using prepared FFmpeg packages.
+# Publishable pipelines assemble both platforms using prepared FFmpeg and
+# php-rar packages.
 # They build without a layer cache: the registry cache is writable by every
 # branch, and the daemon of the job starts empty.
 build:candidate:
@@ -287,7 +292,7 @@ build:candidate:
   timeout: 2h
   needs:
     - job: lint:dockerfile
-    - job: prepare:ffmpeg
+    - job: prepare:packages
       artifacts: true
   before_script:
     - !reference [.docker-multiarch, before_script]

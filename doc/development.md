@@ -14,7 +14,7 @@ in folder `build` (tested on linux only, might work on other configurations):
 Do **not** install any files from the `src` folder: they need to be
 preprocessed to work correctly.
 
-Prepare FFmpeg with `make ffmpeg-prepare` first. To try a build with sample
+Prepare FFmpeg and php-rar with `make packages-prepare` first. To try a build with sample
 media, `docker compose -f docker-compose.dev.yml up --build`
 serves the test fixtures and the Markdown docs on <http://localhost:8888/>.
 `test/docker/generate-fixtures.sh` recreates the fixtures.
@@ -98,16 +98,19 @@ Every Docker job drives its own Docker daemon, the job's `docker:dind`
 service, which starts empty and disappears with the job. Branch builds keep
 their BuildKit layer cache in the registry (`buildcache:branches`). Any
 branch can write that cache, so default-branch and tag builds never read it
-and build without a cache; FFmpeg still comes from the signed packages
-below. Each Grype scan downloads its vulnerability database.
+and build without a cache; FFmpeg and php-rar still come from the signed
+packages below. Each Grype scan downloads its vulnerability database.
 
-The `prepare:ffmpeg` job checks the project's Generic Package Registry on
-every pipeline. Packages are keyed by the SHA-256 of `ci/ffmpeg.Dockerfile`
-and the archive format number (`PACKAGE_FORMAT` in `scripts/ffmpeg-package.sh`),
-with separate amd64 and arm64 files. Changes to the source version, checksum,
+The `prepare:packages` job checks the project's Generic Package Registry on
+every pipeline for two packages, `ffmpeg` and `php-rar`, each built from its
+recipe in `ci/<package>.Dockerfile` by `scripts/native-package.sh`. A package
+is keyed by the SHA-256 of its recipe and the archive format number
+(`PACKAGE_FORMAT` in the script), with separate amd64 and arm64 files. Changes to the source version, checksum,
 base image or compiler options produce a new key; other edits to the script do
 not, so they never trigger a rebuild. Bump `PACKAGE_FORMAT` when the archive
-content or layout changes. Bump the recipe when refreshing Alpine build
+content or layout changes; that rebuilds both packages. The php-rar recipe
+pins its own PHP base image: bump it together with the PHP version the main
+Dockerfile requires. Bump the recipe when refreshing Alpine build
 dependencies: package repository updates alone do not change the key.
 
 A missing package is compiled. Default-branch and tag pipelines prepare and
@@ -124,7 +127,9 @@ can write to the Generic Package Registry, and anyone can compute the package
 key from the repository. Default-branch and tag pipelines, the only ones that
 publish, therefore reuse a package only when it carries a valid signature:
 `linux-<arch>.sha256.hmac` holds the HMAC-SHA256 of `<recipe> <arch> <checksum>`
-keyed with the `FFMPEG_SIGNING_KEY` CI/CD variable. They upload the payload,
+keyed with the `FFMPEG_SIGNING_KEY` CI/CD variable, which signs both packages
+(its name predates php-rar). The recipe in the message keeps a signature from
+validating the other package. They upload the payload,
 then the signature, then the checksum file. When the signature is missing or
 wrong, or the payload is missing or does not match its checksum, the job logs
 a `WARNING`, compiles the package again and republishes it signed; a branch
@@ -141,16 +146,18 @@ compiling or uploading anything. After a key change, the next default-branch
 or tag pipeline rejects every existing package once and rebuilds both
 architectures.
 
-The main Dockerfile copies the prepared binaries from `.ffmpeg/`, so FFmpeg
-is not compiled again when a job's daemon starts empty. PHP-RAR still
-builds in the main Dockerfile. The existing image tests and Grype scan run
-against the assembled image before image publication.
+The main Dockerfile copies the prepared files from `.ffmpeg/` and
+`.php-rar/`, so neither is compiled again when a job's daemon starts empty.
+The script checks a package's files before publishing it and after
+downloading it. The existing image tests and Grype scan run against the
+assembled image before image publication.
 
-For local builds, `make docker-build` prepares FFmpeg automatically and caches
-it in `.ffmpeg/`. Before using `docker buildx build` or Compose directly, run
-`make ffmpeg-prepare`. For a multi-platform build, prepare both platforms with
-`sh scripts/ffmpeg-package.sh amd64 arm64`; the Docker builder must support
-both platforms. Local preparation does not use the registry. Keep packages
+For local builds, `make docker-build` prepares both packages automatically and
+caches them in `.ffmpeg/` and `.php-rar/`. Before using `docker buildx build`
+or Compose directly, run `make packages-prepare`. For a multi-platform build,
+prepare both platforms with `sh scripts/native-package.sh ffmpeg amd64 arm64`
+and the same command for `php-rar`; the Docker builder must support both
+platforms. Local preparation does not use the registry. Keep packages
 for recipes used by supported releases when configuring registry cleanup.
 
 
@@ -193,7 +200,7 @@ without privileges, and the jobs do not reach it without the certificates.
 A job declared in `.gitlab-ci.yml` can still request the service, so
 whoever can push a branch keeps root access to the host through it.
 
-Registering QEMU for arm64 changes the host kernel. `prepare:ffmpeg` and
+Registering QEMU for arm64 changes the host kernel. `prepare:packages` and
 `build:candidate` do it inside their `docker:dind` service and share the
 `docker-build` resource group.
 
