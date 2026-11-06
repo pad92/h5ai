@@ -1,4 +1,4 @@
-const {each, dom, isActivationKey} = require('../util');
+const {each, dom} = require('../util');
 const event = require('../core/event');
 const resource = require('../core/resource');
 const allsettings = require('../core/settings');
@@ -21,9 +21,9 @@ const sizeLabelTpl =
 const sizeTpl =
         '<input id="viewmode-size" type="range" min="0" max="0" value="0">';
 const toggleTpl =
-        `<div id="viewmode-toggle" class="tool l10n_title-view" role="button" tabindex="0" title="View">
+        `<button type="button" id="viewmode-toggle" class="tool l10n_title-view" title="View">
             <img class="l10n_alt-view" alt="View"/>
-        </div>`;
+        </button>`;
 let modes;
 let sizes;
 
@@ -81,12 +81,6 @@ const addToggle = () => {
     if (settings.modeToggle && modes.length > 1) {
         dom(toggleTpl)
             .on('click', onToggle)
-            .on('keydown', ev => {
-                if (isActivationKey(ev)) {
-                    ev.preventDefault();
-                    onToggle();
-                }
-            })
             .appTo(base.$toolbar);
     }
 };

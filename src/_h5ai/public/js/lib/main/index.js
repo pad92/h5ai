@@ -4,8 +4,9 @@ require('../ext/autorefresh');
 require('../ext/crumb');
 require('../ext/custom');
 require('../ext/download');
-// The sidebar blocks follow these requires: tree, info, language, then
-// the admin link.
+// The sidebar blocks follow the require order: view (view/viewmode, above),
+// then tree, info, language and the admin link. The DOM order is the tab
+// order, so keep it the visual order.
 require('../ext/tree');
 require('../ext/info');
 require('../ext/l10n');

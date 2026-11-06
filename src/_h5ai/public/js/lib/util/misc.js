@@ -106,13 +106,25 @@ const sanitize_html = html => {
     return doc.body.innerHTML;
 };
 
-// Enter and Space activate an element with role="button", as they do a <button>:
-// once per press, not again for each auto-repeat of a held key.
-const is_activation_key = ev => !ev.repeat && (ev.key === 'Enter' || ev.key === ' ');
+// The keydown listener of an element that acts as a button without being a
+// <button>: Enter and Space run `act` once per press, as on a <button>. Every
+// keydown of theirs, held repeats included, is kept from the page and from
+// listeners further up: Space would scroll, and the preview reads Enter on the
+// window as "next item".
+const on_activation_key = act => ev => {
+    if (ev.key !== 'Enter' && ev.key !== ' ') {
+        return;
+    }
+    ev.preventDefault();
+    ev.stopPropagation();
+    if (!ev.repeat) {
+        act();
+    }
+};
 
 
 module.exports = {
-    isActivationKey: is_activation_key,
+    onActivationKey: on_activation_key,
     parsePattern: parse_pattern,
     escapeHtml: escape_html,
     sanitizeHtml: sanitize_html

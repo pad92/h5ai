@@ -1,4 +1,4 @@
-const {dom, isActivationKey} = require('../util');
+const {dom} = require('../util');
 const resource = require('../core/resource');
 const allsettings = require('../core/settings');
 const store = require('../core/store');
@@ -11,10 +11,10 @@ const settings = Object.assign({
 const storekey = 'sidebarIsVisible';
 const sidebarTpl = '<div id="sidebar"></div>';
 const toggleTpl =
-        `<div id="sidebar-toggle" class="tool l10n_title-sidebar" role="button" tabindex="0" title="sidebar"
+        `<button type="button" id="sidebar-toggle" class="tool l10n_title-sidebar" title="sidebar"
                 aria-controls="sidebar" aria-expanded="false">
             <img class="l10n_alt-sidebar" alt="sidebar"/>
-        </div>`;
+        </button>`;
 
 
 const init = () => {
@@ -43,14 +43,7 @@ const init = () => {
 
     if (!settings.disableSidebar) {
         $sidebar.appTo(base.$mainrow);
-        $toggle.appTo(base.$toolbar)
-            .on('click', () => update(true))
-            .on('keydown', ev => {
-                if (isActivationKey(ev)) {
-                    ev.preventDefault();
-                    update(true);
-                }
-            });
+        $toggle.appTo(base.$toolbar).on('click', () => update(true));
         update();
     }
 

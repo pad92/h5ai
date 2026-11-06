@@ -1,4 +1,4 @@
-const {filter, map, parsePattern, isActivationKey, dom} = require('../util');
+const {filter, map, parsePattern, onActivationKey, dom} = require('../util');
 const server = require('../server');
 const event = require('../core/event');
 const i18n = require('../core/i18n');
@@ -474,12 +474,7 @@ const init = () => {
     };
     // The icon is the field's button: a click, Enter or Space opens or
     // closes it.
-    $tool.find('img').on('click', toggle).on('keydown', ev => {
-        if (isActivationKey(ev)) {
-            ev.preventDefault();
-            toggle();
-        }
-    });
+    $tool.find('img').on('click', toggle).on('keydown', onActivationKey(toggle));
     $input.on('input', onInput).on('keydown', onKeydown);
     $deeper.on('click', () => {
         searchSubfolders();

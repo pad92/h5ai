@@ -1,4 +1,4 @@
-const {each, dom, isActivationKey} = require('../util');
+const {each, dom} = require('../util');
 const server = require('../server');
 const event = require('../core/event');
 const location = require('../core/location');
@@ -12,9 +12,9 @@ const settings = Object.assign({
     alwaysVisible: false
 }, allsettings.download);
 const tpl =
-        `<div id="download" class="tool l10n_title-download" role="button" tabindex="0" title="download">
+        `<button type="button" id="download" class="tool l10n_title-download" title="download">
             <img class="l10n_alt-download" src="${resource.image('download')}" alt="download"/>
-        </div>`;
+        </button>`;
 let selectedItems = [];
 let $download;
 
@@ -64,13 +64,7 @@ const init = () => {
     $download = dom(tpl)
         .hide()
         .appTo('#toolbar')
-        .on('click', onClick)
-        .on('keydown', ev => {
-            if (isActivationKey(ev)) {
-                ev.preventDefault();
-                onClick();
-            }
-        });
+        .on('click', onClick);
 
     if (settings.alwaysVisible) {
         $download.show();

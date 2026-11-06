@@ -220,19 +220,19 @@ test('sidebar: the tree and info toggles announce whether their panel shows', ()
     });
 });
 
-const press = (el, key) => el.dispatchEvent(new window.KeyboardEvent('keydown', {key, bubbles: true, cancelable: true}));
-
 test('sidebar: block titles are h2, below the page heading', () => {
     const sidebar = document.getElementById('sidebar');
     assert.equal(sidebar.querySelectorAll('h1').length, 0);
     assert.ok(sidebar.querySelectorAll('.block > h2').length >= 3, 'view, tree and info have a title');
 });
 
-test('toolbar: the sidebar, view and download tools work from the keyboard', () => {
-    ['sidebar-toggle', 'viewmode-toggle', 'download'].forEach(id => {
+// Native buttons: the browser gives them the focus, Enter and Space, once
+// per press. A div with role="button" needed all of that by hand.
+test('toolbar: the sidebar, view, download and theme tools are buttons', () => {
+    ['sidebar-toggle', 'viewmode-toggle', 'download', 'theme'].forEach(id => {
         const el = document.getElementById(id);
-        assert.equal(el.getAttribute('role'), 'button', `${id} is announced as a button`);
-        assert.equal(el.getAttribute('tabindex'), '0', `${id} takes the focus`);
+        assert.equal(el.tagName, 'BUTTON', `${id} reaches the keyboard`);
+        assert.equal(el.getAttribute('type'), 'button', `${id} never submits a form`);
         assert.ok(el.getAttribute('title'), `${id} has a tooltip`);
     });
 
@@ -240,15 +240,15 @@ test('toolbar: the sidebar, view and download tools work from the keyboard', () 
     const sidebar = document.getElementById('sidebar');
     assert.equal(toggle.getAttribute('aria-controls'), 'sidebar');
     [0, 1].forEach(() => {
-        press(toggle, 'Enter');
+        toggle.click();
         const open = !sidebar.classList.contains('hidden');
         assert.equal(toggle.getAttribute('aria-expanded'), String(open), 'aria-expanded follows the sidebar');
     });
 
     const mode = view.getMode();
     try {
-        press(document.getElementById('viewmode-toggle'), ' ');
-        assert.notEqual(view.getMode(), mode, 'Space switches the view mode');
+        document.getElementById('viewmode-toggle').click();
+        assert.notEqual(view.getMode(), mode, 'the view tool switches the view mode');
     } finally {
         view.setMode(mode);
     }
@@ -258,10 +258,8 @@ test('toolbar: the sidebar, view and download tools work from the keyboard', () 
     const requests = [];
     server.formRequest = query => requests.push(query);
     try {
-        press(document.getElementById('download'), 'Enter');
-        assert.equal(requests.length, 1, 'Enter starts the download');
-        press(document.getElementById('download'), 'a');
-        assert.equal(requests.length, 1, 'other keys do nothing');
+        document.getElementById('download').click();
+        assert.equal(requests.length, 1, 'the download tool starts the download');
     } finally {
         server.formRequest = formRequest;
     }
@@ -279,12 +277,12 @@ test('crumbs and document title follow the active item hierarchy', () => {
     assert.equal(document.title, 'crumb-folder - localhost > crumb-folder');
 });
 
-test('theme toggle supports mouse and keyboard input', () => {
+test('theme toggle switches the theme and says whether dark is on', () => {
     const theme = document.querySelector('#theme');
     theme.click();
     assert.equal(document.body.getAttribute('data-theme'), 'dark');
     assert.equal(theme.getAttribute('aria-pressed'), 'true');
-    theme.dispatchEvent(new window.KeyboardEvent('keydown', {key: 'Enter', bubbles: true, cancelable: true}));
+    theme.click();
     assert.equal(document.body.getAttribute('data-theme'), 'light');
     assert.equal(theme.getAttribute('aria-pressed'), 'false');
 });

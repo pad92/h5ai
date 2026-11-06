@@ -28,6 +28,14 @@
     appearance: none;
 }
 
+// A <button> that looks like the element it replaces: no border, no
+// background, the text of its parent. Padding stays with each user.
+.clear-button() {
+    border: 0;
+    background: none;
+    font: inherit;
+}
+
 .eased-transition() {
     transition: all 0.2s ease-in-out;
 }

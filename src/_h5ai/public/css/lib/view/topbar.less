@@ -21,6 +21,20 @@
         display: inline-block;
         cursor: pointer;
 
+        // The buttons among the tools: top-aligned, so no baseline gap
+        // grows the 48px bar.
+        &:is(button) {
+            .clear-button;
+
+            padding: 0;
+            vertical-align: top;
+            color: inherit;
+
+            img {
+                display: block;
+            }
+        }
+
         img {
             display: inline-block;
             width: 24px;
@@ -80,11 +94,10 @@
     }
 
     #version {
-        font: inherit;
+        .clear-button;
+
         line-height: 20px;
         padding-bottom: 4px;
-        border: 0;
-        background: none;
 
         &:focus-visible {
             outline: 1px solid @col-text-hover;
