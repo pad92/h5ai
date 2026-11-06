@@ -96,7 +96,8 @@ mouse, with a QR code of its link for opening it on a phone.
 
 The admin page checks the PHP setup and every helper tool, shows the cache and
 the background tasks (cache warmer, folder sizes, thumbnails), and lets you
-start, stop or purge them.
+start, stop or purge them. Once its password is set, a link at the bottom of
+the sidebar opens it.
 
 ![Admin page with setup checks and background tasks](doc/screenshots/info.webp)
 

@@ -23,6 +23,10 @@ With a password configured, the page shows a login form; a wrong password or
 a refused attempt is reported on the page. Without one, the page explains how
 to set it instead of showing a form that cannot succeed.
 
+Once a password is set, the last block of the listing's sidebar links to this
+page. Set `view.adminLink` to `false` in `options.json` to remove the link from
+a public listing; the page itself stays where it is.
+
 ## 2. Password configuration (`passhash`)
 
 Access to the Info Page is secured using a password hash defined in the main configuration file [options.json](../src/_h5ai/private/conf/options.json):
