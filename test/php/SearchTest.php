@@ -350,6 +350,20 @@ final class SearchTest extends H5aiTestCase {
         }
     }
 
+    public function testTheItemsSayWhetherTheSearchWasCut(): void {
+        $this->write($this->root('sub/match.txt'), 'x');
+        $patient = new Search($this->searchContext());
+        $hurried = new Search($this->searchContext(['search' => ['timeLimit' => 1e-9]]));
+
+        self::assertSame(['/sub/match.txt'], array_column($patient->get_items('/', 'match'), 'href'));
+        self::assertFalse($patient->is_cut());
+        $log = $this->logOf(function () use ($hurried): void {
+            self::assertSame([], $hurried->get_items('/', 'match'));
+        });
+        self::assertTrue($hurried->is_cut());
+        self::assertStringContainsString('search: stopped after search.timeLimit', $log);
+    }
+
     public function testThePurgeWaitsForARunningRefresh(): void {
         $this->write($this->root('file.txt'), 'x');
         self::assertTrue((new Search($this->searchContext()))->refresh_index());

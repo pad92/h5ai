@@ -46,6 +46,9 @@ class Search {
     // so far after search.timeLimit seconds, or as soon as the pattern shows
     // itself a runaway one, so that no request holds a PHP worker for long.
     public function get_paths(string $root, ?string $pattern = null, bool $ignorecase = false): array {
+        $this->deadline = hrtime(true) / 1e9 + $this->time_limit();
+        $this->limit_hits = 0;
+        $this->is_cut = false;
         $max_pattern_length = max(1, (int) $this->context->query_option('search.maxPatternLength', 1024));
         if (!$pattern || strlen($pattern) > $max_pattern_length) {
             return [];
@@ -61,9 +64,6 @@ class Search {
 
         $max_depth = max(0, (int) $this->context->query_option('search.maxDepth', 64));
         $max_results = max(1, (int) $this->context->query_option('search.maxResults', 1000));
-        $this->deadline = hrtime(true) / 1e9 + $this->time_limit();
-        $this->limit_hits = 0;
-        $this->is_cut = false;
         // The index never goes into a symlinked folder, but a search started
         // from inside one walks it, as before the index.
         $is_in_symlink = $this->is_in_symlinked_folder($root);
@@ -86,9 +86,19 @@ class Search {
 
     // Asked before each entry left to read: true ends the search there.
     private function is_over_budget(): bool {
-        if ($this->limit_hits >= self::MAX_LIMIT_HITS || hrtime(true) / 1e9 >= $this->deadline) {
+        if ($this->limit_hits >= self::MAX_LIMIT_HITS || $this->is_past_deadline()) {
             $this->is_cut = true;
         }
+        return $this->is_cut;
+    }
+
+    private function is_past_deadline(): bool {
+        return hrtime(true) / 1e9 >= $this->deadline;
+    }
+
+    // Whether the last search stopped with entries left to read or matches
+    // left out: its answer may miss names that match.
+    public function is_cut(): bool {
         return $this->is_cut;
     }
 
@@ -548,12 +558,21 @@ class Search {
         $root = $this->context->paths()->to_path($href);
         return $this->context->with_cached_folder_sizes(function () use ($root, $pattern, $ignorecase): array {
             $cache = [];
-            // Nothing refreshes search results, so an expired folder size
-            // would blink there for good: it is shown without the flag.
-            return array_map(
-                fn(string $path): array => array_diff_key(Item::get($this->context, $path, $cache)->to_json_object(), ['sizeStale' => true]),
-                $this->get_paths($root, $pattern, $ignorecase),
-            );
+            $items = [];
+            foreach ($this->get_paths($root, $pattern, $ignorecase) as $path) {
+                // Reading each match counts in search.timeLimit too: on a
+                // slow mount, the matches past the deadline are left out.
+                // A runaway pattern's matches are still read.
+                if ($this->is_past_deadline()) {
+                    $this->is_cut = true;
+                    break;
+                }
+                // Nothing refreshes search results, so an expired folder
+                // size would blink there for good: it is shown without the
+                // flag.
+                $items[] = array_diff_key(Item::get($this->context, $path, $cache)->to_json_object(), ['sizeStale' => true]);
+            }
+            return $items;
         });
     }
 }

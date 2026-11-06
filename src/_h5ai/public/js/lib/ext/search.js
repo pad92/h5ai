@@ -139,7 +139,9 @@ const searchSubfolders = () => {
         if (current === request) {
             $tool.rmCls('pending');
             const matches = filter(map(response.search, item => Item.get(item)), view.isListed);
-            if (!matches.length) {
+            // A search the server cut short may have missed what longer
+            // text would find.
+            if (!matches.length && !response.searchTruncated) {
                 foundNothingFor = asked;
             }
             // The results answer the field at the time of the request: a
@@ -157,6 +159,10 @@ const searchSubfolders = () => {
 const onInput = () => {
     text = $input.val().trim() ? $input.val() : '';
     cancelTimer();
+    // A search answer would now answer older text: it is dropped, and the
+    // next pause filters or searches again.
+    request += 1;
+    $tool.rmCls('pending');
     if (!text) {
         showFolder();
         return;

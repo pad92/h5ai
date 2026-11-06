@@ -225,6 +225,39 @@ test('search field: an answer to an older search does not replace the newer one'
     });
 });
 
+// The answer arrives between the typing and the pause that follows it.
+test('search field: typing drops the answer to the text it replaced', async () => {
+    await withFolder(async ({deep, requests}) => {
+        await toggle();
+        await type('al');
+        await press('Enter');
+        const input = $('#search input');
+        input.value = 'be';
+        input.dispatchEvent(new window.Event('input', {bubbles: true}));
+        requests[0].resolve({search: [deep.absHref]});
+        await Promise.resolve();
+        await Promise.resolve();
+
+        assert.ok(!labels().includes('sub/deeper/alpine.txt'), 'no answer for al under be');
+        assert.equal(isPending(), false);
+        await drain();
+        assert.deepEqual(labels(), ['beta.md']);
+    });
+});
+
+test('search field: an empty answer cut short by the server does not stop later searches', async () => {
+    await withFolder(async ({requests}) => {
+        await toggle();
+        await type('zq');
+        assert.equal(requests.length, 1);
+        requests[0].resolve({search: [], searchTruncated: true});
+        await drain();
+
+        await type('zqx');
+        assert.equal(requests.length, 2, 'longer text searches again');
+    });
+});
+
 test('search field: an answer arriving after the field closed leaves the folder listed', async () => {
     await withFolder(async ({deep, respond}) => {
         await toggle();
