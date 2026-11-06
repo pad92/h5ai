@@ -2,8 +2,8 @@
 
 ## Unreleased
 
-* **Security**: a search stops after `search.timeLimit` seconds (10 by default) and returns what it found so far, and as soon as its expression hits the PCRE match or depth limit on 100 names. The limit on each name was already there, but nothing bounded the whole search: a crafted expression took about 0.14 ms per name, so a request on an index of 100,000 names kept a PHP worker busy for about 14 seconds, and up to PHP-FPM's 60-second limit on a larger share. Both stops are logged.
-* **Search field**: with `view.hideFolders`, folders no longer show up among the matches of the folder or of its subfolders. When only hidden folders match in the folder, the subfolders are searched, as when nothing matches.
+* **Security**: a search stops after `search.timeLimit` seconds (10 by default), or once its expression has hit the PCRE match or depth limit on 100 names, and returns the matches found so far. PCRE limited the work spent on each name, not on the whole search: a crafted expression cost about 0.14 ms per name, so one request on an index of 100,000 names kept a PHP worker busy for about 14 seconds, and until PHP-FPM's 60-second limit on a larger share. Both stops are logged.
+* **Search field**: with `view.hideFolders`, folders no longer show up among the matches of the folder or of its subfolders. When the only matches in the folder are hidden folders, the field searches the subfolders, as it does when nothing matches.
 
 ## v1.8.0 - *2026-11-05*
 
