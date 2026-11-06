@@ -17,6 +17,7 @@
     "parentDirectory": "Dossier parent",
     "qrCode": "QR code du lien",
     "search": "rechercher",
+    "searchMatches": "Résultats : %s",
     "searchSubfolders": "Chercher dans les sous-dossiers",
     "selected": "sélectionné",
     "sidebar": "barre latérale",

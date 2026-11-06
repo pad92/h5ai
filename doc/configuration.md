@@ -128,11 +128,13 @@ Allows packaging and downloading of selected directory entries.
 - `timeout` (default: `300`): Maximum archive execution time in seconds.
 
 #### `filter`
-Filters the current folder as you type in the search field of the toolbar, without asking the server. Under the filtered listing, a line (or the Enter key) searches the subfolders for the same text when `search` is enabled too; when nothing in the folder matches, they are searched without either, once the typing pauses for `search.debounceTime`. Escape clears and closes the field. With `filter` disabled and `search` enabled, the field searches the subfolders as you type.
+Filters the current folder as you type in the search field of the toolbar, without asking the server. Under the filtered listing, a line (or the Enter key) searches the subfolders for the same text when `search` is enabled too; when nothing in the folder matches, they are searched without either, once the typing pauses for `search.debounceTime`. Escape clears and closes the field. With `filter` disabled and `search` enabled, the field searches the subfolders as you type. An expression after `re:` that cannot be read turns the text red and is not searched. Screen readers hear the number of matches. Opening a folder clears the field, and Back to the folder brings its text back.
 - `enabled` (default: `true`).
 - `advanced` (default: `true`): If `true`, each word matches a name holding its characters in that order (e.g., "ab" matches "axb"), and a name must match every word, in any order: `photos 2024` finds `2024-06 Photos.zip`. Prefixing a query with `re:` enables regex search.
 - `debounceTime` (default: `100`): Debounce wait time in milliseconds before filtering.
 - `ignorecase` (default: `true`): Case-insensitive filtering.
+
+The field reads the same text with `filter.advanced` and `filter.ignorecase` in the folder, and with `search.advanced` and `search.ignorecase` in the subfolders. Keep each pair equal: otherwise the same text can find a name in a subfolder and miss one just like it in the folder, or the other way round.
 
 #### `foldersize`
 Calculates and displays the sizes of directories.

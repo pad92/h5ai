@@ -31,6 +31,8 @@ const defaults = {
     parentDirectory: 'Parent Directory',
     qrCode: 'QR code of the link',
     search: 'search',
+    // Read by screen readers once the matches show.
+    searchMatches: 'Matches: %s',
     // Followed by what was typed, in quotes.
     searchSubfolders: 'Search subfolders for',
     selected: 'selected',

@@ -17,6 +17,7 @@
     "parentDirectory": "Parent Directory",
     "qrCode": "QR code of the link",
     "search": "search",
+    "searchMatches": "Matches: %s",
     "searchSubfolders": "Search subfolders for",
     "selected": "selected",
     "sidebar": "sidebar",

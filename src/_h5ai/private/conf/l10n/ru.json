@@ -17,6 +17,7 @@
     "parentDirectory": "Главная директория",
     "qrCode": "QR-код ссылки",
     "search": "Поиск",
+    "searchMatches": "Совпадения: %s",
     "searchSubfolders": "Искать в подпапках",
     "selected": "выбрано",
     "sidebar": "боковая панель",

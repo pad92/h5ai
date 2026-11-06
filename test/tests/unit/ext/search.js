@@ -519,3 +519,95 @@ test('view: removing an item that was never shown does not throw', () => {
     delete hidden.$view;
     view.changeItems([], [hidden]);
 });
+
+test('view: matches leave out what the view does not list, and the shown ones are returned', async () => {
+    await withFolder(async ({alpha, sub}) => {
+        const isListed = view.isListed;
+        view.isListed = item => !item.isFolder();
+        try {
+            const shown = view.setMatches([alpha, sub], () => false);
+            assert.deepEqual(shown, [alpha]);
+            assert.deepEqual(labels(), ['alpha.txt']);
+        } finally {
+            view.isListed = isListed;
+        }
+    });
+});
+
+const isInvalid = () => $('#search').classList.contains('invalid') && $('#search input').getAttribute('aria-invalid') === 'true';
+
+test('search field: an expression that cannot be read is marked and never searched', async () => {
+    await withFolder(async ({requests}) => {
+        await toggle();
+        await type('re:(');
+        assert.equal(isInvalid(), true);
+        await press('Enter');
+        assert.equal(requests.length, 0);
+
+        await type('re:a');
+        assert.equal(isInvalid(), false);
+        assert.equal($('#search input').getAttribute('aria-invalid'), 'false');
+    });
+});
+
+test('search field: screen readers hear how many matches show', async () => {
+    await withFolder(async ({respond}) => {
+        const status = () => $('#search .status').textContent;
+        assert.equal($('#search .status').getAttribute('role'), 'status');
+        await toggle();
+        await type('a');
+        assert.equal(status(), 'Matches: 2', 'alpha.txt and beta.md');
+        await type('zq');
+        await respond(0, []);
+        assert.equal(status(), 'no match');
+        await press('Escape');
+        assert.equal(status(), '');
+    });
+});
+
+// The browser moves between history entries before the page hears of it:
+// on Back, history.state is already the entry the folder left.
+test('search field: Back to a folder left during a search brings its text back', async () => {
+    await withFolder(async ({folder, sub}) => {
+        const history = window.history;
+        const savedState = history.state;
+        sub.content = sub.content || {};
+        history.replaceState({absHref: folder.absHref}, '');
+        try {
+            await toggle();
+            await type('al');
+            event.pub('location.beforeChange');
+            assert.deepEqual(history.state, {absHref: folder.absHref, search: 'al'}, 'the entry keeps the text');
+            event.pub('location.changed', sub);
+            await drain();
+            assert.equal(isOpen(), false);
+
+            const getAbsHref = location.getAbsHref;
+            location.getAbsHref = () => sub.absHref;
+            event.pub('location.beforeChange');
+            location.getAbsHref = getAbsHref;
+            event.pub('location.changed', folder);
+            await drain();
+
+            assert.equal(isOpen(), true);
+            assert.equal($('#search input').value, 'al');
+            assert.deepEqual(labels(), ['alpha.txt']);
+        } finally {
+            history.replaceState(savedState, '');
+        }
+    });
+});
+
+test('search field: leaving a folder with an empty field keeps no text in its history entry', async () => {
+    await withFolder(async ({folder}) => {
+        const history = window.history;
+        const savedState = history.state;
+        history.replaceState({absHref: folder.absHref, search: 'old'}, '');
+        try {
+            event.pub('location.beforeChange');
+            assert.deepEqual(history.state, {absHref: folder.absHref});
+        } finally {
+            history.replaceState(savedState, '');
+        }
+    });
+});

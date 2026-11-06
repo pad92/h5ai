@@ -1,11 +1,14 @@
 const {filter, map, parsePattern, isActivationKey, dom} = require('../util');
 const server = require('../server');
 const event = require('../core/event');
+const i18n = require('../core/i18n');
 const location = require('../core/location');
 const resource = require('../core/resource');
 const allsettings = require('../core/settings');
 const Item = require('../model/item');
 const view = require('../view/view');
+
+const win = global.window;
 
 
 // One field for the filter and the search: typing filters the current folder
@@ -31,7 +34,8 @@ const canSearch = searchSettings.enabled;
 const tpl =
         `<div id="search" class="tool">
             <img class="l10n_alt-search" src="${resource.image('search')}" alt="search" role="button" tabindex="0" aria-expanded="false"/>
-            <input class="l10n_ph-search l10n_aria-search" type="text" aria-label="search"/>
+            <input class="l10n_ph-search l10n_aria-search" type="text" aria-label="search" aria-invalid="false"/>
+            <div class="status" role="status"></div>
         </div>`;
 const deeperTpl =
         `<button id="search-deeper" type="button">
@@ -41,6 +45,7 @@ const deeperTpl =
 
 let $tool;
 let $input;
+let $status;
 let $deeper;
 let isOpen = false;
 // What the field holds, '' when it holds only spaces.
@@ -52,6 +57,9 @@ let request = 0;
 let timer = null;
 // Text whose subfolder search, from this folder, found nothing; null if none.
 let foundNothingFor = null;
+// Text to put back in the field once the folder of a history entry shows
+// again (Back, Forward, a reload); null if none.
+let textToRestore = null;
 
 // Names are compared in NFC, as typed, whatever the file system stores.
 const patternOf = settings => parsePattern(text.normalize('NFC'), settings.advanced);
@@ -72,6 +80,25 @@ const labelMatches = (re, item) => re.test(item.label.normalize('NFC'));
 const canOnlyFindNothing = () => foundNothingFor !== null &&
     text.startsWith(foundNothingFor) &&
     !(searchSettings.advanced && text.startsWith('re:'));
+
+// The settings of what the field does: filter, search, or both.
+const usedSettings = () => [canFilter && filterSettings, canSearch && searchSettings].filter(Boolean);
+
+// Marks the field when an expression typed after re: cannot be read.
+const updateValidity = () => {
+    const isInvalid = !!text && usedSettings().some(settings => !regExpOf(settings));
+    $input.attr('aria-invalid', isInvalid ? 'true' : 'false');
+    if (isInvalid) {
+        $tool.addCls('invalid');
+    } else {
+        $tool.rmCls('invalid');
+    }
+};
+
+// Tells screen readers how many matches the view shows; '' says nothing.
+const announce = count => {
+    $status.text(count === '' ? '' : count ? i18n.t('searchMatches', count) : i18n.t('noMatch'));
+};
 
 const cancelTimer = () => {
     clearTimeout(timer);
@@ -102,13 +129,14 @@ const showFolder = () => {
     let isNoMatch = false;
     if (!text || !canFilter) {
         view.setLocation();
+        announce('');
     } else {
         const re = regExpOf(filterSettings);
         if (re) {
             const accepts = item => view.isListed(item) && labelMatches(re, item);
-            const matches = filter(location.getItem().content, accepts);
-            view.setMatches(matches, accepts);
-            isNoMatch = matches.length === 0;
+            const shown = view.setMatches(filter(location.getItem().content, accepts), accepts);
+            isNoMatch = shown.length === 0;
+            announce(shown.length);
         }
     }
     updateDeeper();
@@ -117,7 +145,7 @@ const showFolder = () => {
 
 const searchSubfolders = () => {
     cancelTimer();
-    if (!text || !canSearch) {
+    if (!text || !canSearch || !regExpOf(searchSettings)) {
         return;
     }
 
@@ -138,15 +166,15 @@ const searchSubfolders = () => {
     }).then(response => {
         if (current === request) {
             $tool.rmCls('pending');
-            const matches = filter(map(response.search, item => Item.get(item)), view.isListed);
-            // A search the server cut short may have missed what longer
-            // text would find.
-            if (!matches.length && !response.searchTruncated) {
-                foundNothingFor = asked;
-            }
             // The results answer the field at the time of the request: a
             // file added to the folder since then waits for the next one.
-            view.setMatches(matches, () => false, true);
+            const shown = view.setMatches(map(response.search, item => Item.get(item)), () => false, true);
+            // A search the server cut short may have missed what longer
+            // text would find.
+            if (!shown.length && !response.searchTruncated) {
+                foundNothingFor = asked;
+            }
+            announce(shown.length);
         }
     }, () => {
         // Back to the folder; the line under it asks again.
@@ -163,6 +191,7 @@ const onInput = () => {
     // next pause filters or searches again.
     request += 1;
     $tool.rmCls('pending');
+    updateValidity();
     if (!text) {
         showFolder();
         return;
@@ -200,6 +229,7 @@ const close = (render = true) => {
     text = '';
     foundNothingFor = null;
     $input.val('');
+    updateValidity();
     $tool.rmCls('active');
     $tool.find('img').attr('aria-expanded', 'false');
     if (showsMatches) {
@@ -207,6 +237,36 @@ const close = (render = true) => {
     } else {
         stopSearch();
         updateDeeper();
+        announce('');
+    }
+};
+
+// Leaving a folder by a link keeps the field's text in its history entry.
+// Arriving on an entry by Back, Forward or a reload, whose folder is not the
+// one listed yet, takes the text it kept, if any.
+const onBeforeChange = () => {
+    const history = win.history;
+    const state = history && history.state;
+    if (state && state.absHref === location.getAbsHref()) {
+        const kept = Object.assign({}, state);
+        delete kept.search;
+        if (text) {
+            kept.search = text;
+        }
+        history.replaceState(kept, '');
+        textToRestore = null;
+    } else {
+        textToRestore = state && typeof state.search === 'string' ? state.search : null;
+    }
+};
+
+const onLocationChanged = () => {
+    close(false);
+    if (textToRestore) {
+        open();
+        $input.val(textToRestore);
+        textToRestore = null;
+        onInput();
     }
 };
 
@@ -234,6 +294,7 @@ const init = () => {
 
     $tool = dom(tpl).appTo('#toolbar');
     $input = $tool.find('input');
+    $status = $tool.find('.status');
     $deeper = dom(deeperTpl).hide().appTo('#view');
 
     const toggle = () => {
@@ -256,7 +317,8 @@ const init = () => {
         searchSubfolders();
         $input[0].focus();
     });
-    event.sub('location.changed', () => close(false));
+    event.sub('location.beforeChange', onBeforeChange);
+    event.sub('location.changed', onLocationChanged);
 };
 
 

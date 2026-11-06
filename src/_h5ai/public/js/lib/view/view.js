@@ -255,18 +255,23 @@ const setHint = l10nKey => {
     checkHint();
 };
 
-// Shows matches instead of the folder. A later refresh adds only the new
-// items accepts(item) is true for. fromSubfolders: show each item's folder.
-const setMatches = (items, accepts, fromSubfolders = false) => {
-    acceptsAdded = accepts;
-    showsFolders = fromSubfolders;
-    setHint('noMatch');
-    showItems(items);
-};
-
 // Whether the view lists this item: hideFolders leaves out the folders, from
 // the folder as from its matches.
 const isListed = item => !(item.isFolder() && settings.hideFolders);
+
+// Shows matches instead of the folder, without the items the view does not
+// list, and returns those shown. A later refresh adds only the new items
+// accepts(item) is true for. fromSubfolders: show each item's folder.
+const setMatches = (items, accepts, fromSubfolders = false) => {
+    // Through the exports, which a test replaces: hideFolders is read once,
+    // when the view loads.
+    const shown = items.filter(item => module.exports.isListed(item));
+    acceptsAdded = accepts;
+    showsFolders = fromSubfolders;
+    setHint('noMatch');
+    showItems(shown);
+    return shown;
+};
 
 const onLocationChanged = item => {
     if (!item) {

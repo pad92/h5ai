@@ -17,6 +17,7 @@
     "parentDirectory": "Katalog nadrzędny",
     "qrCode": "kod QR odnośnika",
     "search": "szukaj",
+    "searchMatches": "Wyniki: %s",
     "searchSubfolders": "Szukaj w podfolderach",
     "selected": "zaznaczone",
     "sidebar": "panel boczny",

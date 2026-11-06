@@ -17,6 +17,7 @@
     "parentDirectory": "Diretório acima",
     "qrCode": "código QR da ligação",
     "search": "pesquisa",
+    "searchMatches": "Resultados: %s",
     "searchSubfolders": "Procurar nas subpastas",
     "selected": "selecionado",
     "sidebar": "barra lateral",

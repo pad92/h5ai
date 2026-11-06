@@ -17,6 +17,7 @@
     "parentDirectory": "Übergeordnetes Verzeichnis",
     "qrCode": "QR-Code des Links",
     "search": "suchen",
+    "searchMatches": "Treffer: %s",
     "searchSubfolders": "In Unterordnern suchen nach",
     "selected": "ausgewählt",
     "sidebar": "Seitenleiste",

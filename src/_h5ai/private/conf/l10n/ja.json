@@ -17,6 +17,7 @@
     "parentDirectory": "親ディレクトリへ",
     "qrCode": "リンクのQRコード",
     "search": "検索",
+    "searchMatches": "一致: %s 件",
     "searchSubfolders": "サブフォルダーを検索:",
     "selected": "選択済み",
     "sidebar": "サイドバー",

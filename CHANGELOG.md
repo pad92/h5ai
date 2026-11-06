@@ -2,9 +2,12 @@
 
 ## Unreleased
 
+Upgrading: custom translation files can add `searchMatches`, which screen readers hear once the matches show (English: `Matches: %s`).
+
 * **Security**: a search stops after `search.timeLimit` seconds (10 by default), or once its expression has hit the PCRE match or depth limit on 100 names, and returns the matches found so far. PCRE limited the work spent on each name, not on the whole search: a crafted expression cost about 0.14 ms per name, so one request on an index of 100,000 names kept a PHP worker busy for about 14 seconds, and until PHP-FPM's 60-second limit on a larger share. Reading the matches for the answer counts in the time limit too. Both stops are logged, and the answer carries `searchTruncated: true`.
 * **Search field**: with `view.hideFolders`, folders no longer show up among the matches of the folder or of its subfolders. When the only matches in the folder are hidden folders, the field searches the subfolders, as it does when nothing matches.
 * **Search field**: an empty answer from a search the server cut short no longer stops the searches of longer text, since a later search may find what this one had no time to reach. Typing also drops a subfolder search still running, so its answer no longer shows for a moment under text it does not match.
+* **Search field**: Back, Forward or a reload brings back the text the field held when a link left the folder. An expression after `re:` that cannot be read turns the text red, sets `aria-invalid`, and is not sent to the server. A hidden `role="status"` region tells screen readers how many matches show, or that none do, in the 12 maintained languages.
 
 ## v1.8.0 - *2026-11-05*
 

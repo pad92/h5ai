@@ -23,6 +23,24 @@
             color: @col-text-disabled-black;
         }
     }
+
+    // An expression typed after re: that cannot be read.
+    &.invalid {
+        input {
+            color: @col-error;
+            text-decoration: underline wavy @col-error;
+        }
+    }
+
+    // Read by screen readers only.
+    .status {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
 }
 
 // Under the filtered listing: search the subfolders for the same text.
