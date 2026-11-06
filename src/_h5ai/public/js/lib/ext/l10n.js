@@ -85,9 +85,17 @@ const localize = (languages, isoCode, useBrowserLang) => {
 
 // The name of a language in itself, capitalised as a menu entry: "Français",
 // not "fr - français". Names are unique, so the code adds nothing.
+// The code is a file name in conf/l10n: one that is no valid locale, such as
+// pt_BR, makes toLocaleUpperCase() throw.
 const languageName = (language, isoCode) => {
     const name = isStr(language) ? language : language.lang;
-    return name.charAt(0).toLocaleUpperCase(isoCode) + name.slice(1);
+    let first;
+    try {
+        first = name.charAt(0).toLocaleUpperCase(isoCode);
+    } catch {
+        first = name.charAt(0).toUpperCase();
+    }
+    return first + name.slice(1);
 };
 
 const initLangSelector = languages => {

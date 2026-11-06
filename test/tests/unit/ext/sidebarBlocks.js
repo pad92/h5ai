@@ -30,7 +30,8 @@ const withSidebar = async (name, settings, run) => {
 };
 
 test('admin link: points to index.php next to the public assets of this install', async () => {
-    await withSidebar('ext/admin-link', {publicHref: '/files/_h5ai/public/', view: {}}, sidebar => {
+    const settings = {publicHref: '/files/_h5ai/public/', hasCustomPasshash: true, view: {}};
+    await withSidebar('ext/admin-link', settings, sidebar => {
         const link = sidebar.querySelector('a#admin-link');
         assert.ok(link, 'shown by default');
         assert.equal(link.getAttribute('href'), '/files/_h5ai/public/index.php');
@@ -39,7 +40,13 @@ test('admin link: points to index.php next to the public assets of this install'
 });
 
 test('admin link: view.adminLink false keeps it off the sidebar', async () => {
-    await withSidebar('ext/admin-link', {view: {adminLink: false}}, sidebar => {
+    await withSidebar('ext/admin-link', {hasCustomPasshash: true, view: {adminLink: false}}, sidebar => {
+        assert.equal(sidebar.querySelector('#admin-link'), null);
+    });
+});
+
+test('admin link: hidden while no passhash is set, since login is then disabled', async () => {
+    await withSidebar('ext/admin-link', {hasCustomPasshash: false, view: {}}, sidebar => {
         assert.equal(sidebar.querySelector('#admin-link'), null);
     });
 });
@@ -51,4 +58,19 @@ test('language menu: names each language in itself, without its code', async () 
         const options = Array.from(select.options).map(option => [option.value, option.lang, option.textContent]);
         assert.deepEqual(options, [['en', 'en', 'English'], ['fr', 'fr', 'Français']]);
     });
+});
+
+test('language menu: a file name that is no valid locale still gets its entry', async () => {
+    const langs = reqlib('core/langs');
+    langs.pt_BR = 'português';
+    try {
+        await withSidebar('ext/l10n', {l10n: {enabled: true, lang: 'en', useBrowserLang: false}}, sidebar => {
+            const select = sidebar.querySelector('select#langs');
+            const option = Array.from(select.options).find(el => el.value === 'pt_BR');
+            assert.ok(option, 'the menu is built');
+            assert.equal(option.textContent, 'Português');
+        });
+    } finally {
+        delete langs.pt_BR;
+    }
 });

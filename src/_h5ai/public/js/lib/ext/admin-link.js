@@ -17,8 +17,10 @@ const tpl =
         </div>`;
 
 
+// Without a passhash the server refuses every login: the page would only say
+// so, and the link would advertise it for nothing.
 const init = () => {
-    if (settings.adminLink) {
+    if (settings.adminLink && allsettings.hasCustomPasshash) {
         dom(tpl).appTo('#sidebar');
     }
 };

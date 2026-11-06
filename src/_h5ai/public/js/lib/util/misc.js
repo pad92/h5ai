@@ -106,8 +106,9 @@ const sanitize_html = html => {
     return doc.body.innerHTML;
 };
 
-// Enter and Space activate an element with role="button", as they do a <button>.
-const is_activation_key = ev => ev.key === 'Enter' || ev.key === ' ';
+// Enter and Space activate an element with role="button", as they do a <button>:
+// once per press, not again for each auto-repeat of a held key.
+const is_activation_key = ev => !ev.repeat && (ev.key === 'Enter' || ev.key === ' ');
 
 
 module.exports = {
