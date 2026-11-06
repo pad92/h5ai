@@ -296,6 +296,26 @@ test('search field: a refresh of the folder adds nothing to the subfolder result
     });
 });
 
+// view.isListed() reads view.hideFolders, set once when the view loads: the
+// test replaces it with the check that setting makes.
+test('search field: with hideFolders, neither the filter nor the subfolder results show folders', async () => {
+    await withFolder(async ({sub, deep, requests, respond}) => {
+        const isListed = view.isListed;
+        view.isListed = item => !item.isFolder();
+        try {
+            await toggle();
+            await type('su');
+            assert.deepEqual(labels(), [], 'the sub folder is not listed');
+            assert.equal(requests.length, 1, 'nothing listed here: the subfolders are searched');
+
+            await respond(0, [sub, Item.get('/search-field/sub/deeper/'), deep]);
+            assert.deepEqual(labels(), ['sub/deeper/alpine.txt']);
+        } finally {
+            view.isListed = isListed;
+        }
+    });
+});
+
 test('search field: accented letters ignore case, and a decomposed name matches', async () => {
     await withFolder(async ({folder}) => {
         const summer = Item.get('/search-field/%C3%A9t%C3%A9.txt');

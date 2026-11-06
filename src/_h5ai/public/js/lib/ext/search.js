@@ -105,7 +105,7 @@ const showFolder = () => {
     } else {
         const re = regExpOf(filterSettings);
         if (re) {
-            const accepts = item => labelMatches(re, item);
+            const accepts = item => view.isListed(item) && labelMatches(re, item);
             const matches = filter(location.getItem().content, accepts);
             view.setMatches(matches, accepts);
             isNoMatch = matches.length === 0;
@@ -138,12 +138,13 @@ const searchSubfolders = () => {
     }).then(response => {
         if (current === request) {
             $tool.rmCls('pending');
-            if (!response.search || !response.search.length) {
+            const matches = filter(map(response.search, item => Item.get(item)), view.isListed);
+            if (!matches.length) {
                 foundNothingFor = asked;
             }
             // The results answer the field at the time of the request: a
             // file added to the folder since then waits for the next one.
-            view.setMatches(map(response.search, item => Item.get(item)), () => false, true);
+            view.setMatches(matches, () => false, true);
         }
     }, () => {
         // Back to the folder; the line under it asks again.

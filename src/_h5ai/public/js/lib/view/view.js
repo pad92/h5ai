@@ -264,6 +264,10 @@ const setMatches = (items, accepts, fromSubfolders = false) => {
     showItems(items);
 };
 
+// Whether the view lists this item: hideFolders leaves out the folders, from
+// the folder as from its matches.
+const isListed = item => !(item.isFolder() && settings.hideFolders);
+
 const onLocationChanged = item => {
     if (!item) {
         item = location.getItem();
@@ -276,7 +280,7 @@ const onLocationChanged = item => {
     }
 
     each(item.content, child => {
-        if (!(child.isFolder() && settings.hideFolders)) {
+        if (isListed(child)) {
             items.push(child);
         }
     });
@@ -291,7 +295,7 @@ const onLocationRefreshed = (item, added, removed, updated) => {
     const isListing = acceptsAdded === null;
 
     each(added, child => {
-        if (!(child.isFolder() && settings.hideFolders) && (isListing || acceptsAdded(child))) {
+        if (isListed(child) && (isListing || acceptsAdded(child))) {
             add.push(child);
         }
     });
@@ -345,6 +349,7 @@ module.exports = {
     setLocation: onLocationChanged,
     setHint,
     setMatches,
+    isListed,
     getModes,
     getMode,
     setMode,
