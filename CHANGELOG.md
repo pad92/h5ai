@@ -1,6 +1,6 @@
 # Changelog
 
-## v1.8.1 - *Unreleased*
+## v1.8.1 - *2026-11-06*
 
 Upgrading: custom translation files can add `searchMatches`, which screen readers hear once the matches show (English: `Matches: %s`), `searchCut`, shown under the matches of a search the server stopped early (English: `The search stopped early: some matches may be missing.`), `searchPending`, shown while the subfolders are searched (English: `searching…`), `searchFound`, under the matches of a subfolder search (English: `Matches in this folder and its subfolders: %s`), and `searchAgain`, the button next to `searchCut` (English: `Search again`).
 
