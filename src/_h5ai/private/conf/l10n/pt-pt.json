@@ -19,6 +19,7 @@
     "search": "pesquisa",
     "searchCut": "A pesquisa parou antes do fim: podem faltar alguns resultados.",
     "searchMatches": "Resultados: %s",
+    "searchPending": "a pesquisar…",
     "searchSubfolders": "Procurar nas subpastas",
     "selected": "selecionado",
     "sidebar": "barra lateral",

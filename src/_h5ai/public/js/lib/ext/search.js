@@ -60,6 +60,9 @@ let request = 0;
 let timer = null;
 // Text whose subfolder search, from this folder, found nothing; null if none.
 let foundNothingFor = null;
+// What the view's hint said before a subfolder search replaced it with
+// searchPending; null while no search runs.
+let hintBeforeSearch = null;
 // Whether the field holds an expression that cannot be read.
 let isInvalid = false;
 // What to put back once the folder of a history entry shows again (Back,
@@ -127,6 +130,26 @@ const updateValidity = () => {
     updateDeeper();
 };
 
+// While a subfolder search runs, the view says so where it would say "no
+// match", and the field's text is dimmed.
+const startPending = () => {
+    $tool.addCls('pending');
+    if (hintBeforeSearch === null) {
+        hintBeforeSearch = view.getHint();
+    }
+    view.setHint('searchPending');
+};
+
+// restoreHint: the view keeps showing what it showed, so its hint comes
+// back; otherwise whatever shows next sets its own.
+const endPending = (restoreHint = false) => {
+    $tool.rmCls('pending');
+    if (restoreHint && hintBeforeSearch !== null) {
+        view.setHint(hintBeforeSearch);
+    }
+    hintBeforeSearch = null;
+};
+
 const cancelTimer = () => {
     clearTimeout(timer);
     timer = null;
@@ -136,7 +159,7 @@ const cancelTimer = () => {
 const stopSearch = () => {
     request += 1;
     isDeep = false;
-    $tool.rmCls('pending');
+    endPending();
     $cut.hide();
 };
 
@@ -173,7 +196,7 @@ const searchSubfolders = () => {
     const asked = text;
     isDeep = true;
     updateDeeper();
-    $tool.addCls('pending');
+    startPending();
     $cut.hide();
 
     server.request({
@@ -185,7 +208,7 @@ const searchSubfolders = () => {
         }
     }).then(response => {
         if (current === request) {
-            $tool.rmCls('pending');
+            endPending();
             // The results answer the field at the time of the request: a
             // file added to the folder since then waits for the next one.
             const shown = view.setMatches(map(response.search, item => Item.get(item)), () => false, true);
@@ -214,7 +237,7 @@ const onInput = () => {
     // A search answer would now answer older text: it is dropped, and the
     // next pause filters or searches again.
     request += 1;
-    $tool.rmCls('pending');
+    endPending(true);
     updateValidity();
     if (!text) {
         showFolder();

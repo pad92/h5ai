@@ -17,6 +17,8 @@ const isOpen = () => $('#search').classList.contains('active');
 const isPending = () => $('#search').classList.contains('pending');
 const isDeeperShown = () => !$('#search-deeper').classList.contains('hidden');
 const hint = () => $('#view-hint').className;
+// The hint's key, whether it shows or not.
+const hintKey = () => Array.from($('#view-hint').classList).filter(cls => cls.startsWith('l10n-')).map(cls => cls.slice(5)).join(' ');
 
 const typeInto = async (input, value) => {
     input.value = value;
@@ -102,6 +104,59 @@ test('search field: when nothing in the folder matches, typing searches the subf
 
         await respond(0, [deep]);
         assert.deepEqual(labels(), ['sub/deeper/alpine.txt']);
+    });
+});
+
+test('search field: while the subfolders are searched, the view says so instead of "no match"', async () => {
+    await withFolder(async ({deep, respond}) => {
+        await toggle();
+        await type('alpi');
+        assert.equal(isPending(), true);
+        assert.equal(hintKey(), 'searchPending');
+        assert.equal($('#view-hint').textContent, 'searching…');
+
+        await respond(0, [deep]);
+        assert.equal(hintKey(), 'noMatch');
+
+        await type('zz');
+        assert.equal(hintKey(), 'searchPending');
+        await type('zzq');
+        assert.equal(isPending(), true, 'the next search started');
+        await press('Escape');
+        assert.equal(hintKey(), 'empty', 'closing lists the folder');
+    });
+});
+
+test('search field: typing over a running search puts back the hint it replaced', async () => {
+    await withFolder(async ({requests}) => {
+        await toggle();
+        await type('alpi');
+        assert.equal(hintKey(), 'searchPending');
+        const input = $('#search input');
+        input.value = 'alpin';
+        input.dispatchEvent(new window.Event('input', {bubbles: true}));
+        assert.equal(isPending(), false);
+        assert.equal(hintKey(), 'noMatch', 'the folder matches still show');
+        await drain();
+        assert.equal(requests.length, 2);
+    });
+});
+
+test('search field: each subfolder match shows its folder and its name apart', async () => {
+    await withFolder(async ({deep, respond}) => {
+        await toggle();
+        await type('alpi');
+        await respond(0, [deep]);
+        const $label = $('#items .item .label');
+        assert.ok($label.classList.contains('with-path'));
+        assert.equal($label.querySelector('.path').textContent, 'sub/deeper/');
+        assert.equal($label.querySelector('.name').textContent, 'alpine.txt');
+        assert.equal($label.getAttribute('title'), 'sub/deeper/alpine.txt');
+        assert.ok($('#view').classList.contains('shows-paths'));
+
+        await type('al');
+        assert.equal($('#items .label.with-path'), null, 'folder matches have no path');
+        assert.equal($('#view').classList.contains('shows-paths'), false);
     });
 });
 

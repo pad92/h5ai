@@ -1,6 +1,7 @@
 const {each, map, includes, intersection, dom} = require('../util');
 const event = require('../core/event');
 const format = require('../core/format');
+const i18n = require('../core/i18n');
 const location = require('../core/location');
 const resource = require('../core/resource');
 const store = require('../core/store');
@@ -87,6 +88,8 @@ const createStyles = size => {
         `${gridPrefix} .item .label {line-height: ${gsize}px ${important}}`,
         `${gridPrefix} .square {width: ${gsize}px ${important} height: ${gsize}px ${important}}`,
         `${gridPrefix} .square img {width: ${gsize}px ${important} height: ${gsize}px ${important}}`,
+        // The name and its folder, on two lines centred on the icon.
+        `${gridPrefix} .item .label.with-path {line-height: normal ${important} height: ${gsize}px}`,
 
         `${iconsPrefix} .item {width: ${ilsize}px ${important}}`,
         `${iconsPrefix} .landscape {width: ${ilsize}px ${important} height: ${isize}px ${important}}`,
@@ -173,10 +176,14 @@ const createHtml = item => {
     location.setLink($a, item);
 
     $label.text(item.label).attr('title', item.label);
+    // The folder and the name in their own spans: the folder gives way
+    // first when the label is too narrow, and shows on a line of its own in
+    // the grid and icon views.
     const folder = showsFolders ? relativeFolder(item) : '';
     if (folder) {
-        $label.attr('title', folder + item.label);
-        $label[0].insertBefore(dom('<span class="path"></span>').text(folder)[0], $label[0].firstChild);
+        $label.attr('title', folder + item.label).addCls('with-path').text('')
+            .app(dom('<span class="path"></span>').text(folder))
+            .app(dom('<span class="name"></span>').text(item.label));
     }
     $date.attr('data-time', item.time).text(format.formatDate(item.time));
     showSize($size, item);
@@ -229,6 +236,7 @@ const showItems = items => {
 const setItems = items => {
     acceptsAdded = null;
     showsFolders = false;
+    $view.rmCls('shows-paths');
     showItems(items);
 };
 
@@ -249,10 +257,18 @@ const changeItems = (add, remove) => {
 };
 
 // One hint at a time, as i18n writes each l10n- class in turn; checkHint()
-// then sets whether it is hidden.
+// then sets whether it is hidden. Written at once: a hint can change while
+// the items stay, with no view.changed for the l10n extension.
 const setHint = l10nKey => {
     $hint[0].className = 'l10n-' + l10nKey;
+    i18n.apply($hint[0]);
     checkHint();
+};
+
+// The key of the hint, shown or hidden.
+const getHint = () => {
+    const cls = Array.from($hint[0].classList).find(name => name.startsWith('l10n-'));
+    return cls ? cls.slice('l10n-'.length) : '';
 };
 
 // Whether the view lists this item: hideFolders leaves out the folders, from
@@ -268,6 +284,11 @@ const setMatches = (items, accepts, fromSubfolders = false) => {
     const shown = items.filter(item => module.exports.isListed(item));
     acceptsAdded = accepts;
     showsFolders = fromSubfolders;
+    if (fromSubfolders) {
+        $view.addCls('shows-paths');
+    } else {
+        $view.rmCls('shows-paths');
+    }
     setHint('noMatch');
     showItems(shown);
     return shown;
@@ -353,6 +374,7 @@ module.exports = {
     changeItems,
     setLocation: onLocationChanged,
     setHint,
+    getHint,
     setMatches,
     isListed,
     getModes,

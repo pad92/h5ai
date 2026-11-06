@@ -19,6 +19,7 @@
     "search": "search",
     "searchCut": "The search stopped early: some matches may be missing.",
     "searchMatches": "Matches: %s",
+    "searchPending": "searching…",
     "searchSubfolders": "Search subfolders for",
     "selected": "selected",
     "sidebar": "sidebar",

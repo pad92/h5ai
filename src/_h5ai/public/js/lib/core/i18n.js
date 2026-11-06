@@ -35,6 +35,8 @@ const defaults = {
     searchCut: 'The search stopped early: some matches may be missing.',
     // Read by screen readers once the matches show.
     searchMatches: 'Matches: %s',
+    // In place of "no match" while the subfolders are searched.
+    searchPending: 'searching…',
     // Followed by what was typed, in quotes.
     searchSubfolders: 'Search subfolders for',
     selected: 'selected',

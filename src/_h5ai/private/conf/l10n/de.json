@@ -19,6 +19,7 @@
     "search": "suchen",
     "searchCut": "Die Suche wurde vorzeitig beendet: Einige Treffer fehlen möglicherweise.",
     "searchMatches": "Treffer: %s",
+    "searchPending": "Suche…",
     "searchSubfolders": "In Unterordnern suchen nach",
     "selected": "ausgewählt",
     "sidebar": "Seitenleiste",

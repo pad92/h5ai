@@ -19,6 +19,7 @@
     "search": "搜尋",
     "searchCut": "搜尋提前結束：可能缺少部分符合項目。",
     "searchMatches": "符合項目：%s",
+    "searchPending": "搜尋中…",
     "searchSubfolders": "在子資料夾中搜尋",
     "selected": "已選取",
     "sidebar": "側邊欄",

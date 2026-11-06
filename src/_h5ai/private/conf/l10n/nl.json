@@ -19,6 +19,7 @@
     "search": "zoeken",
     "searchCut": "Het zoeken is vroegtijdig gestopt: er kunnen resultaten ontbreken.",
     "searchMatches": "Resultaten: %s",
+    "searchPending": "zoeken…",
     "searchSubfolders": "Zoeken in submappen naar",
     "selected": "geselecteerd",
     "sidebar": "zijbalk",
