@@ -25,6 +25,7 @@ const GROUPS = [
         outDir: path.join(IMAGES_DIR, 'ui'),
         size: 24,
         icons: {
+            admin: ['solid', 'user-gear', '#555'],
             back: ['solid', 'arrow-left', '#555'],
             crumb: ['solid', 'chevron-right', '#555'],
             download: ['solid', 'download', '#555'],
@@ -37,7 +38,7 @@ const GROUPS = [
             'preview-raw': ['solid', 'download', '#fff'],
             search: ['solid', 'magnifying-glass', '#555'],
             selected: ['solid', 'check', '#fff'],
-            sidebar: ['solid', 'bars', '#555'],
+            sidebar: ['solid', 'sliders', '#555'],
             sort: ['solid', 'chevron-down', '#555'],
             'tree-indicator': ['solid', 'chevron-right', '#555'],
             'view-details': ['solid', 'list', '#555'],

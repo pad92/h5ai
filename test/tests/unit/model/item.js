@@ -220,6 +220,53 @@ test('sidebar: the tree and info toggles announce whether their panel shows', ()
     });
 });
 
+const press = (el, key) => el.dispatchEvent(new window.KeyboardEvent('keydown', {key, bubbles: true, cancelable: true}));
+
+test('sidebar: block titles are h2, below the page heading', () => {
+    const sidebar = document.getElementById('sidebar');
+    assert.equal(sidebar.querySelectorAll('h1').length, 0);
+    assert.ok(sidebar.querySelectorAll('.block > h2').length >= 3, 'view, tree and info have a title');
+});
+
+test('toolbar: the sidebar, view and download tools work from the keyboard', () => {
+    ['sidebar-toggle', 'viewmode-toggle', 'download'].forEach(id => {
+        const el = document.getElementById(id);
+        assert.equal(el.getAttribute('role'), 'button', `${id} is announced as a button`);
+        assert.equal(el.getAttribute('tabindex'), '0', `${id} takes the focus`);
+        assert.ok(el.getAttribute('title'), `${id} has a tooltip`);
+    });
+
+    const toggle = document.getElementById('sidebar-toggle');
+    const sidebar = document.getElementById('sidebar');
+    assert.equal(toggle.getAttribute('aria-controls'), 'sidebar');
+    [0, 1].forEach(() => {
+        press(toggle, 'Enter');
+        const open = !sidebar.classList.contains('hidden');
+        assert.equal(toggle.getAttribute('aria-expanded'), String(open), 'aria-expanded follows the sidebar');
+    });
+
+    const mode = view.getMode();
+    try {
+        press(document.getElementById('viewmode-toggle'), ' ');
+        assert.notEqual(view.getMode(), mode, 'Space switches the view mode');
+    } finally {
+        view.setMode(mode);
+    }
+
+    const server = reqlib('server');
+    const formRequest = server.formRequest;
+    const requests = [];
+    server.formRequest = query => requests.push(query);
+    try {
+        press(document.getElementById('download'), 'Enter');
+        assert.equal(requests.length, 1, 'Enter starts the download');
+        press(document.getElementById('download'), 'a');
+        assert.equal(requests.length, 1, 'other keys do nothing');
+    } finally {
+        server.formRequest = formRequest;
+    }
+});
+
 test('crumbs and document title follow the active item hierarchy', () => {
     const folder = Item.get('/crumb-folder/');
     const child = Item.get('/crumb-folder/file.txt');

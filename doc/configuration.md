@@ -33,6 +33,7 @@ Customize the general look and feel of the index page.
 | Key | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `binaryPrefix` | `boolean` | `false` | If `true`, uses IEC binary prefixes (1024 B = 1 KiB) for file sizes. If `false`, uses SI decimal prefixes (1000 B = 1 KB). |
+| `adminLink` | `boolean` | `true` | Shows a link to the admin page (`/_h5ai/public/index.php`) at the bottom of the sidebar. The page asks for the admin password either way; set `false` to keep the link off a public listing. |
 | `disableSidebar` | `boolean` | `false` | Hides the sidebar and its toggle button entirely. |
 | `fallbackMode` | `boolean` | `false` | Serves h5ai in fallback mode (useful for browsers without JS or very old browsers). |
 | `fastBrowsing` | `boolean` | `true` | Uses the HTML5 History API to navigate folders without reloading the whole page. |

@@ -56,6 +56,8 @@ const defaults = {
     view: 'View',
     poweredBy: 'powered by h5ai',
     changelog: 'Changelog',
+    // A sidebar link to the info page, /_h5ai/public/index.php.
+    admin: 'Administration',
     loadingFailed: 'loading failed',
     refreshFailed: 'refresh failed',
 

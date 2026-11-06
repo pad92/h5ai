@@ -36,6 +36,7 @@
     "view": "Vista",
     "poweredBy": "funciona con h5ai",
     "changelog": "Registro de cambios",
+    "admin": "Administración",
     "loadingFailed": "error al cargar",
     "refreshFailed": "error al actualizar",
     "close": "cerrar",

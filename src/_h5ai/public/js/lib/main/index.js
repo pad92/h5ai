@@ -4,10 +4,12 @@ require('../ext/autorefresh');
 require('../ext/crumb');
 require('../ext/custom');
 require('../ext/download');
-// The sidebar blocks follow these requires: tree, info, then language.
+// The sidebar blocks follow these requires: tree, info, language, then
+// the admin link.
 require('../ext/tree');
 require('../ext/info');
 require('../ext/l10n');
+require('../ext/admin-link');
 require('../ext/piwik-analytics');
 require('../ext/search');
 require('../ext/select');

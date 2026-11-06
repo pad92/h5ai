@@ -36,7 +36,7 @@ const tpl =
         </div>`;
 const settingsTpl =
         `<div class="block">
-            <h1 class="l10n-info">Info</h1>
+            <h2 class="l10n-info">Info</h2>
             <button type="button" id="view-info" class="button view l10n_title-info" aria-pressed="false">
                 <img class="l10n_alt-info" src="${resource.image('info-toggle')}" alt="Info"/>
             </button>

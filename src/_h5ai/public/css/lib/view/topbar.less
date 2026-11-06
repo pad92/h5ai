@@ -31,6 +31,11 @@
         &:hover {
             background: @col-back-hover;
         }
+
+        // Inside: the toolbar hides its overflow, which would cut the ring.
+        &:focus-visible {
+            outline-offset: -2px;
+        }
     }
 }
 

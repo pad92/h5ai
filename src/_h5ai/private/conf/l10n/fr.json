@@ -36,6 +36,7 @@
     "view": "Disposition",
     "poweredBy": "propulsé par h5ai",
     "changelog": "Journal des modifications",
+    "admin": "Administration",
     "loadingFailed": "échec du chargement",
     "refreshFailed": "échec de l'actualisation",
     "close": "fermer",

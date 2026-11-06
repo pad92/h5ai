@@ -91,12 +91,25 @@ body[data-theme="dark"] #sidebar .button.active {
     box-shadow: inset 0 -3px 0 0 @col-back-selected;
 }
 
-body[data-theme="dark"] #sidebar h1 {
+body[data-theme="dark"] #sidebar h2,
+body[data-theme="dark"] #sidebar .admin-link {
     color: @col-text-primary-white;
 }
 
 body[data-theme="dark"] #sidebar .size-label {
     color: @col-text-secondary-white;
+}
+
+body[data-theme="dark"] #sidebar .select {
+    border-color: @col-divider-white;
+}
+
+body[data-theme="dark"] #sidebar .select::after {
+    border-color: @col-text-secondary-white;
+}
+
+body[data-theme="dark"] #sidebar .admin-link:hover {
+    background: rgba(255, 255, 255, 0.06);
 }
 
 body[data-theme="dark"] #sidebar select:hover,

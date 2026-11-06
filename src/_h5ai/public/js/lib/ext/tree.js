@@ -26,7 +26,7 @@ const itemTpl =
         </span>`;
 const settingsTpl =
         `<div class="block">
-            <h1 class="l10n-tree">Tree</h1>
+            <h2 class="l10n-tree">Tree</h2>
             <button type="button" id="view-tree" class="button view l10n_title-tree" aria-pressed="false">
                 <img class="l10n_alt-tree" src="${resource.image('tree-toggle')}" alt="Tree"/>
             </button>
