@@ -203,7 +203,8 @@
         "maxResults": 1000,
         "maxDepth": 64,
         "maxPatternLength": 1024,
-        "indexTtl": 300
+        "indexTtl": 300,
+        "timeLimit": 10
     },
     "select": {
         "enabled": true,

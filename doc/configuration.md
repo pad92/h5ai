@@ -266,6 +266,7 @@ Searches the current folder and its subfolders on the server, from the search fi
 - `maxDepth` (default: `64`): Maximum depth below the folder the search starts from.
 - `maxPatternLength` (default: `1024`): Maximum regular-expression length accepted by the server, in bytes. In advanced mode, each typed letter becomes about four characters and each word adds eight, so a few words already make a long expression; a longer one finds nothing.
 - `indexTtl` (default: `300`): Age in seconds after which a search asks for a background refresh of the search index. The stale index keeps answering in the meantime.
+- `timeLimit` (default: `10`): Seconds after which a search stops and returns the matches found so far; fractions are allowed. A search also stops once its expression hits the PCRE match or depth limit on 100 names, since such an expression could keep a PHP worker busy for minutes on a large share. Both cases are logged.
 
 #### `select`
 Enables checkboxes and select options to choose multiple files.

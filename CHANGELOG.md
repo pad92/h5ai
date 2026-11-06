@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+* **Security**: a search stops after `search.timeLimit` seconds (10 by default) and returns what it found so far, and as soon as its expression hits the PCRE match or depth limit on 100 names. The limit on each name was already there, but nothing bounded the whole search: a crafted expression took about 0.14 ms per name, so a request on an index of 100,000 names kept a PHP worker busy for about 14 seconds, and up to PHP-FPM's 60-second limit on a larger share. Both stops are logged.
+
 ## v1.8.0 - *2026-11-05*
 
 Upgrading: a mounted `options.json` that sets `search.maxPatternLength` to 256 refuses advanced searches longer than about 50 letters; raise it to 1024, the new default, or drop the key. Custom translation files can drop the `filter` key and add `searchSubfolders`. The style sheet no longer defines the classes `raised`, `popup`, `rounded`, `clear-appearance`, `eased-transition`, `flex-base`, `flex-column`, `flex-row` and `el-button`, which h5ai only used inside its own styles; a custom header or footer that relied on one of them must style itself.

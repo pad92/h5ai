@@ -280,6 +280,70 @@ final class SearchTest extends H5aiTestCase {
         self::assertContains($late, (new Search($context))->get_paths($this->root(), 'match'), 'from the root, every line is read');
     }
 
+    // Runs $search with the PHP error log in a file, and returns that log.
+    private function logOf(callable $search): string {
+        $log = $this->tmp . '/error.log';
+        @unlink($log);
+        $previous_log = ini_set('error_log', $log);
+        try {
+            $search();
+        } finally {
+            ini_set('error_log', (string) $previous_log);
+        }
+        return (string) @file_get_contents($log);
+    }
+
+    // (a+)+$ backtracks without end on a run of a's that ends with another
+    // letter: each such name hits the PCRE match limit. Below few/, the
+    // search goes on to zz.txt, sorted last; below many/, it gives up after
+    // a hundred such names, before zz.txt.
+    public function testARunawayPatternEndsTheSearch(): void {
+        $pattern = '^(?:(a+)+$|zz)';
+        $runaway_names = ['few' => 60, 'many' => 150];
+        $found = [];
+        foreach ($runaway_names as $folder => $count) {
+            for ($i = 0; $i < $count; $i++) {
+                $this->write($this->root(sprintf('%s/%s!%03d', $folder, str_repeat('a', 40), $i)), 'x');
+            }
+            $found[$folder] = $this->write($this->root($folder . '/zz.txt'), 'x');
+        }
+        $context = $this->searchContext();
+
+        foreach (['walk', 'index'] as $source) {
+            if ($source === 'index') {
+                self::assertTrue((new Search($context))->refresh_index());
+            }
+            foreach (['few' => true, 'many' => false] as $folder => $is_found) {
+                $paths = null;
+                $log = $this->logOf(function () use ($context, $pattern, $folder, &$paths): void {
+                    $paths = (new Search($context))->get_paths($this->root($folder), $pattern);
+                });
+
+                self::assertSame($is_found ? [$found[$folder]] : [], $paths, "{$folder}, {$source}");
+                self::assertSame(!$is_found, str_contains($log, 'search: stopped, the pattern hit the PCRE limit'), "log of {$folder}, {$source}");
+            }
+        }
+    }
+
+    public function testASearchEndsAfterItsTimeLimit(): void {
+        $this->write($this->root('sub/match.txt'), 'x');
+        $patient = $this->searchContext();
+        $hurried = $this->searchContext(['search' => ['timeLimit' => 1e-9]]);
+
+        foreach (['walk', 'index'] as $source) {
+            if ($source === 'index') {
+                self::assertTrue((new Search($patient))->refresh_index());
+            }
+            self::assertCount(1, (new Search($patient))->get_paths($this->root(), 'match'), $source);
+            $paths = null;
+            $log = $this->logOf(function () use ($hurried, &$paths): void {
+                $paths = (new Search($hurried))->get_paths($this->root(), 'match');
+            });
+            self::assertSame([], $paths, $source);
+            self::assertStringContainsString('search: stopped after search.timeLimit', $log, $source);
+        }
+    }
+
     public function testThePurgeWaitsForARunningRefresh(): void {
         $this->write($this->root('file.txt'), 'x');
         self::assertTrue((new Search($this->searchContext()))->refresh_index());

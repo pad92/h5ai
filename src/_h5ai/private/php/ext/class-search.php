@@ -24,18 +24,31 @@ class Search {
     private const TYPE_DIR = 'd';
     private const TYPE_LINK = 'l';
     private const TYPE_FILE = 'f';
+    private const DEFAULT_TIME_LIMIT = 10;
+    // A pattern stops at the PCRE match or depth limit after about a
+    // thousand times the work of a plain match: once it did on this many
+    // names, it is a runaway one and the search ends there.
+    private const MAX_LIMIT_HITS = 100;
+
+    // When the running search must end, in hrtime() nanoseconds, and on how
+    // many names its pattern hit a PCRE limit.
+    private int $deadline = 0;
+    private int $limit_hits = 0;
 
     public function __construct(private readonly Context $context) {}
 
     // Paths below $root whose name matches the regular expression $pattern:
     // at most search.maxResults of them, search.maxDepth levels below $root.
     // An empty, oversized or invalid pattern, or an unmanaged root, yields [].
+    // The pattern comes from the browser: a search ends with the paths found
+    // so far after search.timeLimit seconds, or as soon as the pattern shows
+    // itself a runaway one, so that no request holds a PHP worker for long.
     public function get_paths(string $root, ?string $pattern = null, bool $ignorecase = false): array {
         $max_pattern_length = max(1, (int) $this->context->query_option('search.maxPatternLength', 1024));
         if (!$pattern || strlen($pattern) > $max_pattern_length) {
             return [];
         }
-        $matches = self::name_matcher($pattern, $ignorecase);
+        $matches = $this->name_matcher($pattern, $ignorecase);
         if ($matches === null) {
             return [];
         }
@@ -46,6 +59,8 @@ class Search {
 
         $max_depth = max(0, (int) $this->context->query_option('search.maxDepth', 64));
         $max_results = max(1, (int) $this->context->query_option('search.maxResults', 1000));
+        $this->deadline = hrtime(true) + (int) ($this->time_limit() * 1e9);
+        $this->limit_hits = 0;
         // The index never goes into a symlinked folder, but a search started
         // from inside one walks it, as before the index.
         $is_in_symlink = $this->is_in_symlinked_folder($root);
@@ -58,24 +73,35 @@ class Search {
             $visited = [];
             $this->walk($root, $matches, 0, $max_depth, $max_results, $visited, $paths);
         }
+        if ($this->limit_hits >= self::MAX_LIMIT_HITS) {
+            Util::log('search: stopped, the pattern hit the PCRE limit on ' . $this->limit_hits . ' names');
+        } elseif ($this->is_over_budget()) {
+            Util::log('search: stopped after search.timeLimit (' . $this->time_limit() . ' s)');
+        }
         return $paths;
+    }
+
+    private function is_over_budget(): bool {
+        return $this->limit_hits >= self::MAX_LIMIT_HITS || hrtime(true) >= $this->deadline;
     }
 
     // Whether a name matches $pattern, read as the browser's filter reads it:
     // characters, not bytes, so that the case of É is ignored like that of E,
     // and in NFC when the intl extension can normalize the name. A name that
     // is not valid UTF-8 is matched byte by byte. Null for an invalid pattern.
-    private static function name_matcher(string $pattern, bool $ignorecase): ?Closure {
+    // A name on which the pattern hits a PCRE limit does not match, and
+    // counts in $limit_hits.
+    private function name_matcher(string $pattern, bool $ignorecase): ?Closure {
         $re = Util::wrap_pattern('(*LIMIT_MATCH=100000)(*LIMIT_DEPTH=1000)' . $pattern) . ($ignorecase ? 'i' : '');
         if (@preg_match($re, '') === false) {
             return null;
         }
         $re_unicode = $re . 'u';
         if (@preg_match($re_unicode, '') === false) {
-            return static fn(string $name): bool => @preg_match($re, $name) === 1;
+            return fn(string $name): bool => $this->counted_match($re, $name);
         }
         $can_normalize = class_exists('Normalizer');
-        return static function (string $name) use ($re, $re_unicode, $can_normalize): bool {
+        return function (string $name) use ($re, $re_unicode, $can_normalize): bool {
             // Normalizing fails on a name that is not UTF-8, which is kept.
             if ($can_normalize && !Normalizer::isNormalized($name, Normalizer::FORM_C)) {
                 $name = Normalizer::normalize($name, Normalizer::FORM_C) ?: $name;
@@ -84,10 +110,21 @@ class Search {
             // Only a bad encoding goes byte by byte: a match limit hit on a
             // good name is no match.
             if ($result === false && preg_last_error() === PREG_BAD_UTF8_ERROR) {
-                $result = @preg_match($re, $name);
+                return $this->counted_match($re, $name);
+            }
+            if ($result === false) {
+                $this->limit_hits++;
             }
             return $result === 1;
         };
+    }
+
+    private function counted_match(string $re, string $name): bool {
+        $result = @preg_match($re, $name);
+        if ($result === false) {
+            $this->limit_hits++;
+        }
+        return $result === 1;
     }
 
     // Whether $root or one of its parents below ROOT_PATH is a symlink. A
@@ -133,6 +170,9 @@ class Search {
                     continue;
                 }
                 $is_below_root = true;
+                if ($this->is_over_budget()) {
+                    break;
+                }
                 $below_root = substr($entry, strlen($prefix));
                 if (substr_count($below_root, '/') > $max_depth) {
                     continue;
@@ -169,7 +209,7 @@ class Search {
 
     // The walk used before the index existed, and still used without one.
     private function walk(string $folder, Closure $matches, int $depth, int $max_depth, int $max_results, array &$visited, array &$paths): void {
-        if ($depth > $max_depth || count($paths) >= $max_results) {
+        if ($depth > $max_depth || count($paths) >= $max_results || $this->is_over_budget()) {
             return;
         }
         $real_folder = realpath($folder) ?: $folder;
@@ -182,7 +222,7 @@ class Search {
         }
 
         foreach ($this->context->paths()->read_dir($folder) as $name) {
-            if (count($paths) >= $max_results) {
+            if (count($paths) >= $max_results || $this->is_over_budget()) {
                 return;
             }
             $path = $folder . '/' . $name;
@@ -473,6 +513,13 @@ class Search {
             }
             $current = $parent;
         }
+    }
+
+    // Seconds, possibly fractional; anything but a positive number gives the
+    // default.
+    private function time_limit(): float {
+        $limit = (float) $this->context->query_option('search.timeLimit', self::DEFAULT_TIME_LIMIT);
+        return $limit > 0 ? $limit : self::DEFAULT_TIME_LIMIT;
     }
 
     private function ttl(): int {
