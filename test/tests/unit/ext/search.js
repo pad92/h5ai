@@ -160,6 +160,64 @@ test('search field: each subfolder match shows its folder and its name apart', a
     });
 });
 
+// The marked parts of the label of the match whose name is given.
+const marksOf = name => {
+    const item = Array.from(document.querySelectorAll('#items .item')).find(el => el._item.label === name);
+    return Array.from(item.querySelectorAll('.label mark'), mark => mark.textContent);
+};
+
+test('search field: the browser neither spellchecks nor autocompletes the field', async () => {
+    assert.equal($('#search input').getAttribute('spellcheck'), 'false');
+    assert.equal($('#search input').getAttribute('autocomplete'), 'off');
+});
+
+test('search field: the matched letters of each name are marked', async () => {
+    await withFolder(async ({deep, respond}) => {
+        await toggle();
+        await type('AL txt');
+        assert.deepEqual(marksOf('alpha.txt'), ['al', 'txt'], 'each word, in any case');
+        assert.equal($('#items .item .label').textContent, 'alpha.txt');
+
+        await type('re:ph.');
+        assert.deepEqual(marksOf('alpha.txt'), ['pha'], 'the first match of an expression');
+
+        await type('apn');
+        await respond(0, [deep]);
+        assert.deepEqual(marksOf('alpine.txt'), ['a', 'p', 'n'], 'letters in order, each as early as it can');
+        assert.equal($('#items .item .label .path').textContent, 'sub/deeper/', 'the folder is not marked');
+
+        await press('Escape');
+        assert.equal($('#items .label mark'), null, 'the folder listing marks nothing');
+    });
+});
+
+test('search field: a subfolder search says how many matches it shows, and a cut one offers to search again', async () => {
+    await withFolder(async ({deep, requests, respond}) => {
+        const isShown = selector => !$(selector).classList.contains('hidden');
+        await toggle();
+        await type('alpi');
+        assert.equal(isShown('#search-found'), false, 'not while it runs');
+        await respond(0, [deep]);
+        assert.equal(isShown('#search-found'), true);
+        assert.equal($('#search-found').textContent, 'Matches in this folder and its subfolders: 1');
+        assert.equal(isShown('#search-cut'), false);
+
+        await press('Enter');
+        requests[1].resolve({search: [], searchTruncated: true});
+        await drain();
+        assert.equal($('#search-found').textContent, 'Matches in this folder and its subfolders: 0');
+        assert.equal(isShown('#search-cut'), true);
+        $('#search-cut button').click();
+        await drain();
+        assert.equal(requests.length, 3, 'the button searches again');
+        assert.equal(isShown('#search-cut'), false);
+
+        await respond(2, [deep]);
+        await type('al');
+        assert.equal(isShown('#search-found'), false, 'the folder matches need no count');
+    });
+});
+
 test('search field: after a subfolder search found nothing, longer text does not search again', async () => {
     await withFolder(async ({requests, respond}) => {
         await toggle();
@@ -324,7 +382,7 @@ test('search field: a search the server cut short says matches may be missing', 
         await drain();
         assert.deepEqual(labels(), ['sub/deeper/alpine.txt']);
         assert.equal(isCutShown(), true);
-        assert.equal($('#search-cut').className, 'l10n-searchCut');
+        assert.ok($('#search-cut .l10n-searchCut'));
         assert.equal(status(), 'Matches: 1. The search stopped early: some matches may be missing.');
 
         await press('Enter');

@@ -34,7 +34,7 @@ const canSearch = searchSettings.enabled;
 const tpl =
         `<div id="search" class="tool">
             <img class="l10n_alt-search" src="${resource.image('search')}" alt="search" role="button" tabindex="0" aria-expanded="false"/>
-            <input class="l10n_ph-search l10n_aria-search" type="text" aria-label="search" aria-invalid="false"/>
+            <input class="l10n_ph-search l10n_aria-search" type="text" aria-label="search" aria-invalid="false" spellcheck="false" autocomplete="off"/>
             <div class="status" role="status"></div>
         </div>`;
 const deeperTpl =
@@ -42,13 +42,23 @@ const deeperTpl =
             <span class="l10n-searchSubfolders"></span>
             <q class="pattern"></q>
         </button>`;
-const cutTpl = '<p id="search-cut" class="l10n-searchCut"></p>';
+// Under the matches of the subfolders: how many, and where they come from.
+const foundTpl = '<p id="search-found"></p>';
+const cutTpl =
+        `<p id="search-cut">
+            <span class="l10n-searchCut"></span>
+            <button type="button" class="l10n-searchAgain"></button>
+        </p>`;
 
 let $tool;
 let $input;
 let $status;
 let $deeper;
 let $cut;
+let $found;
+// How many matches the subfolder search shows, for #search-found; null
+// while it shows none.
+let foundCount = null;
 let $items;
 let isOpen = false;
 // What the field holds, '' when it holds only spaces.
@@ -82,6 +92,79 @@ const regExpOf = settings => {
 };
 
 const labelMatches = (re, item) => re.test(item.label.normalize('NFC'));
+
+// The [start, end) ranges of marked characters, merged and sorted.
+const rangesOf = marked => {
+    const ranges = [];
+    marked.forEach((isMarked, index) => {
+        if (!isMarked) {
+            return;
+        }
+        const last = ranges[ranges.length - 1];
+        if (last && last[1] === index) {
+            last[1] = index + 1;
+        } else {
+            ranges.push([index, index + 1]);
+        }
+    });
+    return ranges;
+};
+
+// For the view: name => the ranges of its characters the field matched, as
+// the pattern reads them. A word in advanced mode matches its letters in
+// order, each as early as it can, as its expression does; a literal its
+// first occurrence; an expression after re: its first match.
+const highlightOf = settings => {
+    const typed = text.normalize('NFC');
+    const sameCase = (a, b) => a === b;
+    const anyCase = (a, b) => a === b || a.toLowerCase() === b.toLowerCase();
+    const isSame = settings.ignorecase ? anyCase : sameCase;
+    if (settings.advanced && typed.startsWith('re:')) {
+        const re = regExpOf(settings);
+        return name => {
+            const match = re && re.exec(name);
+            if (!match || !match[0]) {
+                return [];
+            }
+            const start = Array.from(name.slice(0, match.index)).length;
+            return [[start, start + Array.from(match[0]).length]];
+        };
+    }
+    const words = (settings.advanced ? typed.trim().split(/\s+/).filter(Boolean) : [typed]).map(word => Array.from(word));
+    const markInOrder = (chars, word, marked) => {
+        const hits = [];
+        let at = 0;
+        for (const wanted of word) {
+            while (at < chars.length && !isSame(chars[at], wanted)) {
+                at += 1;
+            }
+            if (at === chars.length) {
+                return;
+            }
+            hits.push(at);
+            at += 1;
+        }
+        hits.forEach(index => {
+            marked[index] = true;
+        });
+    };
+    const markFirst = (chars, word, marked) => {
+        for (let start = 0; start + word.length <= chars.length; start += 1) {
+            if (word.every((wanted, offset) => isSame(chars[start + offset], wanted))) {
+                word.forEach((wanted, offset) => {
+                    marked[start + offset] = true;
+                });
+                return;
+            }
+        }
+    };
+    return name => {
+        const chars = Array.from(name);
+        const marked = chars.map(() => false);
+        words.forEach(word => (settings.advanced ? markInOrder : markFirst)(chars, word, marked));
+        return rangesOf(marked);
+    };
+};
 
 // Whether a search for the field can only find nothing again: added letters
 // or words narrow a literal or advanced pattern, but not an expression
@@ -132,6 +215,16 @@ const updateValidity = () => {
 
 // While a subfolder search runs, the view says so where it would say "no
 // match", and the field's text is dimmed.
+// Says how many matches the subfolder search shows; null hides the line.
+const showFound = count => {
+    foundCount = count;
+    if (count === null) {
+        $found.text('').hide();
+    } else {
+        $found.text(i18n.t('searchFound', count)).show();
+    }
+};
+
 const startPending = () => {
     $tool.addCls('pending');
     if (hintBeforeSearch === null) {
@@ -161,6 +254,7 @@ const stopSearch = () => {
     isDeep = false;
     endPending();
     $cut.hide();
+    showFound(null);
 };
 
 // Drops any running search and shows the current folder: all of it, or the
@@ -176,7 +270,7 @@ const showFolder = () => {
         const re = regExpOf(filterSettings);
         if (re) {
             const accepts = item => view.isListed(item) && labelMatches(re, item);
-            const shown = view.setMatches(filter(location.getItem().content, accepts), accepts);
+            const shown = view.setMatches(filter(location.getItem().content, accepts), accepts, false, highlightOf(filterSettings));
             isNoMatch = shown.length === 0;
             announce(shown.length);
         }
@@ -198,6 +292,8 @@ const searchSubfolders = () => {
     updateDeeper();
     startPending();
     $cut.hide();
+    showFound(null);
+    const marks = highlightOf(searchSettings);
 
     server.request({
         action: 'get',
@@ -211,7 +307,8 @@ const searchSubfolders = () => {
             endPending();
             // The results answer the field at the time of the request: a
             // file added to the folder since then waits for the next one.
-            const shown = view.setMatches(map(response.search, item => Item.get(item)), () => false, true);
+            const shown = view.setMatches(map(response.search, item => Item.get(item)), () => false, true, marks);
+            showFound(shown.length);
             // A search the server cut short may have missed names, which
             // longer text could find too: the line under the matches says so.
             const isCut = !!response.searchTruncated;
@@ -364,6 +461,7 @@ const init = () => {
     $input = $tool.find('input');
     $status = $tool.find('.status');
     $deeper = dom(deeperTpl).hide().appTo('#view');
+    $found = dom(foundTpl).hide().appTo('#view');
     $cut = dom(cutTpl).hide().appTo('#view');
     $items = dom('#items');
 
@@ -386,6 +484,16 @@ const init = () => {
     $deeper.on('click', () => {
         searchSubfolders();
         $input[0].focus();
+    });
+    $cut.find('button').on('click', () => {
+        searchSubfolders();
+        $input[0].focus();
+    });
+    // The count line is written with its number: a new language rewrites it.
+    event.sub('l10n.changed', () => {
+        if (foundCount !== null) {
+            showFound(foundCount);
+        }
     });
     event.sub('location.beforeChange', onBeforeChange);
     event.sub('location.changed', onLocationChanged);

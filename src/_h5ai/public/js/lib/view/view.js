@@ -29,6 +29,9 @@ let acceptsAdded = null;
 // Whether the items shown come from subfolders: each label then starts with
 // its folder, relative to the current one.
 let showsFolders = false;
+// While matches show: name => the [start, end) ranges of the name's
+// characters, in NFC, that the field matched, to mark them. Null otherwise.
+let highlight = null;
 const viewTpl =
         `<div id="view">
             <ul id="items" class="clearfix">
@@ -160,6 +163,38 @@ const relativeFolder = item => {
     return index < 0 ? '' : crumb.slice(index + 1).map(folder => folder.label + '/').join('');
 };
 
+// Writes the name into el, with the characters the field matched in <mark>
+// while matches show. A name not stored in NFC, as macOS writes them, is
+// written as it is, unmarked: the marks count NFC characters.
+const writeName = (el, label) => {
+    const name = label.normalize('NFC');
+    if (!highlight || name !== label) {
+        el.textContent = label;
+        return;
+    }
+    const chars = Array.from(name);
+    const doc = el.ownerDocument;
+    const write = (start, end, isMatch) => {
+        const part = chars.slice(start, end).join('');
+        if (!part) {
+            return;
+        }
+        if (isMatch) {
+            el.appendChild(doc.createElement('mark')).textContent = part;
+        } else {
+            el.appendChild(doc.createTextNode(part));
+        }
+    };
+    el.textContent = '';
+    let at = 0;
+    highlight(name).forEach(([start, end]) => {
+        write(at, start, false);
+        write(start, end, true);
+        at = end;
+    });
+    write(at, chars.length, false);
+};
+
 const createHtml = item => {
     const $html = dom(itemTpl);
     const $a = $html.find('a');
@@ -180,11 +215,14 @@ const createHtml = item => {
     // first when the label is too narrow, and shows on a line of its own in
     // the grid and icon views.
     const folder = showsFolders ? relativeFolder(item) : '';
+    let $name = $label;
     if (folder) {
+        $name = dom('<span class="name"></span>');
         $label.attr('title', folder + item.label).addCls('with-path').text('')
             .app(dom('<span class="path"></span>').text(folder))
-            .app(dom('<span class="name"></span>').text(item.label));
+            .app($name);
     }
+    writeName($name[0], item.label);
     $date.attr('data-time', item.time).text(format.formatDate(item.time));
     showSize($size, item);
     item.icon = resource.icon(item.type);
@@ -236,6 +274,7 @@ const showItems = items => {
 const setItems = items => {
     acceptsAdded = null;
     showsFolders = false;
+    highlight = null;
     $view.rmCls('shows-paths');
     showItems(items);
 };
@@ -278,12 +317,15 @@ const isListed = item => !(item.isFolder() && settings.hideFolders);
 // Shows matches instead of the folder, without the items the view does not
 // list, and returns those shown. A later refresh adds only the new items
 // accepts(item) is true for. fromSubfolders: show each item's folder.
-const setMatches = (items, accepts, fromSubfolders = false) => {
+// marks: name => the sorted [start, end) ranges of its characters, in NFC,
+// to mark as matched; null marks nothing.
+const setMatches = (items, accepts, fromSubfolders = false, marks = null) => {
     // Through the exports, which a test replaces: hideFolders is read once,
     // when the view loads.
     const shown = items.filter(item => module.exports.isListed(item));
     acceptsAdded = accepts;
     showsFolders = fromSubfolders;
+    highlight = marks;
     if (fromSubfolders) {
         $view.addCls('shows-paths');
     } else {

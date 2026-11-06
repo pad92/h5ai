@@ -75,12 +75,43 @@
     opacity: 0.4;
 }
 
-// Under the matches of a search the server stopped before its end.
-#view #search-cut {
+// The characters of a name that the field matched.
+#view .label mark {
+    color: inherit;
+    background: rgba(255, 193, 7, 0.35);
+    border-radius: 2px;
+}
+
+// Under the matches of a subfolder search: how many, and from where.
+#view #search-found {
     margin: 24px auto 0;
     padding: 0 16px;
     text-align: center;
     opacity: 0.6;
+}
+
+// Under the matches of a search the server stopped before its end.
+// It shows only with #search-found, right under it.
+#view #search-cut {
+    margin: 4px auto 0;
+    padding: 0 16px;
+    text-align: center;
+    opacity: 0.6;
+
+    button {
+        border: 0;
+        padding: 0 4px;
+        background: transparent;
+        color: inherit;
+        font: inherit;
+        text-decoration: underline;
+        cursor: pointer;
+
+        &:hover,
+        &:focus-visible {
+            color: @col-text-hover;
+        }
+    }
 }
 
 // A match from a subfolder starts with its folder, dimmed; the title gives
