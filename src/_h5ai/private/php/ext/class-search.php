@@ -30,10 +30,12 @@ class Search {
     // names, it is a runaway one and the search ends there.
     private const MAX_LIMIT_HITS = 100;
 
-    // When the running search must end, in hrtime() nanoseconds, and on how
-    // many names its pattern hit a PCRE limit.
-    private int $deadline = 0;
+    // When the running search must end, in hrtime() seconds (a float, so
+    // that no time limit overflows), on how many names its pattern hit a
+    // PCRE limit, and whether it ended there with entries left to read.
+    private float $deadline = 0.0;
     private int $limit_hits = 0;
+    private bool $is_cut = false;
 
     public function __construct(private readonly Context $context) {}
 
@@ -59,8 +61,9 @@ class Search {
 
         $max_depth = max(0, (int) $this->context->query_option('search.maxDepth', 64));
         $max_results = max(1, (int) $this->context->query_option('search.maxResults', 1000));
-        $this->deadline = hrtime(true) + (int) ($this->time_limit() * 1e9);
+        $this->deadline = hrtime(true) / 1e9 + $this->time_limit();
         $this->limit_hits = 0;
+        $this->is_cut = false;
         // The index never goes into a symlinked folder, but a search started
         // from inside one walks it, as before the index.
         $is_in_symlink = $this->is_in_symlinked_folder($root);
@@ -73,16 +76,20 @@ class Search {
             $visited = [];
             $this->walk($root, $matches, 0, $max_depth, $max_results, $visited, $paths);
         }
-        if ($this->limit_hits >= self::MAX_LIMIT_HITS) {
-            Util::log('search: stopped, the pattern hit the PCRE limit on ' . $this->limit_hits . ' names');
-        } elseif ($this->is_over_budget()) {
-            Util::log('search: stopped after search.timeLimit (' . $this->time_limit() . ' s)');
+        if ($this->is_cut) {
+            Util::log($this->limit_hits >= self::MAX_LIMIT_HITS
+                ? 'search: stopped, the pattern hit the PCRE limit on ' . $this->limit_hits . ' names'
+                : 'search: stopped after search.timeLimit (' . $this->time_limit() . ' s)');
         }
         return $paths;
     }
 
+    // Asked before each entry left to read: true ends the search there.
     private function is_over_budget(): bool {
-        return $this->limit_hits >= self::MAX_LIMIT_HITS || hrtime(true) >= $this->deadline;
+        if ($this->limit_hits >= self::MAX_LIMIT_HITS || hrtime(true) / 1e9 >= $this->deadline) {
+            $this->is_cut = true;
+        }
+        return $this->is_cut;
     }
 
     // Whether a name matches $pattern, read as the browser's filter reads it:
@@ -98,7 +105,7 @@ class Search {
         }
         $re_unicode = $re . 'u';
         if (@preg_match($re_unicode, '') === false) {
-            return fn(string $name): bool => $this->counted_match($re, $name);
+            return fn(string $name): bool => $this->is_match(@preg_match($re, $name));
         }
         $can_normalize = class_exists('Normalizer');
         return function (string $name) use ($re, $re_unicode, $can_normalize): bool {
@@ -110,17 +117,14 @@ class Search {
             // Only a bad encoding goes byte by byte: a match limit hit on a
             // good name is no match.
             if ($result === false && preg_last_error() === PREG_BAD_UTF8_ERROR) {
-                return $this->counted_match($re, $name);
+                $result = @preg_match($re, $name);
             }
-            if ($result === false) {
-                $this->limit_hits++;
-            }
-            return $result === 1;
+            return $this->is_match($result);
         };
     }
 
-    private function counted_match(string $re, string $name): bool {
-        $result = @preg_match($re, $name);
+    // A preg_match() result as a match; false, a PCRE limit hit, counts.
+    private function is_match(int|false $result): bool {
         if ($result === false) {
             $this->limit_hits++;
         }

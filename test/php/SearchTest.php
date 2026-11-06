@@ -329,12 +329,18 @@ final class SearchTest extends H5aiTestCase {
         $this->write($this->root('sub/match.txt'), 'x');
         $patient = $this->searchContext();
         $hurried = $this->searchContext(['search' => ['timeLimit' => 1e-9]]);
+        // Past PHP_INT_MAX nanoseconds: the deadline must not overflow.
+        $unbounded = $this->searchContext(['search' => ['timeLimit' => 1e10]]);
 
         foreach (['walk', 'index'] as $source) {
             if ($source === 'index') {
                 self::assertTrue((new Search($patient))->refresh_index());
             }
-            self::assertCount(1, (new Search($patient))->get_paths($this->root(), 'match'), $source);
+            $log = $this->logOf(function () use ($patient, $source): void {
+                self::assertCount(1, (new Search($patient))->get_paths($this->root(), 'match'), $source);
+            });
+            self::assertStringNotContainsString('search: stopped', $log, "a complete search logs nothing, {$source}");
+            self::assertCount(1, (new Search($unbounded))->get_paths($this->root(), 'match'), "timeLimit 1e10, {$source}");
             $paths = null;
             $log = $this->logOf(function () use ($hurried, &$paths): void {
                 $paths = (new Search($hurried))->get_paths($this->root(), 'match');
