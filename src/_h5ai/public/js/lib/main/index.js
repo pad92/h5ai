@@ -4,6 +4,8 @@ require('../ext/autorefresh');
 require('../ext/crumb');
 require('../ext/custom');
 require('../ext/download');
+// The sidebar blocks follow these requires: tree, info, then language.
+require('../ext/tree');
 require('../ext/info');
 require('../ext/l10n');
 require('../ext/piwik-analytics');
@@ -12,7 +14,6 @@ require('../ext/select');
 require('../ext/sort');
 require('../ext/thumbnails');
 require('../ext/title');
-require('../ext/tree');
 require('../ext/theme');
 // Last, so that showing and hiding it never moves the other tools.
 require('../ext/tasks');

@@ -27,9 +27,9 @@ const itemTpl =
 const settingsTpl =
         `<div class="block">
             <h1 class="l10n-tree">Tree</h1>
-            <div id="view-tree" class="button view">
+            <button type="button" id="view-tree" class="button view l10n_title-tree" aria-pressed="false">
                 <img class="l10n_alt-tree" src="${resource.image('tree-toggle')}" alt="Tree"/>
-            </div>
+            </button>
         </div>`;
 const storekey = 'ext/tree';
 
@@ -138,10 +138,10 @@ const fetchTree = item => {
 
 const updateSettings = () => {
     if (store.get(storekey)) {
-        dom('#view-tree').addCls('active');
+        dom('#view-tree').addCls('active').attr('aria-pressed', 'true');
         dom('#tree').show();
     } else {
-        dom('#view-tree').rmCls('active');
+        dom('#view-tree').rmCls('active').attr('aria-pressed', 'false');
         dom('#tree').hide();
     }
 };

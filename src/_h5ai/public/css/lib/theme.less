@@ -87,12 +87,16 @@ body[data-theme="dark"] #sidebar .button:hover {
 }
 
 body[data-theme="dark"] #sidebar .button.active {
-    background: rgba(255, 255, 255, 0.04);
-    box-shadow: inset 0 0 4px 0 rgba(255, 255, 255, 0.2);
+    background: fade(@col-back-selected, 20%);
+    box-shadow: inset 0 -3px 0 0 @col-back-selected;
 }
 
 body[data-theme="dark"] #sidebar h1 {
     color: @col-text-primary-white;
+}
+
+body[data-theme="dark"] #sidebar .size-label {
+    color: @col-text-secondary-white;
 }
 
 body[data-theme="dark"] #sidebar select:hover,

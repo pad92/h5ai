@@ -14,6 +14,7 @@ Object.defineProperty(document, 'domain', {configurable: true, value: 'localhost
 const Item = reqlib('model/item');
 const location = reqlib('core/location');
 const view = reqlib('view/view');
+const store = reqlib('core/store');
 reqlib('view/viewmode');
 reqlib('ext/crumb');
 reqlib('ext/title');
@@ -165,6 +166,58 @@ test('view mode controls cycle modes and update the selected size', () => {
     size.dispatchEvent(new window.Event('input', {bubbles: true}));
     assert.equal(view.getSize(), 80);
     assert.equal(document.querySelector('#viewmode-grid').classList.contains('active'), true);
+});
+
+const pressed = el => el.getAttribute('aria-pressed');
+
+test('sidebar: each view mode is a keyboard button that announces the current mode', () => {
+    const initial = view.getMode();
+    const modes = view.getModes();
+    assert.ok(modes.length > 1, 'the test config offers several modes');
+    try {
+        modes.forEach(mode => {
+            const el = document.getElementById('viewmode-' + mode);
+            assert.equal(el.tagName, 'BUTTON', `${mode} reaches the keyboard`);
+            assert.equal(el.getAttribute('type'), 'button', `${mode} never submits a form`);
+        });
+        modes.forEach(mode => {
+            view.setMode(mode);
+            modes.forEach(other => {
+                assert.equal(pressed(document.getElementById('viewmode-' + other)), String(other === mode),
+                    `${other} pressed while ${mode} shows`);
+            });
+        });
+    } finally {
+        view.setMode(initial);
+    }
+});
+
+test('sidebar: the size slider is named by a visible label', () => {
+    const input = document.getElementById('viewmode-size');
+    assert.ok(input, 'the slider is there');
+    const label = document.querySelector('label[for="viewmode-size"]');
+    assert.ok(label && label.textContent.trim(), 'a label names the slider');
+});
+
+test('sidebar: the tree and info toggles announce whether their panel shows', () => {
+    [['view-tree', 'ext/tree', 'tree'], ['view-info', 'ext/info', 'info']].forEach(([id, key, panel]) => {
+        const el = document.getElementById(id);
+        const initial = store.get(key);
+        assert.equal(el.tagName, 'BUTTON', `${id} reaches the keyboard`);
+        try {
+            [0, 1].forEach(() => {
+                el.click();
+                const shown = store.get(key) === true;
+                assert.equal(pressed(el), String(shown), `${id} matches the stored state`);
+                assert.equal(!document.getElementById(panel).classList.contains('hidden'), shown,
+                    `${id} matches the ${panel} panel`);
+            });
+        } finally {
+            if (store.get(key) !== initial) {
+                el.click();
+            }
+        }
+    });
 });
 
 test('crumbs and document title follow the active item hierarchy', () => {
