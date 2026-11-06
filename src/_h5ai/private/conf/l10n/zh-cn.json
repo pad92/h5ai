@@ -17,6 +17,7 @@
     "parentDirectory": "父文件夹",
     "qrCode": "链接的二维码",
     "search": "搜索",
+    "searchCut": "搜索提前结束：可能缺少部分匹配项。",
     "searchMatches": "匹配项：%s",
     "searchSubfolders": "在子文件夹中搜索",
     "selected": "已选择",

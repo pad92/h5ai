@@ -258,6 +258,43 @@ test('search field: an empty answer cut short by the server does not stop later 
     });
 });
 
+test('search field: a search the server cut short says matches may be missing', async () => {
+    await withFolder(async ({deep, requests, respond}) => {
+        const isCutShown = () => !$('#search-cut').classList.contains('hidden');
+        const status = () => $('#search .status').textContent;
+        await toggle();
+        await type('alpi');
+        assert.equal(isCutShown(), false, 'not while the search runs');
+        requests[0].resolve({search: [deep.absHref], searchTruncated: true});
+        await drain();
+        assert.deepEqual(labels(), ['sub/deeper/alpine.txt']);
+        assert.equal(isCutShown(), true);
+        assert.equal($('#search-cut').className, 'l10n-searchCut');
+        assert.equal(status(), 'Matches: 1. The search stopped early: some matches may be missing.');
+
+        await press('Enter');
+        assert.equal(isCutShown(), false, 'a new search hides it');
+        requests[1].resolve({search: [], searchTruncated: true});
+        await drain();
+        assert.equal(isCutShown(), true, 'also when nothing was found');
+        assert.equal(status(), 'no match. The search stopped early: some matches may be missing.');
+
+        await press('Enter');
+        await respond(2, [deep]);
+        assert.equal(isCutShown(), false, 'a complete answer');
+        assert.equal(status(), 'Matches: 1');
+
+        requests.length = 0;
+        await press('Enter');
+        requests[0].resolve({search: [deep.absHref], searchTruncated: true});
+        await drain();
+        await type('al');
+        assert.equal(isCutShown(), false, 'the folder matches are complete');
+        await press('Escape');
+        assert.equal(isCutShown(), false);
+    });
+});
+
 test('search field: an answer arriving after the field closed leaves the folder listed', async () => {
     await withFolder(async ({deep, respond}) => {
         await toggle();

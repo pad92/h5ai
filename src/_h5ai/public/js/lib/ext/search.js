@@ -42,11 +42,13 @@ const deeperTpl =
             <span class="l10n-searchSubfolders"></span>
             <q class="pattern"></q>
         </button>`;
+const cutTpl = '<p id="search-cut" class="l10n-searchCut"></p>';
 
 let $tool;
 let $input;
 let $status;
 let $deeper;
+let $cut;
 let isOpen = false;
 // What the field holds, '' when it holds only spaces.
 let text = '';
@@ -95,9 +97,15 @@ const updateValidity = () => {
     }
 };
 
-// Tells screen readers how many matches the view shows; '' says nothing.
-const announce = count => {
-    $status.text(count === '' ? '' : count ? i18n.t('searchMatches', count) : i18n.t('noMatch'));
+// Tells screen readers how many matches the view shows, and whether the
+// search stopped before it could find them all; '' says nothing.
+const announce = (count, isCut = false) => {
+    if (count === '') {
+        $status.text('');
+        return;
+    }
+    const matches = count ? i18n.t('searchMatches', count) : i18n.t('noMatch');
+    $status.text(isCut ? matches + '. ' + i18n.t('searchCut') : matches);
 };
 
 const cancelTimer = () => {
@@ -119,6 +127,7 @@ const stopSearch = () => {
     request += 1;
     isDeep = false;
     $tool.rmCls('pending');
+    $cut.hide();
 };
 
 // Drops any running search and shows the current folder: all of it, or the
@@ -155,6 +164,7 @@ const searchSubfolders = () => {
     isDeep = true;
     updateDeeper();
     $tool.addCls('pending');
+    $cut.hide();
 
     server.request({
         action: 'get',
@@ -169,12 +179,16 @@ const searchSubfolders = () => {
             // The results answer the field at the time of the request: a
             // file added to the folder since then waits for the next one.
             const shown = view.setMatches(map(response.search, item => Item.get(item)), () => false, true);
-            // A search the server cut short may have missed what longer
-            // text would find.
-            if (!shown.length && !response.searchTruncated) {
+            // A search the server cut short may have missed names, which
+            // longer text could find too: the line under the matches says so.
+            const isCut = !!response.searchTruncated;
+            if (!shown.length && !isCut) {
                 foundNothingFor = asked;
             }
-            announce(shown.length);
+            if (isCut) {
+                $cut.show();
+            }
+            announce(shown.length, isCut);
         }
     }, () => {
         // Back to the folder; the line under it asks again.
@@ -302,6 +316,7 @@ const init = () => {
     $input = $tool.find('input');
     $status = $tool.find('.status');
     $deeper = dom(deeperTpl).hide().appTo('#view');
+    $cut = dom(cutTpl).hide().appTo('#view');
 
     const toggle = () => {
         if (isOpen) {

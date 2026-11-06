@@ -364,6 +364,37 @@ final class SearchTest extends H5aiTestCase {
         self::assertStringContainsString('search: stopped after search.timeLimit', $log);
     }
 
+    // Folders hidden by view.hideFolders must not take the places of the
+    // files below them, and a search that reached maxResults may have left
+    // matches out: it says so, without logging a set limit as a stop.
+    public function testHiddenFoldersLeaveTheirPlacesAndAFullSearchSaysItIsCut(): void {
+        mkdir($this->root('match-a'));
+        mkdir($this->root('match-b'));
+        $this->write($this->root('match-c/match-file.txt'), 'x');
+        $this->write($this->root('match-d.txt'), 'x');
+        $limited = ['search' => ['maxResults' => 3]];
+        $shows_folders = $this->searchContext($limited);
+        $hides_folders = $this->searchContext($limited + ['view' => ['hideFolders' => true]]);
+
+        foreach (['walk', 'index'] as $source) {
+            if ($source === 'index') {
+                self::assertTrue((new Search($shows_folders))->refresh_index());
+            }
+            $full = new Search($shows_folders);
+            $log = $this->logOf(function () use ($full, $source): void {
+                self::assertCount(3, $full->get_paths($this->root(), 'match'), $source);
+            });
+            self::assertTrue($full->is_cut(), "maxResults reached, {$source}");
+            self::assertStringNotContainsString('search: stopped', $log, $source);
+
+            $files = new Search($hides_folders);
+            $paths = $files->get_paths($this->root(), 'match');
+            sort($paths);
+            self::assertSame([$this->root('match-c/match-file.txt'), $this->root('match-d.txt')], $paths, $source);
+            self::assertFalse($files->is_cut(), "below maxResults, {$source}");
+        }
+    }
+
     public function testThePurgeWaitsForARunningRefresh(): void {
         $this->write($this->root('file.txt'), 'x');
         self::assertTrue((new Search($this->searchContext()))->refresh_index());

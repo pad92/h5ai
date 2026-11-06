@@ -36,11 +36,17 @@ class Search {
     private float $deadline = 0.0;
     private int $limit_hits = 0;
     private bool $is_cut = false;
+    // Whether the running search stopped at search.maxResults matches, and
+    // whether it leaves out folders, as view.hideFolders does in the listing.
+    private bool $is_full = false;
+    private bool $hides_folders = false;
 
     public function __construct(private readonly Context $context) {}
 
     // Paths below $root whose name matches the regular expression $pattern:
-    // at most search.maxResults of them, search.maxDepth levels below $root.
+    // at most search.maxResults of them, search.maxDepth levels below $root,
+    // without folders under view.hideFolders: hidden folders do not take the
+    // places of matches the browser would show.
     // An empty, oversized or invalid pattern, or an unmanaged root, yields [].
     // The pattern comes from the browser: a search ends with the paths found
     // so far after search.timeLimit seconds, or as soon as the pattern shows
@@ -49,6 +55,8 @@ class Search {
         $this->deadline = hrtime(true) / 1e9 + $this->time_limit();
         $this->limit_hits = 0;
         $this->is_cut = false;
+        $this->is_full = false;
+        $this->hides_folders = (bool) $this->context->query_option('view.hideFolders', false);
         $max_pattern_length = max(1, (int) $this->context->query_option('search.maxPatternLength', 1024));
         if (!$pattern || strlen($pattern) > $max_pattern_length) {
             return [];
@@ -97,9 +105,21 @@ class Search {
     }
 
     // Whether the last search stopped with entries left to read or matches
-    // left out: its answer may miss names that match.
+    // left out, or at search.maxResults matches: its answer may miss names
+    // that match. Only the first two are logged; the last is a set limit.
     public function is_cut(): bool {
-        return $this->is_cut;
+        return $this->is_cut || $this->is_full;
+    }
+
+    // Adds a match; false once $paths holds search.maxResults of them, which
+    // ends the search.
+    private function add_match(array &$paths, string $path, int $max_results): bool {
+        $paths[] = $path;
+        if (count($paths) >= $max_results) {
+            $this->is_full = true;
+            return false;
+        }
+        return true;
     }
 
     // Whether a name matches $pattern, read as the browser's filter reads it:
@@ -187,6 +207,9 @@ class Search {
                 if ($this->is_over_budget()) {
                     break;
                 }
+                if ($this->hides_folders && $line[0] !== self::TYPE_FILE) {
+                    continue;
+                }
                 $below_root = substr($entry, strlen($prefix));
                 if (substr_count($below_root, '/') > $max_depth) {
                     continue;
@@ -197,11 +220,9 @@ class Search {
                     continue;
                 }
                 $path = $this->absolute_path(self::unescape($entry));
-                if ($this->is_current_match($line[0], $path, $root, $hide_unreadable)) {
-                    $paths[] = $path;
-                    if (count($paths) >= $max_results) {
-                        break;
-                    }
+                if ($this->is_current_match($line[0], $path, $root, $hide_unreadable)
+                    && !$this->add_match($paths, $path, $max_results)) {
+                    break;
                 }
             }
             return $paths;
@@ -241,8 +262,10 @@ class Search {
             }
             $path = $folder . '/' . $name;
             $is_directory = @is_dir($path);
-            if ($matches($name) && $this->context->paths()->is_managed_entry($path, $is_directory)) {
-                $paths[] = $path;
+            if (!($this->hides_folders && $is_directory) && $matches($name)
+                && $this->context->paths()->is_managed_entry($path, $is_directory)
+                && !$this->add_match($paths, $path, $max_results)) {
+                return;
             }
             if ($is_directory && !@is_link($path)) {
                 $this->walk($path, $matches, $depth + 1, $max_depth, $max_results, $visited, $paths);

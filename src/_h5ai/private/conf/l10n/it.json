@@ -17,6 +17,7 @@
     "parentDirectory": "Cartella Superiore",
     "qrCode": "codice QR del link",
     "search": "cerca",
+    "searchCut": "La ricerca si è interrotta prima della fine: alcuni risultati potrebbero mancare.",
     "searchMatches": "Risultati: %s",
     "searchSubfolders": "Cerca nelle sottocartelle",
     "selected": "selezionato",

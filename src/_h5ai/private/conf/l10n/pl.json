@@ -17,6 +17,7 @@
     "parentDirectory": "Katalog nadrzędny",
     "qrCode": "kod QR odnośnika",
     "search": "szukaj",
+    "searchCut": "Wyszukiwanie zostało przerwane: może brakować niektórych wyników.",
     "searchMatches": "Wyniki: %s",
     "searchSubfolders": "Szukaj w podfolderach",
     "selected": "zaznaczone",

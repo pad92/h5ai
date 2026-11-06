@@ -17,6 +17,7 @@
     "parentDirectory": "Diretório acima",
     "qrCode": "código QR do link",
     "search": "pesquisa",
+    "searchCut": "A busca parou antes do fim: alguns resultados podem estar faltando.",
     "searchMatches": "Resultados: %s",
     "searchSubfolders": "Buscar nas subpastas",
     "selected": "selecionado",

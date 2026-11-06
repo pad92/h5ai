@@ -31,6 +31,8 @@ const defaults = {
     parentDirectory: 'Parent Directory',
     qrCode: 'QR code of the link',
     search: 'search',
+    // Under the matches of a search the server stopped before its end.
+    searchCut: 'The search stopped early: some matches may be missing.',
     // Read by screen readers once the matches show.
     searchMatches: 'Matches: %s',
     // Followed by what was typed, in quotes.

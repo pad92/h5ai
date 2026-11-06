@@ -17,6 +17,7 @@
     "parentDirectory": "Parent Directory",
     "qrCode": "QR code of the link",
     "search": "search",
+    "searchCut": "The search stopped early: some matches may be missing.",
     "searchMatches": "Matches: %s",
     "searchSubfolders": "Search subfolders for",
     "selected": "selected",

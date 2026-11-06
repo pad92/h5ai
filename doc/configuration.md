@@ -39,7 +39,7 @@ Customize the general look and feel of the index page.
 | `fonts` | `array` | `["Ubuntu", ...]` | Font family names for normal text. Ubuntu ships self-hosted (no `fonts.googleapis.com` request); other names fall back to whatever the browser/OS provides. |
 | `fontsMono` | `array` | `["Ubuntu Mono", ...]` | Font family names for monospace text. Ubuntu Mono ships self-hosted; other names fall back to whatever the browser/OS provides. |
 | `hidden` | `array` | `["^\\.", "^_h5ai", ...]` | Regular expressions (PCRE) matching files and folders to leave out of listings, search, archives and thumbnails. Each pattern is tested against the name and against the URL path, so anchor it with `^...$` to match a whole name: `ads.txt` alone would also hide `downloads.txt`. Prefix it with `(?i)` to ignore case. The defaults hide dot-prefixed names, `_h5ai`, `robots.txt`, `ads.txt`, and the metadata that operating systems and NAS systems leave in shared folders (see below). Other names beginning with `_` remain visible unless you add a matching pattern. Hiding is not access control: the web server still serves a hidden file to anyone who knows its URL. |
-| `hideFolders` | `boolean` | `false` | Hides all folders from the main file listing and from the matches of the search field. |
+| `hideFolders` | `boolean` | `false` | Hides all folders from the main file listing and from the matches of the search field. The server leaves them out of a recursive search too, so they do not count in `search.maxResults`. |
 | `hideIf403` | `boolean` | `true` | Hides files/folders that are unreadable by the web server (avoiding 403 Forbidden errors). |
 | `hideParentFolder` | `boolean` | `false` | Hides the link to navigate to the parent folder. |
 | `maxIconSize` | `number` | `40` | Maximum icon size in pixels. |
@@ -264,11 +264,11 @@ Searches the current folder and its subfolders on the server, from the search fi
 - `advanced` (default: `true`): Same as `filter.advanced`.
 - `debounceTime` (default: `300`): Delay before searching when `filter` is disabled and the field searches as you type.
 - `ignorecase` (default: `true`): Case-insensitive search.
-- `maxResults` (default: `1000`): Maximum number of results returned by one recursive search.
+- `maxResults` (default: `1000`): Maximum number of results returned by one recursive search. A search that reaches it is not logged, but the browser says, under the matches, that some may be missing.
 - `maxDepth` (default: `64`): Maximum depth below the folder the search starts from.
 - `maxPatternLength` (default: `1024`): Maximum regular-expression length accepted by the server, in bytes. In advanced mode, each typed letter becomes about four characters and each word adds eight, so a few words already make a long expression; a longer one finds nothing.
 - `indexTtl` (default: `300`): Age in seconds after which a search asks for a background refresh of the search index. The stale index keeps answering in the meantime.
-- `timeLimit` (default: `10`): Time in seconds, fractions allowed, after which a search stops and returns the matches found so far. Reading the matches for the answer counts in this time too. A search also stops once its expression has hit the PCRE match or depth limit on 100 names: such an expression could keep a PHP worker busy for minutes on a large share. Both stops are logged, and the answer tells the browser it may be incomplete.
+- `timeLimit` (default: `10`): Time in seconds, fractions allowed, after which a search stops and returns the matches found so far. Reading the matches for the answer counts in this time too. A search also stops once its expression has hit the PCRE match or depth limit on 100 names: such an expression could keep a PHP worker busy for minutes on a large share. Both stops are logged, and the browser says, under the matches, that some may be missing.
 
 #### `select`
 Enables checkboxes and select options to choose multiple files.

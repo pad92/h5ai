@@ -17,6 +17,7 @@
     "parentDirectory": "Übergeordnetes Verzeichnis",
     "qrCode": "QR-Code des Links",
     "search": "suchen",
+    "searchCut": "Die Suche wurde vorzeitig beendet: Einige Treffer fehlen möglicherweise.",
     "searchMatches": "Treffer: %s",
     "searchSubfolders": "In Unterordnern suchen nach",
     "selected": "ausgewählt",

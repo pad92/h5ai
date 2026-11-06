@@ -17,6 +17,7 @@
     "parentDirectory": "親ディレクトリへ",
     "qrCode": "リンクのQRコード",
     "search": "検索",
+    "searchCut": "検索が途中で終了しました。一部の結果が表示されていない可能性があります。",
     "searchMatches": "一致: %s 件",
     "searchSubfolders": "サブフォルダーを検索:",
     "selected": "選択済み",

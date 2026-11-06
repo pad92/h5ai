@@ -17,6 +17,7 @@
     "parentDirectory": "Bovenliggende map",
     "qrCode": "QR-code van de link",
     "search": "zoeken",
+    "searchCut": "Het zoeken is vroegtijdig gestopt: er kunnen resultaten ontbreken.",
     "searchMatches": "Resultaten: %s",
     "searchSubfolders": "Zoeken in submappen naar",
     "selected": "geselecteerd",
