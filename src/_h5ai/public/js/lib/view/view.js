@@ -304,6 +304,11 @@ const setHint = l10nKey => {
     checkHint();
 };
 
+// While matches show, name => the ranges of its characters the field
+// matched (see setMatches); null otherwise. The sort extension orders the
+// matches by them.
+const getMarks = () => highlight;
+
 // The key of the hint, shown or hidden.
 const getHint = () => {
     const cls = Array.from($hint[0].classList).find(name => name.startsWith('l10n-'));
@@ -417,6 +422,7 @@ module.exports = {
     setLocation: onLocationChanged,
     setHint,
     getHint,
+    getMarks,
     setMatches,
     isListed,
     getModes,

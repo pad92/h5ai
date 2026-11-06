@@ -218,6 +218,38 @@ test('search field: a subfolder search says how many matches it shows, and a cut
     });
 });
 
+test('search field: matches show best first until a column header is clicked', async () => {
+    await withFolder(async ({requests}) => {
+        const names = ['IMG_0001 - copie (2).jpg', 'IMG_0002.jpg', 'x0002 long name.jpg', '0002.jpg'];
+        const found = names.map(name => Item.get('/search-field/sub/' + encodeURIComponent(name)));
+        const shown = () => Array.from(document.querySelectorAll('#items .item:not(.folder-parent) .name'), el => el.textContent);
+        const $nameHeader = () => $('#items li.header a.label');
+        const answer = async index => {
+            requests[index].resolve({search: found.map(item => item.absHref)});
+            await drain();
+        };
+        await toggle();
+        await type('0002');
+        await answer(0);
+        assert.deepEqual(shown(), ['0002.jpg', 'x0002 long name.jpg', 'IMG_0002.jpg', 'IMG_0001 - copie (2).jpg'],
+            'in one piece before in two, earlier first, then the shorter name');
+        assert.equal($nameHeader().classList.contains('ascending'), false, 'no column arrow');
+
+        $nameHeader().click();
+        await drain();
+        assert.deepEqual(shown(), ['0002.jpg', 'IMG_0001 - copie (2).jpg', 'IMG_0002.jpg', 'x0002 long name.jpg']);
+        assert.equal($nameHeader().classList.contains('ascending'), true);
+
+        await press('Enter');
+        await answer(1);
+        assert.equal(shown()[0], '0002.jpg');
+        assert.equal(shown()[1], 'x0002 long name.jpg', 'a new search shows best first again');
+
+        await press('Escape');
+        assert.equal($nameHeader().classList.contains('ascending'), true, 'the folder is sorted by its column');
+    });
+});
+
 test('search field: after a subfolder search found nothing, longer text does not search again', async () => {
     await withFolder(async ({requests, respond}) => {
         await toggle();
