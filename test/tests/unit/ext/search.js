@@ -586,12 +586,16 @@ test('search field: Back to a folder left during a search brings its text back',
             location.getAbsHref = () => sub.absHref;
             event.pub('location.beforeChange');
             location.getAbsHref = getAbsHref;
+            // location rewrites the entry it arrives on, as setLocation()
+            // does on Back.
+            history.replaceState({absHref: folder.absHref}, '');
             event.pub('location.changed', folder);
             await drain();
 
             assert.equal(isOpen(), true);
             assert.equal($('#search input').value, 'al');
             assert.deepEqual(labels(), ['alpha.txt']);
+            assert.deepEqual(history.state, {absHref: folder.absHref, search: 'al'}, 'kept for the next Back');
         } finally {
             history.replaceState(savedState, '');
         }

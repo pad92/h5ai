@@ -263,6 +263,12 @@ const onBeforeChange = () => {
 const onLocationChanged = () => {
     close(false);
     if (textToRestore) {
+        // location rewrote the entry on the way in, without the text: it is
+        // written back for the next Back or Forward.
+        const state = win.history.state;
+        if (state) {
+            win.history.replaceState(Object.assign({}, state, {search: textToRestore}), '');
+        }
         open();
         $input.val(textToRestore);
         textToRestore = null;
