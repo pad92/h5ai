@@ -587,6 +587,33 @@ test('search field: an expression that cannot be read is marked and never search
     });
 });
 
+test('search field: while the expression cannot be read, the previous matches are dimmed and not announced', async () => {
+    await withFolder(async () => {
+        const isStale = () => $('#items').classList.contains('search-stale');
+        const status = () => $('#search .status').textContent;
+        await toggle();
+        await type('al');
+        assert.equal(status(), 'Matches: 1');
+        assert.equal(isStale(), false);
+
+        await type('re:(');
+        assert.deepEqual(labels(), ['alpha.txt'], 'the view stays as it was');
+        assert.equal(isStale(), true);
+        assert.equal(status(), '', 'the count was for al');
+        assert.equal(isDeeperShown(), false, 'nothing to search for');
+
+        await type('re:^b');
+        assert.equal(isStale(), false);
+        assert.equal(isDeeperShown(), true);
+        assert.deepEqual(labels(), ['beta.md']);
+        assert.equal(status(), 'Matches: 1');
+
+        await type('re:(');
+        await press('Escape');
+        assert.equal(isStale(), false, 'closing lists the folder plainly');
+    });
+});
+
 test('search field: screen readers hear how many matches show', async () => {
     await withFolder(async ({respond}) => {
         const status = () => $('#search .status').textContent;
@@ -633,6 +660,45 @@ test('search field: Back to a folder left during a search brings its text back',
             assert.equal($('#search input').value, 'al');
             assert.deepEqual(labels(), ['alpha.txt']);
             assert.deepEqual(history.state, {absHref: folder.absHref, search: 'al'}, 'kept for the next Back');
+        } finally {
+            history.replaceState(savedState, '');
+        }
+    });
+});
+
+test('search field: Back to subfolder matches searches the subfolders again, without taking the focus', async () => {
+    await withFolder(async ({folder, sub, deep, requests, respond}) => {
+        const history = window.history;
+        const savedState = history.state;
+        sub.content = sub.content || {};
+        history.replaceState({absHref: folder.absHref}, '');
+        try {
+            await toggle();
+            await type('al');
+            await press('Enter');
+            await respond(0, [deep]);
+            event.pub('location.beforeChange');
+            assert.deepEqual(history.state, {absHref: folder.absHref, search: 'al', searchDeep: true});
+            event.pub('location.changed', sub);
+            await drain();
+            $('#search img').focus();
+
+            const getAbsHref = location.getAbsHref;
+            location.getAbsHref = () => sub.absHref;
+            event.pub('location.beforeChange');
+            location.getAbsHref = getAbsHref;
+            history.replaceState({absHref: folder.absHref}, '');
+            event.pub('location.changed', folder);
+            await drain();
+
+            assert.equal(isOpen(), true);
+            assert.equal($('#search input').value, 'al');
+            assert.notEqual(document.activeElement, $('#search input'), 'the focus stays where it was');
+            assert.equal(requests.length, 2, 'the subfolders are searched again');
+            assert.equal(requests[1].data.search.pattern, requests[0].data.search.pattern);
+            await respond(1, [deep]);
+            assert.deepEqual(labels(), ['sub/deeper/alpine.txt']);
+            assert.deepEqual(history.state, {absHref: folder.absHref, search: 'al', searchDeep: true}, 'kept for the next Back');
         } finally {
             history.replaceState(savedState, '');
         }

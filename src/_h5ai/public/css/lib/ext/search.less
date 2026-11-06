@@ -69,6 +69,12 @@
     }
 }
 
+// The matches of the previous text, while the field holds an expression
+// that cannot be read.
+#view #items.search-stale .item {
+    opacity: 0.4;
+}
+
 // Under the matches of a search the server stopped before its end.
 #view #search-cut {
     margin: 24px auto 0;

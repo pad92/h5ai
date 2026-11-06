@@ -49,6 +49,7 @@ let $input;
 let $status;
 let $deeper;
 let $cut;
+let $items;
 let isOpen = false;
 // What the field holds, '' when it holds only spaces.
 let text = '';
@@ -59,9 +60,12 @@ let request = 0;
 let timer = null;
 // Text whose subfolder search, from this folder, found nothing; null if none.
 let foundNothingFor = null;
-// Text to put back in the field once the folder of a history entry shows
-// again (Back, Forward, a reload); null if none.
-let textToRestore = null;
+// Whether the field holds an expression that cannot be read.
+let isInvalid = false;
+// What to put back once the folder of a history entry shows again (Back,
+// Forward, a reload): {text, isDeep}, isDeep when the field showed the
+// matches of the subfolders; null if nothing.
+let toRestore = null;
 
 // Names are compared in NFC, as typed, whatever the file system stores.
 const patternOf = settings => parsePattern(text.normalize('NFC'), settings.advanced);
@@ -86,17 +90,6 @@ const canOnlyFindNothing = () => foundNothingFor !== null &&
 // The settings of what the field does: filter, search, or both.
 const usedSettings = () => [canFilter && filterSettings, canSearch && searchSettings].filter(Boolean);
 
-// Marks the field when an expression typed after re: cannot be read.
-const updateValidity = () => {
-    const isInvalid = !!text && usedSettings().some(settings => !regExpOf(settings));
-    $input.attr('aria-invalid', isInvalid ? 'true' : 'false');
-    if (isInvalid) {
-        $tool.addCls('invalid');
-    } else {
-        $tool.rmCls('invalid');
-    }
-};
-
 // Tells screen readers how many matches the view shows, and whether the
 // search stopped before it could find them all; '' says nothing.
 const announce = (count, isCut = false) => {
@@ -108,18 +101,35 @@ const announce = (count, isCut = false) => {
     $status.text(isCut ? matches + '. ' + i18n.t('searchCut') : matches);
 };
 
-const cancelTimer = () => {
-    clearTimeout(timer);
-    timer = null;
-};
-
 const updateDeeper = () => {
     $deeper.find('.pattern').text(text);
-    if (isOpen && !isDeep && text && canFilter && canSearch) {
+    if (isOpen && !isDeep && !isInvalid && text && canFilter && canSearch) {
         $deeper.show();
     } else {
         $deeper.hide();
     }
+};
+
+// Marks the field when an expression typed after re: cannot be read. The
+// view keeps the matches of the previous text, dimmed, and screen readers
+// no longer hear their count: they belong to text the field no longer holds.
+const updateValidity = () => {
+    isInvalid = !!text && usedSettings().some(settings => !regExpOf(settings));
+    $input.attr('aria-invalid', isInvalid ? 'true' : 'false');
+    if (isInvalid) {
+        $tool.addCls('invalid');
+        $items.addCls('search-stale');
+        announce('');
+    } else {
+        $tool.rmCls('invalid');
+        $items.rmCls('search-stale');
+    }
+    updateDeeper();
+};
+
+const cancelTimer = () => {
+    clearTimeout(timer);
+    timer = null;
 };
 
 // Drops any running search.
@@ -228,11 +238,15 @@ const onInput = () => {
     }, filterSettings.debounceTime);
 };
 
-const open = () => {
+// focus: false when the field reopens by itself, on Back or a reload: the
+// focus, and on a phone the keyboard, stay where they were.
+const open = (focus = true) => {
     isOpen = true;
     $tool.addCls('active');
     $tool.find('img').attr('aria-expanded', 'true');
-    $input[0].focus();
+    if (focus) {
+        $input[0].focus();
+    }
 };
 
 // render: false when the view lists a new folder anyway.
@@ -255,38 +269,49 @@ const close = (render = true) => {
     }
 };
 
-// Leaving a folder by a link keeps the field's text in its history entry.
-// Arriving on an entry by Back, Forward or a reload, whose folder is not the
-// one listed yet, takes the text it kept, if any.
+// The history entry's fields for what the field shows: search, the text,
+// and searchDeep when it shows the matches of the subfolders.
+const stateOf = restored => restored.isDeep ? {search: restored.text, searchDeep: true} : {search: restored.text};
+
+// Leaving a folder by a link keeps the field's text, and whether it showed
+// the matches of the subfolders, in its history entry. Arriving on an entry
+// by Back, Forward or a reload, whose folder is not the one listed yet,
+// takes what it kept, if anything.
 const onBeforeChange = () => {
     const history = win.history;
     const state = history && history.state;
     if (state && state.absHref === location.getAbsHref()) {
         const kept = Object.assign({}, state);
         delete kept.search;
+        delete kept.searchDeep;
         if (text) {
-            kept.search = text;
+            Object.assign(kept, stateOf({text, isDeep}));
         }
         history.replaceState(kept, '');
-        textToRestore = null;
+        toRestore = null;
     } else {
-        textToRestore = state && typeof state.search === 'string' ? state.search : null;
+        const hasText = state && typeof state.search === 'string';
+        toRestore = hasText ? {text: state.search, isDeep: state.searchDeep === true} : null;
     }
 };
 
 const onLocationChanged = () => {
     close(false);
-    if (textToRestore) {
+    const restored = toRestore;
+    toRestore = null;
+    if (restored && restored.text) {
         // location rewrote the entry on the way in, without the text: it is
         // written back for the next Back or Forward.
         const state = win.history.state;
         if (state) {
-            win.history.replaceState(Object.assign({}, state, {search: textToRestore}), '');
+            win.history.replaceState(Object.assign({}, state, stateOf(restored)), '');
         }
-        open();
-        $input.val(textToRestore);
-        textToRestore = null;
+        open(false);
+        $input.val(restored.text);
         onInput();
+        if (restored.isDeep) {
+            searchSubfolders();
+        }
     }
 };
 
@@ -317,6 +342,7 @@ const init = () => {
     $status = $tool.find('.status');
     $deeper = dom(deeperTpl).hide().appTo('#view');
     $cut = dom(cutTpl).hide().appTo('#view');
+    $items = dom('#items');
 
     const toggle = () => {
         if (isOpen) {
