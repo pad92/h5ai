@@ -12,10 +12,10 @@
 
     .block {
         display: block;
-        margin: 0 0 24px;
+        margin: 0 0 16px;
         width: 168px;
 
-        h1 {
+        h2 {
             font-size: 1em;
             margin: 2px 0 6px;
         }
@@ -27,6 +27,9 @@
 
         display: inline-block;
         margin: 4px;
+        .clear-button;
+
+        padding: 0;
         color: @col-text;
         cursor: pointer;
 
@@ -34,29 +37,76 @@
             background: @col-back-hover;
         }
 
+        // Tinted and underlined in the accent colour: a shadow alone read
+        // as a hover, not as "on".
         &.active {
-            background: rgba(0,0,0,0.03);
-            box-shadow: inset 0 0 4px 0 rgba(0,0,0,0.4);
+            background: fade(@col-back-selected, 15%);
+            box-shadow: inset 0 -3px 0 0 @col-back-selected;
         }
 
         img {
+            display: block;
             width: 24px;
             height: 24px;
             padding: 12px;
         }
     }
 
+    // A bordered box with a chevron, so the language reads as a menu. No
+    // overflow: hidden, which would cut the focus ring of the select.
     .select {
         .rounded;
 
-        background: transparent;
-        overflow: hidden;
-        outline: 0;
+        position: relative;
         width: 160px;
         margin: 4px;
-        line-height: 48px;
+        border: 1px solid @col-border-strong;
+
+        &::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            right: 12px;
+            width: 6px;
+            height: 6px;
+            margin-top: -5px;
+            border: solid @col-text-secondary-black;
+            border-width: 0 2px 2px 0;
+            transform: rotate(45deg);
+            pointer-events: none;
+        }
     }
 
+    .admin-link {
+        .rounded;
+        .eased-transition;
+
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 4px;
+        padding: 8px;
+        color: @col-text;
+        text-decoration: none;
+
+        &:hover {
+            background: @col-back-hover;
+        }
+
+        img {
+            width: 24px;
+            height: 24px;
+        }
+    }
+
+    .size-label {
+        display: block;
+        margin: 8px 4px 0;
+        font-size: 0.85em;
+        color: @col-text-secondary-black;
+    }
+
+    // No outline here: the global :focus-visible ring must show on them.
     input, select {
         .clear-appearance;
 
@@ -64,7 +114,6 @@
         width: 100%;
         border: 0 solid #000;
         cursor: pointer;
-        outline: 0;
 
         &:hover {
             background: @col-back-hover;
@@ -72,10 +121,9 @@
     }
 
     select {
-        width: 187px;
-        padding: 0 8px;
-        height: 48px;
-        line-height: 48px;
+        padding: 0 32px 0 8px;
+        height: 40px;
+        line-height: 40px;
     }
 
     input[type='range'] {

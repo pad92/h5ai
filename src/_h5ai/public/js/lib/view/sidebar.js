@@ -11,9 +11,10 @@ const settings = Object.assign({
 const storekey = 'sidebarIsVisible';
 const sidebarTpl = '<div id="sidebar"></div>';
 const toggleTpl =
-        `<div id="sidebar-toggle" class="tool">
+        `<button type="button" id="sidebar-toggle" class="tool l10n_title-sidebar" title="sidebar"
+                aria-controls="sidebar" aria-expanded="false">
             <img class="l10n_alt-sidebar" alt="sidebar"/>
-        </div>`;
+        </button>`;
 
 
 const init = () => {
@@ -30,11 +31,11 @@ const init = () => {
         }
 
         if (isVisible) {
-            $toggle.addCls('active');
+            $toggle.addCls('active').attr('aria-expanded', 'true');
             $img.attr('src', resource.image('back'));
             $sidebar.show();
         } else {
-            $toggle.rmCls('active');
+            $toggle.rmCls('active').attr('aria-expanded', 'false');
             $img.attr('src', resource.image('sidebar'));
             $sidebar.hide();
         }

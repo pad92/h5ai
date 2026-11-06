@@ -11,24 +11,26 @@ const settings = Object.assign({
     modeToggle: false
 }, allsettings.view);
 const settingsTpl =
-        '<div id="viewmode-settings" class="block"><h1 class="l10n-view">View</h1></div>';
+        '<div id="viewmode-settings" class="block"><h2 class="l10n-view">View</h2></div>';
 const modeTpl =
-        `<div id="viewmode-[MODE]" class="button mode">
+        `<button type="button" id="viewmode-[MODE]" class="button mode l10n_title-[MODE]" aria-pressed="false">
             <img class="l10n_alt-[MODE]" src="${resource.image('view-[MODE]')}" alt="[MODE]"/>
-        </div>`;
+        </button>`;
+const sizeLabelTpl =
+        '<label for="viewmode-size" class="size-label l10n-size">Size</label>';
 const sizeTpl =
         '<input id="viewmode-size" type="range" min="0" max="0" value="0">';
 const toggleTpl =
-        `<div id="viewmode-toggle" class="tool">
+        `<button type="button" id="viewmode-toggle" class="tool l10n_title-view" title="View">
             <img class="l10n_alt-view" alt="View"/>
-        </div>`;
+        </button>`;
 let modes;
 let sizes;
 
 
 const onChanged = (mode, size) => {
-    dom('#viewmode-settings .mode').rmCls('active');
-    dom('#viewmode-' + mode).addCls('active');
+    dom('#viewmode-settings .mode').rmCls('active').attr('aria-pressed', 'false');
+    dom('#viewmode-' + mode).addCls('active').attr('aria-pressed', 'true');
     dom('#viewmode-size').val(sizes.indexOf(size));
 
     if (settings.modeToggle === 'next') {
@@ -56,6 +58,7 @@ const addSettings = () => {
 
     if (sizes.length > 1) {
         const max = sizes.length - 1;
+        dom(sizeLabelTpl).appTo($viewBlock);
         dom(sizeTpl)
             .attr('max', max)
             .on('input', ev => view.setSize(sizes[ev.target.valueAsNumber]))

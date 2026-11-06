@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.8.2 - *2026-11-06*
+
+Upgrading: custom translation files can add `admin`; `en.json` has the English text. The sidebar's block titles are now `h2` instead of `h1`, and the toolbar tools, the view modes and the tree and info toggles are `<button>` elements instead of `div`s. A custom style sheet that targets `#sidebar h1` or `div.tool` must follow.
+
+* **Keyboard and screen readers**:
+    * Tab now reaches the sidebar, view, download and theme tools of the toolbar, and the view modes and the tree and info toggles of the sidebar. Enter and Space act once per press, and each control has a translated tooltip. The toggles say whether they are on, and the sidebar tool whether the sidebar is open.
+    * The language menu and the size slider now show their focus ring, which the sidebar hid. A focused toolbar tool shows its ring inside the bar, which would otherwise cut it.
+    * The size slider has a visible "Size" label, and the language menu a name.
+    * Holding Enter or Space on the magnifying glass, the cast button of a video or the cover of the audio player no longer repeats the action.
+* **Sidebar**:
+    * Its toolbar icon is now a set of sliders, since it opens settings. An active toggle is tinted and underlined in the accent color.
+    * The blocks read view, tree, info and language, in that order for the Tab key too, and sit closer together.
+    * The language menu lists each language under its own name ("Français", not "fr - français"), in a bordered box with a chevron.
+    * Once the admin password is set, a last block links to the admin page. The new `view.adminLink` option (`true` by default) removes it.
+
 ## v1.8.1 - *2026-11-06*
 
 Upgrading: custom translation files can add `searchMatches`, `searchPending`, `searchFound`, `searchCut` and `searchAgain`; `en.json` has the English text.

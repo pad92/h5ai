@@ -1,12 +1,12 @@
-const {dom, isActivationKey} = require('../util');
+const {dom} = require('../util');
 const event = require('../core/event');
 const resource = require('../core/resource');
 
 const KEY = 'h5ai_theme';
 const tpl =
-    `<div id="theme" class="tool l10n_title-theme" role="button" tabindex="0" title="Toggle theme" aria-pressed="false">
+    `<button type="button" id="theme" class="tool l10n_title-theme" title="Toggle theme" aria-pressed="false">
         <img class="l10n_alt-theme" src="${resource.image('theme')}" alt="Toggle theme"/>
-    </div>`;
+    </button>`;
 
 const setTheme = theme => {
     try { localStorage.setItem(KEY, theme); } catch { /* ignore */ }
@@ -34,12 +34,6 @@ const init = () => {
     const initial = stored || (prefersDark ? 'dark' : 'light');
     const $theme = dom(tpl).appTo('#toolbar');
     $theme.on('click', toggleTheme);
-    $theme.on('keydown', e => {
-        if (isActivationKey(e)) {
-            e.preventDefault();
-            toggleTheme();
-        }
-    });
     // Apply theme after the theme button exists, so its active class is set correctly
     setTheme(initial);
 };

@@ -15,9 +15,9 @@ const settings = Object.assign({
 }, allsettings.l10n);
 const blockTpl =
         `<div class="block">
-            <h1 class="l10n-language">Language</h1>
+            <h2 class="l10n-language">Language</h2>
             <div class="select">
-                <select id="langs"/>
+                <select id="langs" class="l10n_aria-language" aria-label="Language"/>
             </div>
         </div>`;
 const optionTpl = '<option/>';
@@ -83,6 +83,21 @@ const localize = (languages, isoCode, useBrowserLang) => {
     loadLanguage(isoCode).then(update);
 };
 
+// The name of a language in itself, capitalised as a menu entry: "Français",
+// not "fr - français". Names are unique, so the code adds nothing.
+// The code is a file name in conf/l10n: one that is no valid locale, such as
+// pt_BR, makes toLocaleUpperCase() throw.
+const languageName = (language, isoCode) => {
+    const name = isStr(language) ? language : language.lang;
+    let first;
+    try {
+        first = name.charAt(0).toLocaleUpperCase(isoCode);
+    } catch {
+        first = name.charAt(0).toUpperCase();
+    }
+    return first + name.slice(1);
+};
+
 const initLangSelector = languages => {
     const $block = dom(blockTpl);
     const $select = $block.find('select')
@@ -95,8 +110,9 @@ const initLangSelector = languages => {
     each(languages, (language, isoCode) => {
         dom(optionTpl)
             .attr('value', isoCode)
+            .attr('lang', isoCode)
             .addCls(isoCode)
-            .text(isoCode + ' - ' + (isStr(language) ? language : language.lang))
+            .text(languageName(language, isoCode))
             .appTo($select);
     });
 

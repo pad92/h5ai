@@ -12,9 +12,9 @@ const settings = Object.assign({
     alwaysVisible: false
 }, allsettings.download);
 const tpl =
-        `<div id="download" class="tool">
+        `<button type="button" id="download" class="tool l10n_title-download" title="download">
             <img class="l10n_alt-download" src="${resource.image('download')}" alt="download"/>
-        </div>`;
+        </button>`;
 let selectedItems = [];
 let $download;
 

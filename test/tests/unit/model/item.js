@@ -14,6 +14,7 @@ Object.defineProperty(document, 'domain', {configurable: true, value: 'localhost
 const Item = reqlib('model/item');
 const location = reqlib('core/location');
 const view = reqlib('view/view');
+const store = reqlib('core/store');
 reqlib('view/viewmode');
 reqlib('ext/crumb');
 reqlib('ext/title');
@@ -167,6 +168,103 @@ test('view mode controls cycle modes and update the selected size', () => {
     assert.equal(document.querySelector('#viewmode-grid').classList.contains('active'), true);
 });
 
+const pressed = el => el.getAttribute('aria-pressed');
+
+test('sidebar: each view mode is a keyboard button that announces the current mode', () => {
+    const initial = view.getMode();
+    const modes = view.getModes();
+    assert.ok(modes.length > 1, 'the test config offers several modes');
+    try {
+        modes.forEach(mode => {
+            const el = document.getElementById('viewmode-' + mode);
+            assert.equal(el.tagName, 'BUTTON', `${mode} reaches the keyboard`);
+            assert.equal(el.getAttribute('type'), 'button', `${mode} never submits a form`);
+        });
+        modes.forEach(mode => {
+            view.setMode(mode);
+            modes.forEach(other => {
+                assert.equal(pressed(document.getElementById('viewmode-' + other)), String(other === mode),
+                    `${other} pressed while ${mode} shows`);
+            });
+        });
+    } finally {
+        view.setMode(initial);
+    }
+});
+
+test('sidebar: the size slider is named by a visible label', () => {
+    const input = document.getElementById('viewmode-size');
+    assert.ok(input, 'the slider is there');
+    const label = document.querySelector('label[for="viewmode-size"]');
+    assert.ok(label && label.textContent.trim(), 'a label names the slider');
+});
+
+test('sidebar: the tree and info toggles announce whether their panel shows', () => {
+    [['view-tree', 'ext/tree', 'tree'], ['view-info', 'ext/info', 'info']].forEach(([id, key, panel]) => {
+        const el = document.getElementById(id);
+        const initial = store.get(key);
+        assert.equal(el.tagName, 'BUTTON', `${id} reaches the keyboard`);
+        try {
+            [0, 1].forEach(() => {
+                el.click();
+                const shown = store.get(key) === true;
+                assert.equal(pressed(el), String(shown), `${id} matches the stored state`);
+                assert.equal(!document.getElementById(panel).classList.contains('hidden'), shown,
+                    `${id} matches the ${panel} panel`);
+            });
+        } finally {
+            if (store.get(key) !== initial) {
+                el.click();
+            }
+        }
+    });
+});
+
+test('sidebar: block titles are h2, below the page heading', () => {
+    const sidebar = document.getElementById('sidebar');
+    assert.equal(sidebar.querySelectorAll('h1').length, 0);
+    assert.ok(sidebar.querySelectorAll('.block > h2').length >= 3, 'view, tree and info have a title');
+});
+
+// Native buttons: the browser gives them the focus, Enter and Space, once
+// per press. A div with role="button" needed all of that by hand.
+test('toolbar: the sidebar, view, download and theme tools are buttons', () => {
+    ['sidebar-toggle', 'viewmode-toggle', 'download', 'theme'].forEach(id => {
+        const el = document.getElementById(id);
+        assert.equal(el.tagName, 'BUTTON', `${id} reaches the keyboard`);
+        assert.equal(el.getAttribute('type'), 'button', `${id} never submits a form`);
+        assert.ok(el.getAttribute('title'), `${id} has a tooltip`);
+    });
+
+    const toggle = document.getElementById('sidebar-toggle');
+    const sidebar = document.getElementById('sidebar');
+    assert.equal(toggle.getAttribute('aria-controls'), 'sidebar');
+    [0, 1].forEach(() => {
+        toggle.click();
+        const open = !sidebar.classList.contains('hidden');
+        assert.equal(toggle.getAttribute('aria-expanded'), String(open), 'aria-expanded follows the sidebar');
+    });
+
+    const mode = view.getMode();
+    try {
+        document.getElementById('viewmode-toggle').click();
+        assert.notEqual(view.getMode(), mode, 'the view tool switches the view mode');
+    } finally {
+        view.setMode(mode);
+    }
+
+    const server = reqlib('server');
+    const formRequest = server.formRequest;
+    const requests = [];
+    server.formRequest = query => requests.push(query);
+    try {
+        document.getElementById('download').click();
+        assert.equal(requests.length, 1, 'the download tool starts the download');
+    } finally {
+        server.formRequest = formRequest;
+    }
+});
+
 test('crumbs and document title follow the active item hierarchy', () => {
     const folder = Item.get('/crumb-folder/');
     const child = Item.get('/crumb-folder/file.txt');
@@ -179,12 +277,12 @@ test('crumbs and document title follow the active item hierarchy', () => {
     assert.equal(document.title, 'crumb-folder - localhost > crumb-folder');
 });
 
-test('theme toggle supports mouse and keyboard input', () => {
+test('theme toggle switches the theme and says whether dark is on', () => {
     const theme = document.querySelector('#theme');
     theme.click();
     assert.equal(document.body.getAttribute('data-theme'), 'dark');
     assert.equal(theme.getAttribute('aria-pressed'), 'true');
-    theme.dispatchEvent(new window.KeyboardEvent('keydown', {key: 'Enter', bubbles: true, cancelable: true}));
+    theme.click();
     assert.equal(document.body.getAttribute('data-theme'), 'light');
     assert.equal(theme.getAttribute('aria-pressed'), 'false');
 });
