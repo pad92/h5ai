@@ -126,7 +126,11 @@ class Api {
             $href = $this->request->query_string('search.href');
             $pattern = $this->request->query_string('search.pattern');
             $ignorecase = $this->request->query_boolean('search.ignorecase', false);
-            $response['search'] = new Search($this->context)->get_items($href, $pattern, $ignorecase);
+            $search = new Search($this->context);
+            $response['search'] = $search->get_items($href, $pattern, $ignorecase);
+            if ($search->is_cut()) {
+                $response['searchTruncated'] = true;
+            }
         }
 
         if ($this->request->query('thumbs', false)) {

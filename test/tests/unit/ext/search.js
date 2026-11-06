@@ -17,6 +17,8 @@ const isOpen = () => $('#search').classList.contains('active');
 const isPending = () => $('#search').classList.contains('pending');
 const isDeeperShown = () => !$('#search-deeper').classList.contains('hidden');
 const hint = () => $('#view-hint').className;
+// The hint's key, whether it shows or not.
+const hintKey = () => Array.from($('#view-hint').classList).filter(cls => cls.startsWith('l10n-')).map(cls => cls.slice(5)).join(' ');
 
 const typeInto = async (input, value) => {
     input.value = value;
@@ -102,6 +104,149 @@ test('search field: when nothing in the folder matches, typing searches the subf
 
         await respond(0, [deep]);
         assert.deepEqual(labels(), ['sub/deeper/alpine.txt']);
+    });
+});
+
+test('search field: while the subfolders are searched, the view says so instead of "no match"', async () => {
+    await withFolder(async ({deep, respond}) => {
+        await toggle();
+        await type('alpi');
+        assert.equal(isPending(), true);
+        assert.equal(hintKey(), 'searchPending');
+        assert.equal($('#view-hint').textContent, 'searching…');
+
+        await respond(0, [deep]);
+        assert.equal(hintKey(), 'noMatch');
+
+        await type('zz');
+        assert.equal(hintKey(), 'searchPending');
+        await type('zzq');
+        assert.equal(isPending(), true, 'the next search started');
+        await press('Escape');
+        assert.equal(hintKey(), 'empty', 'closing lists the folder');
+    });
+});
+
+test('search field: typing over a running search puts back the hint it replaced', async () => {
+    await withFolder(async ({requests}) => {
+        await toggle();
+        await type('alpi');
+        assert.equal(hintKey(), 'searchPending');
+        const input = $('#search input');
+        input.value = 'alpin';
+        input.dispatchEvent(new window.Event('input', {bubbles: true}));
+        assert.equal(isPending(), false);
+        assert.equal(hintKey(), 'noMatch', 'the folder matches still show');
+        await drain();
+        assert.equal(requests.length, 2);
+    });
+});
+
+test('search field: each subfolder match shows its folder and its name apart', async () => {
+    await withFolder(async ({deep, respond}) => {
+        await toggle();
+        await type('alpi');
+        await respond(0, [deep]);
+        const $label = $('#items .item .label');
+        assert.ok($label.classList.contains('with-path'));
+        assert.equal($label.querySelector('.path').textContent, 'sub/deeper/');
+        assert.equal($label.querySelector('.name').textContent, 'alpine.txt');
+        assert.equal($label.getAttribute('title'), 'sub/deeper/alpine.txt');
+        assert.ok($('#view').classList.contains('shows-paths'));
+
+        await type('al');
+        assert.equal($('#items .label.with-path'), null, 'folder matches have no path');
+        assert.equal($('#view').classList.contains('shows-paths'), false);
+    });
+});
+
+// The marked parts of the label of the match whose name is given.
+const marksOf = name => {
+    const item = Array.from(document.querySelectorAll('#items .item')).find(el => el._item.label === name);
+    return Array.from(item.querySelectorAll('.label mark'), mark => mark.textContent);
+};
+
+test('search field: the browser neither spellchecks nor autocompletes the field', async () => {
+    assert.equal($('#search input').getAttribute('spellcheck'), 'false');
+    assert.equal($('#search input').getAttribute('autocomplete'), 'off');
+});
+
+test('search field: the matched letters of each name are marked', async () => {
+    await withFolder(async ({deep, respond}) => {
+        await toggle();
+        await type('AL txt');
+        assert.deepEqual(marksOf('alpha.txt'), ['al', 'txt'], 'each word, in any case');
+        assert.equal($('#items .item .label').textContent, 'alpha.txt');
+
+        await type('re:ph.');
+        assert.deepEqual(marksOf('alpha.txt'), ['pha'], 'the first match of an expression');
+
+        await type('apn');
+        await respond(0, [deep]);
+        assert.deepEqual(marksOf('alpine.txt'), ['a', 'p', 'n'], 'letters in order, each as early as it can');
+        assert.equal($('#items .item .label .path').textContent, 'sub/deeper/', 'the folder is not marked');
+
+        await press('Escape');
+        assert.equal($('#items .label mark'), null, 'the folder listing marks nothing');
+    });
+});
+
+test('search field: a subfolder search says how many matches it shows, and a cut one offers to search again', async () => {
+    await withFolder(async ({deep, requests, respond}) => {
+        const isShown = selector => !$(selector).classList.contains('hidden');
+        await toggle();
+        await type('alpi');
+        assert.equal(isShown('#search-found'), false, 'not while it runs');
+        await respond(0, [deep]);
+        assert.equal(isShown('#search-found'), true);
+        assert.equal($('#search-found').textContent, 'Matches in this folder and its subfolders: 1');
+        assert.equal(isShown('#search-cut'), false);
+
+        await press('Enter');
+        requests[1].resolve({search: [], searchTruncated: true});
+        await drain();
+        assert.equal($('#search-found').textContent, 'Matches in this folder and its subfolders: 0');
+        assert.equal(isShown('#search-cut'), true);
+        $('#search-cut button').click();
+        await drain();
+        assert.equal(requests.length, 3, 'the button searches again');
+        assert.equal(isShown('#search-cut'), false);
+
+        await respond(2, [deep]);
+        await type('al');
+        assert.equal(isShown('#search-found'), false, 'the folder matches need no count');
+    });
+});
+
+test('search field: matches show best first until a column header is clicked', async () => {
+    await withFolder(async ({requests}) => {
+        const names = ['IMG_0001 - copie (2).jpg', 'IMG_0002.jpg', 'x0002 long name.jpg', '0002.jpg'];
+        const found = names.map(name => Item.get('/search-field/sub/' + encodeURIComponent(name)));
+        const shown = () => Array.from(document.querySelectorAll('#items .item:not(.folder-parent) .name'), el => el.textContent);
+        const $nameHeader = () => $('#items li.header a.label');
+        const answer = async index => {
+            requests[index].resolve({search: found.map(item => item.absHref)});
+            await drain();
+        };
+        await toggle();
+        await type('0002');
+        await answer(0);
+        assert.deepEqual(shown(), ['0002.jpg', 'x0002 long name.jpg', 'IMG_0002.jpg', 'IMG_0001 - copie (2).jpg'],
+            'in one piece before in two, earlier first, then the shorter name');
+        assert.equal($nameHeader().classList.contains('ascending'), false, 'no column arrow');
+
+        $nameHeader().click();
+        await drain();
+        assert.deepEqual(shown(), ['0002.jpg', 'IMG_0001 - copie (2).jpg', 'IMG_0002.jpg', 'x0002 long name.jpg']);
+        assert.equal($nameHeader().classList.contains('ascending'), true);
+
+        await press('Enter');
+        await answer(1);
+        assert.equal(shown()[0], '0002.jpg');
+        assert.equal(shown()[1], 'x0002 long name.jpg', 'a new search shows best first again');
+
+        await press('Escape');
+        assert.equal($nameHeader().classList.contains('ascending'), true, 'the folder is sorted by its column');
     });
 });
 
@@ -225,6 +370,76 @@ test('search field: an answer to an older search does not replace the newer one'
     });
 });
 
+// The answer arrives between the typing and the pause that follows it.
+test('search field: typing drops the answer to the text it replaced', async () => {
+    await withFolder(async ({deep, requests}) => {
+        await toggle();
+        await type('al');
+        await press('Enter');
+        const input = $('#search input');
+        input.value = 'be';
+        input.dispatchEvent(new window.Event('input', {bubbles: true}));
+        requests[0].resolve({search: [deep.absHref]});
+        await Promise.resolve();
+        await Promise.resolve();
+
+        assert.ok(!labels().includes('sub/deeper/alpine.txt'), 'no answer for al under be');
+        assert.equal(isPending(), false);
+        await drain();
+        assert.deepEqual(labels(), ['beta.md']);
+    });
+});
+
+test('search field: an empty answer cut short by the server does not stop later searches', async () => {
+    await withFolder(async ({requests}) => {
+        await toggle();
+        await type('zq');
+        assert.equal(requests.length, 1);
+        requests[0].resolve({search: [], searchTruncated: true});
+        await drain();
+
+        await type('zqx');
+        assert.equal(requests.length, 2, 'longer text searches again');
+    });
+});
+
+test('search field: a search the server cut short says matches may be missing', async () => {
+    await withFolder(async ({deep, requests, respond}) => {
+        const isCutShown = () => !$('#search-cut').classList.contains('hidden');
+        const status = () => $('#search .status').textContent;
+        await toggle();
+        await type('alpi');
+        assert.equal(isCutShown(), false, 'not while the search runs');
+        requests[0].resolve({search: [deep.absHref], searchTruncated: true});
+        await drain();
+        assert.deepEqual(labels(), ['sub/deeper/alpine.txt']);
+        assert.equal(isCutShown(), true);
+        assert.ok($('#search-cut .l10n-searchCut'));
+        assert.equal(status(), 'Matches: 1. The search stopped early: some matches may be missing.');
+
+        await press('Enter');
+        assert.equal(isCutShown(), false, 'a new search hides it');
+        requests[1].resolve({search: [], searchTruncated: true});
+        await drain();
+        assert.equal(isCutShown(), true, 'also when nothing was found');
+        assert.equal(status(), 'no match. The search stopped early: some matches may be missing.');
+
+        await press('Enter');
+        await respond(2, [deep]);
+        assert.equal(isCutShown(), false, 'a complete answer');
+        assert.equal(status(), 'Matches: 1');
+
+        requests.length = 0;
+        await press('Enter');
+        requests[0].resolve({search: [deep.absHref], searchTruncated: true});
+        await drain();
+        await type('al');
+        assert.equal(isCutShown(), false, 'the folder matches are complete');
+        await press('Escape');
+        assert.equal(isCutShown(), false);
+    });
+});
+
 test('search field: an answer arriving after the field closed leaves the folder listed', async () => {
     await withFolder(async ({deep, respond}) => {
         await toggle();
@@ -293,6 +508,26 @@ test('search field: a refresh of the folder adds nothing to the subfolder result
         event.pub('location.refreshed', folder, [added], [], []);
 
         assert.deepEqual(labels(), ['sub/deeper/alpine.txt']);
+    });
+});
+
+// view.isListed() reads view.hideFolders, set once when the view loads: the
+// test replaces it with the check that setting makes.
+test('search field: with hideFolders, neither the filter nor the subfolder results show folders', async () => {
+    await withFolder(async ({sub, deep, requests, respond}) => {
+        const isListed = view.isListed;
+        view.isListed = item => !item.isFolder();
+        try {
+            await toggle();
+            await type('su');
+            assert.deepEqual(labels(), [], 'the sub folder is not listed');
+            assert.equal(requests.length, 1, 'nothing listed here: the subfolders are searched');
+
+            await respond(0, [sub, Item.get('/search-field/sub/deeper/'), deep]);
+            assert.deepEqual(labels(), ['sub/deeper/alpine.txt']);
+        } finally {
+            view.isListed = isListed;
+        }
     });
 });
 
@@ -465,4 +700,166 @@ test('view: removing an item that was never shown does not throw', () => {
     const hidden = Item.get('/search-field/never-shown/');
     delete hidden.$view;
     view.changeItems([], [hidden]);
+});
+
+test('view: matches leave out what the view does not list, and the shown ones are returned', async () => {
+    await withFolder(async ({alpha, sub}) => {
+        const isListed = view.isListed;
+        view.isListed = item => !item.isFolder();
+        try {
+            const shown = view.setMatches([alpha, sub], () => false);
+            assert.deepEqual(shown, [alpha]);
+            assert.deepEqual(labels(), ['alpha.txt']);
+        } finally {
+            view.isListed = isListed;
+        }
+    });
+});
+
+const isInvalid = () => $('#search').classList.contains('invalid') && $('#search input').getAttribute('aria-invalid') === 'true';
+
+test('search field: an expression that cannot be read is marked and never searched', async () => {
+    await withFolder(async ({requests}) => {
+        await toggle();
+        await type('re:(');
+        assert.equal(isInvalid(), true);
+        await press('Enter');
+        assert.equal(requests.length, 0);
+
+        await type('re:a');
+        assert.equal(isInvalid(), false);
+        assert.equal($('#search input').getAttribute('aria-invalid'), 'false');
+    });
+});
+
+test('search field: while the expression cannot be read, the previous matches are dimmed and not announced', async () => {
+    await withFolder(async () => {
+        const isStale = () => $('#items').classList.contains('search-stale');
+        const status = () => $('#search .status').textContent;
+        await toggle();
+        await type('al');
+        assert.equal(status(), 'Matches: 1');
+        assert.equal(isStale(), false);
+
+        await type('re:(');
+        assert.deepEqual(labels(), ['alpha.txt'], 'the view stays as it was');
+        assert.equal(isStale(), true);
+        assert.equal(status(), '', 'the count was for al');
+        assert.equal(isDeeperShown(), false, 'nothing to search for');
+
+        await type('re:^b');
+        assert.equal(isStale(), false);
+        assert.equal(isDeeperShown(), true);
+        assert.deepEqual(labels(), ['beta.md']);
+        assert.equal(status(), 'Matches: 1');
+
+        await type('re:(');
+        await press('Escape');
+        assert.equal(isStale(), false, 'closing lists the folder plainly');
+    });
+});
+
+test('search field: screen readers hear how many matches show', async () => {
+    await withFolder(async ({respond}) => {
+        const status = () => $('#search .status').textContent;
+        assert.equal($('#search .status').getAttribute('role'), 'status');
+        await toggle();
+        await type('a');
+        assert.equal(status(), 'Matches: 2', 'alpha.txt and beta.md');
+        await type('zq');
+        await respond(0, []);
+        assert.equal(status(), 'no match');
+        await press('Escape');
+        assert.equal(status(), '');
+    });
+});
+
+// The browser moves between history entries before the page hears of it:
+// on Back, history.state is already the entry the folder left.
+test('search field: Back to a folder left during a search brings its text back', async () => {
+    await withFolder(async ({folder, sub}) => {
+        const history = window.history;
+        const savedState = history.state;
+        sub.content = sub.content || {};
+        history.replaceState({absHref: folder.absHref}, '');
+        try {
+            await toggle();
+            await type('al');
+            event.pub('location.beforeChange');
+            assert.deepEqual(history.state, {absHref: folder.absHref, search: 'al'}, 'the entry keeps the text');
+            event.pub('location.changed', sub);
+            await drain();
+            assert.equal(isOpen(), false);
+
+            const getAbsHref = location.getAbsHref;
+            location.getAbsHref = () => sub.absHref;
+            event.pub('location.beforeChange');
+            location.getAbsHref = getAbsHref;
+            // location rewrites the entry it arrives on, as setLocation()
+            // does on Back.
+            history.replaceState({absHref: folder.absHref}, '');
+            event.pub('location.changed', folder);
+            await drain();
+
+            assert.equal(isOpen(), true);
+            assert.equal($('#search input').value, 'al');
+            assert.deepEqual(labels(), ['alpha.txt']);
+            assert.deepEqual(history.state, {absHref: folder.absHref, search: 'al'}, 'kept for the next Back');
+        } finally {
+            history.replaceState(savedState, '');
+        }
+    });
+});
+
+test('search field: Back to subfolder matches searches the subfolders again, without taking the focus', async () => {
+    await withFolder(async ({folder, sub, deep, requests, respond}) => {
+        const history = window.history;
+        const savedState = history.state;
+        sub.content = sub.content || {};
+        history.replaceState({absHref: folder.absHref}, '');
+        try {
+            await toggle();
+            await type('al');
+            await press('Enter');
+            await respond(0, [deep]);
+            event.pub('location.beforeChange');
+            assert.deepEqual(history.state, {absHref: folder.absHref, search: 'al', searchDeep: true});
+            event.pub('location.changed', sub);
+            await drain();
+            $('#search img').focus();
+
+            const getAbsHref = location.getAbsHref;
+            location.getAbsHref = () => sub.absHref;
+            event.pub('location.beforeChange');
+            location.getAbsHref = getAbsHref;
+            history.replaceState({absHref: folder.absHref}, '');
+            event.pub('location.changed', folder);
+            await drain();
+
+            assert.equal(isOpen(), true);
+            assert.equal($('#search input').value, 'al');
+            assert.notEqual(document.activeElement, $('#search input'), 'the focus stays where it was');
+            assert.equal(requests.length, 2, 'the subfolders are searched again');
+            assert.equal(requests[1].data.search.pattern, requests[0].data.search.pattern);
+            await respond(1, [deep]);
+            assert.deepEqual(labels(), ['sub/deeper/alpine.txt']);
+            assert.deepEqual(history.state, {absHref: folder.absHref, search: 'al', searchDeep: true}, 'kept for the next Back');
+        } finally {
+            history.replaceState(savedState, '');
+        }
+    });
+});
+
+test('search field: leaving a folder with an empty field keeps no text in its history entry', async () => {
+    await withFolder(async ({folder}) => {
+        const history = window.history;
+        const savedState = history.state;
+        history.replaceState({absHref: folder.absHref, search: 'old'}, '');
+        try {
+            event.pub('location.beforeChange');
+            assert.deepEqual(history.state, {absHref: folder.absHref});
+        } finally {
+            history.replaceState(savedState, '');
+        }
+    });
 });

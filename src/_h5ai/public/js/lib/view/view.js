@@ -1,6 +1,7 @@
 const {each, map, includes, intersection, dom} = require('../util');
 const event = require('../core/event');
 const format = require('../core/format');
+const i18n = require('../core/i18n');
 const location = require('../core/location');
 const resource = require('../core/resource');
 const store = require('../core/store');
@@ -28,6 +29,9 @@ let acceptsAdded = null;
 // Whether the items shown come from subfolders: each label then starts with
 // its folder, relative to the current one.
 let showsFolders = false;
+// While matches show: name => the [start, end) ranges of the name's
+// characters, in NFC, that the field matched, to mark them. Null otherwise.
+let highlight = null;
 const viewTpl =
         `<div id="view">
             <ul id="items" class="clearfix">
@@ -87,6 +91,8 @@ const createStyles = size => {
         `${gridPrefix} .item .label {line-height: ${gsize}px ${important}}`,
         `${gridPrefix} .square {width: ${gsize}px ${important} height: ${gsize}px ${important}}`,
         `${gridPrefix} .square img {width: ${gsize}px ${important} height: ${gsize}px ${important}}`,
+        // The name and its folder, on two lines centred on the icon.
+        `${gridPrefix} .item .label.with-path {line-height: normal ${important} height: ${gsize}px}`,
 
         `${iconsPrefix} .item {width: ${ilsize}px ${important}}`,
         `${iconsPrefix} .landscape {width: ${ilsize}px ${important} height: ${isize}px ${important}}`,
@@ -157,6 +163,38 @@ const relativeFolder = item => {
     return index < 0 ? '' : crumb.slice(index + 1).map(folder => folder.label + '/').join('');
 };
 
+// Writes the name into el, with the characters the field matched in <mark>
+// while matches show. A name not stored in NFC, as macOS writes them, is
+// written as it is, unmarked: the marks count NFC characters.
+const writeName = (el, label) => {
+    const name = label.normalize('NFC');
+    if (!highlight || name !== label) {
+        el.textContent = label;
+        return;
+    }
+    const chars = Array.from(name);
+    const doc = el.ownerDocument;
+    const write = (start, end, isMatch) => {
+        const part = chars.slice(start, end).join('');
+        if (!part) {
+            return;
+        }
+        if (isMatch) {
+            el.appendChild(doc.createElement('mark')).textContent = part;
+        } else {
+            el.appendChild(doc.createTextNode(part));
+        }
+    };
+    el.textContent = '';
+    let at = 0;
+    highlight(name).forEach(([start, end]) => {
+        write(at, start, false);
+        write(start, end, true);
+        at = end;
+    });
+    write(at, chars.length, false);
+};
+
 const createHtml = item => {
     const $html = dom(itemTpl);
     const $a = $html.find('a');
@@ -173,11 +211,18 @@ const createHtml = item => {
     location.setLink($a, item);
 
     $label.text(item.label).attr('title', item.label);
+    // The folder and the name in their own spans: the folder gives way
+    // first when the label is too narrow, and shows on a line of its own in
+    // the grid and icon views.
     const folder = showsFolders ? relativeFolder(item) : '';
+    let $name = $label;
     if (folder) {
-        $label.attr('title', folder + item.label);
-        $label[0].insertBefore(dom('<span class="path"></span>').text(folder)[0], $label[0].firstChild);
+        $name = dom('<span class="name"></span>');
+        $label.attr('title', folder + item.label).addCls('with-path').text('')
+            .app(dom('<span class="path"></span>').text(folder))
+            .app($name);
     }
+    writeName($name[0], item.label);
     $date.attr('data-time', item.time).text(format.formatDate(item.time));
     showSize($size, item);
     item.icon = resource.icon(item.type);
@@ -229,6 +274,8 @@ const showItems = items => {
 const setItems = items => {
     acceptsAdded = null;
     showsFolders = false;
+    highlight = null;
+    $view.rmCls('shows-paths');
     showItems(items);
 };
 
@@ -249,19 +296,49 @@ const changeItems = (add, remove) => {
 };
 
 // One hint at a time, as i18n writes each l10n- class in turn; checkHint()
-// then sets whether it is hidden.
+// then sets whether it is hidden. Written at once: a hint can change while
+// the items stay, with no view.changed for the l10n extension.
 const setHint = l10nKey => {
     $hint[0].className = 'l10n-' + l10nKey;
+    i18n.apply($hint[0]);
     checkHint();
 };
 
-// Shows matches instead of the folder. A later refresh adds only the new
-// items accepts(item) is true for. fromSubfolders: show each item's folder.
-const setMatches = (items, accepts, fromSubfolders = false) => {
+// While matches show, name => the ranges of its characters the field
+// matched (see setMatches); null otherwise. The sort extension orders the
+// matches by them.
+const getMarks = () => highlight;
+
+// The key of the hint, shown or hidden.
+const getHint = () => {
+    const cls = Array.from($hint[0].classList).find(name => name.startsWith('l10n-'));
+    return cls ? cls.slice('l10n-'.length) : '';
+};
+
+// Whether the view lists this item: hideFolders leaves out the folders, from
+// the folder as from its matches.
+const isListed = item => !(item.isFolder() && settings.hideFolders);
+
+// Shows matches instead of the folder, without the items the view does not
+// list, and returns those shown. A later refresh adds only the new items
+// accepts(item) is true for. fromSubfolders: show each item's folder.
+// marks: name => the sorted [start, end) ranges of its characters, in NFC,
+// to mark as matched; null marks nothing.
+const setMatches = (items, accepts, fromSubfolders = false, marks = null) => {
+    // Through the exports, which a test replaces: hideFolders is read once,
+    // when the view loads.
+    const shown = items.filter(item => module.exports.isListed(item));
     acceptsAdded = accepts;
     showsFolders = fromSubfolders;
+    highlight = marks;
+    if (fromSubfolders) {
+        $view.addCls('shows-paths');
+    } else {
+        $view.rmCls('shows-paths');
+    }
     setHint('noMatch');
-    showItems(items);
+    showItems(shown);
+    return shown;
 };
 
 const onLocationChanged = item => {
@@ -276,7 +353,7 @@ const onLocationChanged = item => {
     }
 
     each(item.content, child => {
-        if (!(child.isFolder() && settings.hideFolders)) {
+        if (isListed(child)) {
             items.push(child);
         }
     });
@@ -291,7 +368,7 @@ const onLocationRefreshed = (item, added, removed, updated) => {
     const isListing = acceptsAdded === null;
 
     each(added, child => {
-        if (!(child.isFolder() && settings.hideFolders) && (isListing || acceptsAdded(child))) {
+        if (isListed(child) && (isListing || acceptsAdded(child))) {
             add.push(child);
         }
     });
@@ -344,7 +421,10 @@ module.exports = {
     changeItems,
     setLocation: onLocationChanged,
     setHint,
+    getHint,
+    getMarks,
     setMatches,
+    isListed,
     getModes,
     getMode,
     setMode,

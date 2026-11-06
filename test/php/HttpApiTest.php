@@ -257,7 +257,17 @@ final class HttpApiTest extends H5aiTestCase {
         self::assertContains('/first.txt', array_column($data['items'], 'href'));
         self::assertSame(['fr' => ['lang' => 'français', 'isoCode' => 'fr']], $data['l10n'], 'non-string language codes are dropped');
         self::assertSame(['/first.txt'], array_column($data['search'], 'href'));
+        self::assertArrayNotHasKey('searchTruncated', $data, 'a complete search');
         self::assertSame([null], $data['thumbs']);
+    }
+
+    public function testASearchCutByItsTimeLimitSaysSo(): void {
+        $this->writeOptions(['search' => ['enabled' => true, 'timeLimit' => 1e-9]]);
+        $this->writeSetup([]);
+        $data = $this->postJson(['action' => 'get', 'search' => ['href' => '/', 'pattern' => 'first']]);
+
+        self::assertSame([], $data['search']);
+        self::assertTrue($data['searchTruncated']);
     }
 
     public static function disabledParts(): array {

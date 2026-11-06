@@ -78,6 +78,7 @@ require('./tests/unit/ext/search');
 require('./tests/unit/packageName');
 require('./tests/unit/versionScript');
 require('./tests/unit/view/changelog');
+require('./tests/unit/view/detailsStyles');
 require('./tests/unit/runTests');
 
 pin_html();

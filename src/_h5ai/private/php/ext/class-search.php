@@ -24,18 +24,44 @@ class Search {
     private const TYPE_DIR = 'd';
     private const TYPE_LINK = 'l';
     private const TYPE_FILE = 'f';
+    private const DEFAULT_TIME_LIMIT = 10;
+    // A pattern stops at the PCRE match or depth limit after about a
+    // thousand times the work of a plain match: once it did on this many
+    // names, it is a runaway one and the search ends there.
+    private const MAX_LIMIT_HITS = 100;
+
+    // When the running search must end, in hrtime() seconds (a float, so
+    // that no time limit overflows), on how many names its pattern hit a
+    // PCRE limit, and whether it ended there with entries left to read.
+    private float $deadline = 0.0;
+    private int $limit_hits = 0;
+    private bool $is_cut = false;
+    // Whether the running search stopped at search.maxResults matches, and
+    // whether it leaves out folders, as view.hideFolders does in the listing.
+    private bool $is_full = false;
+    private bool $hides_folders = false;
 
     public function __construct(private readonly Context $context) {}
 
     // Paths below $root whose name matches the regular expression $pattern:
-    // at most search.maxResults of them, search.maxDepth levels below $root.
+    // at most search.maxResults of them, search.maxDepth levels below $root,
+    // without folders under view.hideFolders: hidden folders do not take the
+    // places of matches the browser would show.
     // An empty, oversized or invalid pattern, or an unmanaged root, yields [].
+    // The pattern comes from the browser: a search ends with the paths found
+    // so far after search.timeLimit seconds, or as soon as the pattern shows
+    // itself a runaway one, so that no request holds a PHP worker for long.
     public function get_paths(string $root, ?string $pattern = null, bool $ignorecase = false): array {
+        $this->deadline = hrtime(true) / 1e9 + $this->time_limit();
+        $this->limit_hits = 0;
+        $this->is_cut = false;
+        $this->is_full = false;
+        $this->hides_folders = (bool) $this->context->query_option('view.hideFolders', false);
         $max_pattern_length = max(1, (int) $this->context->query_option('search.maxPatternLength', 1024));
         if (!$pattern || strlen($pattern) > $max_pattern_length) {
             return [];
         }
-        $matches = self::name_matcher($pattern, $ignorecase);
+        $matches = $this->name_matcher($pattern, $ignorecase);
         if ($matches === null) {
             return [];
         }
@@ -58,24 +84,61 @@ class Search {
             $visited = [];
             $this->walk($root, $matches, 0, $max_depth, $max_results, $visited, $paths);
         }
+        if ($this->is_cut) {
+            Util::log($this->limit_hits >= self::MAX_LIMIT_HITS
+                ? 'search: stopped, the pattern hit the PCRE limit on ' . $this->limit_hits . ' names'
+                : 'search: stopped after search.timeLimit (' . $this->time_limit() . ' s)');
+        }
         return $paths;
+    }
+
+    // Asked before each entry left to read: true ends the search there.
+    private function is_over_budget(): bool {
+        if ($this->limit_hits >= self::MAX_LIMIT_HITS || $this->is_past_deadline()) {
+            $this->is_cut = true;
+        }
+        return $this->is_cut;
+    }
+
+    private function is_past_deadline(): bool {
+        return hrtime(true) / 1e9 >= $this->deadline;
+    }
+
+    // Whether the last search stopped with entries left to read or matches
+    // left out, or at search.maxResults matches: its answer may miss names
+    // that match. Only the first two are logged; the last is a set limit.
+    public function is_cut(): bool {
+        return $this->is_cut || $this->is_full;
+    }
+
+    // Adds a match; false once $paths holds search.maxResults of them, which
+    // ends the search.
+    private function add_match(array &$paths, string $path, int $max_results): bool {
+        $paths[] = $path;
+        if (count($paths) >= $max_results) {
+            $this->is_full = true;
+            return false;
+        }
+        return true;
     }
 
     // Whether a name matches $pattern, read as the browser's filter reads it:
     // characters, not bytes, so that the case of É is ignored like that of E,
     // and in NFC when the intl extension can normalize the name. A name that
     // is not valid UTF-8 is matched byte by byte. Null for an invalid pattern.
-    private static function name_matcher(string $pattern, bool $ignorecase): ?Closure {
+    // A name on which the pattern hits a PCRE limit does not match, and
+    // counts in $limit_hits.
+    private function name_matcher(string $pattern, bool $ignorecase): ?Closure {
         $re = Util::wrap_pattern('(*LIMIT_MATCH=100000)(*LIMIT_DEPTH=1000)' . $pattern) . ($ignorecase ? 'i' : '');
         if (@preg_match($re, '') === false) {
             return null;
         }
         $re_unicode = $re . 'u';
         if (@preg_match($re_unicode, '') === false) {
-            return static fn(string $name): bool => @preg_match($re, $name) === 1;
+            return fn(string $name): bool => $this->is_match(@preg_match($re, $name));
         }
         $can_normalize = class_exists('Normalizer');
-        return static function (string $name) use ($re, $re_unicode, $can_normalize): bool {
+        return function (string $name) use ($re, $re_unicode, $can_normalize): bool {
             // Normalizing fails on a name that is not UTF-8, which is kept.
             if ($can_normalize && !Normalizer::isNormalized($name, Normalizer::FORM_C)) {
                 $name = Normalizer::normalize($name, Normalizer::FORM_C) ?: $name;
@@ -86,8 +149,16 @@ class Search {
             if ($result === false && preg_last_error() === PREG_BAD_UTF8_ERROR) {
                 $result = @preg_match($re, $name);
             }
-            return $result === 1;
+            return $this->is_match($result);
         };
+    }
+
+    // A preg_match() result as a match; false, a PCRE limit hit, counts.
+    private function is_match(int|false $result): bool {
+        if ($result === false) {
+            $this->limit_hits++;
+        }
+        return $result === 1;
     }
 
     // Whether $root or one of its parents below ROOT_PATH is a symlink. A
@@ -133,6 +204,12 @@ class Search {
                     continue;
                 }
                 $is_below_root = true;
+                if ($this->is_over_budget()) {
+                    break;
+                }
+                if ($this->hides_folders && $line[0] !== self::TYPE_FILE) {
+                    continue;
+                }
                 $below_root = substr($entry, strlen($prefix));
                 if (substr_count($below_root, '/') > $max_depth) {
                     continue;
@@ -143,11 +220,9 @@ class Search {
                     continue;
                 }
                 $path = $this->absolute_path(self::unescape($entry));
-                if ($this->is_current_match($line[0], $path, $root, $hide_unreadable)) {
-                    $paths[] = $path;
-                    if (count($paths) >= $max_results) {
-                        break;
-                    }
+                if ($this->is_current_match($line[0], $path, $root, $hide_unreadable)
+                    && !$this->add_match($paths, $path, $max_results)) {
+                    break;
                 }
             }
             return $paths;
@@ -169,7 +244,7 @@ class Search {
 
     // The walk used before the index existed, and still used without one.
     private function walk(string $folder, Closure $matches, int $depth, int $max_depth, int $max_results, array &$visited, array &$paths): void {
-        if ($depth > $max_depth || count($paths) >= $max_results) {
+        if ($depth > $max_depth || count($paths) >= $max_results || $this->is_over_budget()) {
             return;
         }
         $real_folder = realpath($folder) ?: $folder;
@@ -182,13 +257,15 @@ class Search {
         }
 
         foreach ($this->context->paths()->read_dir($folder) as $name) {
-            if (count($paths) >= $max_results) {
+            if (count($paths) >= $max_results || $this->is_over_budget()) {
                 return;
             }
             $path = $folder . '/' . $name;
             $is_directory = @is_dir($path);
-            if ($matches($name) && $this->context->paths()->is_managed_entry($path, $is_directory)) {
-                $paths[] = $path;
+            if (!($this->hides_folders && $is_directory) && $matches($name)
+                && $this->context->paths()->is_managed_entry($path, $is_directory)
+                && !$this->add_match($paths, $path, $max_results)) {
+                return;
             }
             if ($is_directory && !@is_link($path)) {
                 $this->walk($path, $matches, $depth + 1, $max_depth, $max_results, $visited, $paths);
@@ -475,6 +552,13 @@ class Search {
         }
     }
 
+    // Seconds, possibly fractional; anything but a positive number gives the
+    // default.
+    private function time_limit(): float {
+        $limit = (float) $this->context->query_option('search.timeLimit', self::DEFAULT_TIME_LIMIT);
+        return $limit > 0 ? $limit : self::DEFAULT_TIME_LIMIT;
+    }
+
     private function ttl(): int {
         return max(0, (int) $this->context->query_option('search.indexTtl', self::DEFAULT_TTL));
     }
@@ -497,12 +581,21 @@ class Search {
         $root = $this->context->paths()->to_path($href);
         return $this->context->with_cached_folder_sizes(function () use ($root, $pattern, $ignorecase): array {
             $cache = [];
-            // Nothing refreshes search results, so an expired folder size
-            // would blink there for good: it is shown without the flag.
-            return array_map(
-                fn(string $path): array => array_diff_key(Item::get($this->context, $path, $cache)->to_json_object(), ['sizeStale' => true]),
-                $this->get_paths($root, $pattern, $ignorecase),
-            );
+            $items = [];
+            foreach ($this->get_paths($root, $pattern, $ignorecase) as $path) {
+                // Reading each match counts in search.timeLimit too: on a
+                // slow mount, the matches past the deadline are left out.
+                // A runaway pattern's matches are still read.
+                if ($this->is_past_deadline()) {
+                    $this->is_cut = true;
+                    break;
+                }
+                // Nothing refreshes search results, so an expired folder
+                // size would blink there for good: it is shown without the
+                // flag.
+                $items[] = array_diff_key(Item::get($this->context, $path, $cache)->to_json_object(), ['sizeStale' => true]);
+            }
+            return $items;
         });
     }
 }

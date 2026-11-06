@@ -1,11 +1,14 @@
 const {filter, map, parsePattern, isActivationKey, dom} = require('../util');
 const server = require('../server');
 const event = require('../core/event');
+const i18n = require('../core/i18n');
 const location = require('../core/location');
 const resource = require('../core/resource');
 const allsettings = require('../core/settings');
 const Item = require('../model/item');
 const view = require('../view/view');
+
+const win = global.window;
 
 
 // One field for the filter and the search: typing filters the current folder
@@ -31,17 +34,32 @@ const canSearch = searchSettings.enabled;
 const tpl =
         `<div id="search" class="tool">
             <img class="l10n_alt-search" src="${resource.image('search')}" alt="search" role="button" tabindex="0" aria-expanded="false"/>
-            <input class="l10n_ph-search l10n_aria-search" type="text" aria-label="search"/>
+            <input class="l10n_ph-search l10n_aria-search" type="text" aria-label="search" aria-invalid="false" spellcheck="false" autocomplete="off"/>
+            <div class="status" role="status"></div>
         </div>`;
 const deeperTpl =
         `<button id="search-deeper" type="button">
             <span class="l10n-searchSubfolders"></span>
             <q class="pattern"></q>
         </button>`;
+// Under the matches of the subfolders: how many, and where they come from.
+const foundTpl = '<p id="search-found"></p>';
+const cutTpl =
+        `<p id="search-cut">
+            <span class="l10n-searchCut"></span>
+            <button type="button" class="l10n-searchAgain"></button>
+        </p>`;
 
 let $tool;
 let $input;
+let $status;
 let $deeper;
+let $cut;
+let $found;
+// How many matches the subfolder search shows, for #search-found; null
+// while it shows none.
+let foundCount = null;
+let $items;
 let isOpen = false;
 // What the field holds, '' when it holds only spaces.
 let text = '';
@@ -52,6 +70,15 @@ let request = 0;
 let timer = null;
 // Text whose subfolder search, from this folder, found nothing; null if none.
 let foundNothingFor = null;
+// What the view's hint said before a subfolder search replaced it with
+// searchPending; null while no search runs.
+let hintBeforeSearch = null;
+// Whether the field holds an expression that cannot be read.
+let isInvalid = false;
+// What to put back once the folder of a history entry shows again (Back,
+// Forward, a reload): {text, isDeep}, isDeep when the field showed the
+// matches of the subfolders; null if nothing.
+let toRestore = null;
 
 // Names are compared in NFC, as typed, whatever the file system stores.
 const patternOf = settings => parsePattern(text.normalize('NFC'), settings.advanced);
@@ -66,6 +93,79 @@ const regExpOf = settings => {
 
 const labelMatches = (re, item) => re.test(item.label.normalize('NFC'));
 
+// The [start, end) ranges of marked characters, merged and sorted.
+const rangesOf = marked => {
+    const ranges = [];
+    marked.forEach((isMarked, index) => {
+        if (!isMarked) {
+            return;
+        }
+        const last = ranges[ranges.length - 1];
+        if (last && last[1] === index) {
+            last[1] = index + 1;
+        } else {
+            ranges.push([index, index + 1]);
+        }
+    });
+    return ranges;
+};
+
+// For the view: name => the ranges of its characters the field matched, as
+// the pattern reads them. A word in advanced mode matches its letters in
+// order, each as early as it can, as its expression does; a literal its
+// first occurrence; an expression after re: its first match.
+const highlightOf = settings => {
+    const typed = text.normalize('NFC');
+    const sameCase = (a, b) => a === b;
+    const anyCase = (a, b) => a === b || a.toLowerCase() === b.toLowerCase();
+    const isSame = settings.ignorecase ? anyCase : sameCase;
+    if (settings.advanced && typed.startsWith('re:')) {
+        const re = regExpOf(settings);
+        return name => {
+            const match = re && re.exec(name);
+            if (!match || !match[0]) {
+                return [];
+            }
+            const start = Array.from(name.slice(0, match.index)).length;
+            return [[start, start + Array.from(match[0]).length]];
+        };
+    }
+    const words = (settings.advanced ? typed.trim().split(/\s+/).filter(Boolean) : [typed]).map(word => Array.from(word));
+    const markInOrder = (chars, word, marked) => {
+        const hits = [];
+        let at = 0;
+        for (const wanted of word) {
+            while (at < chars.length && !isSame(chars[at], wanted)) {
+                at += 1;
+            }
+            if (at === chars.length) {
+                return;
+            }
+            hits.push(at);
+            at += 1;
+        }
+        hits.forEach(index => {
+            marked[index] = true;
+        });
+    };
+    const markFirst = (chars, word, marked) => {
+        for (let start = 0; start + word.length <= chars.length; start += 1) {
+            if (word.every((wanted, offset) => isSame(chars[start + offset], wanted))) {
+                word.forEach((wanted, offset) => {
+                    marked[start + offset] = true;
+                });
+                return;
+            }
+        }
+    };
+    return name => {
+        const chars = Array.from(name);
+        const marked = chars.map(() => false);
+        words.forEach(word => (settings.advanced ? markInOrder : markFirst)(chars, word, marked));
+        return rangesOf(marked);
+    };
+};
+
 // Whether a search for the field can only find nothing again: added letters
 // or words narrow a literal or advanced pattern, but not an expression
 // typed after re:.
@@ -73,25 +173,88 @@ const canOnlyFindNothing = () => foundNothingFor !== null &&
     text.startsWith(foundNothingFor) &&
     !(searchSettings.advanced && text.startsWith('re:'));
 
-const cancelTimer = () => {
-    clearTimeout(timer);
-    timer = null;
+// The settings of what the field does: filter, search, or both.
+const usedSettings = () => [canFilter && filterSettings, canSearch && searchSettings].filter(Boolean);
+
+// Tells screen readers how many matches the view shows, and whether the
+// search stopped before it could find them all; '' says nothing.
+const announce = (count, isCut = false) => {
+    if (count === '') {
+        $status.text('');
+        return;
+    }
+    const matches = count ? i18n.t('searchMatches', count) : i18n.t('noMatch');
+    $status.text(isCut ? matches + '. ' + i18n.t('searchCut') : matches);
 };
 
 const updateDeeper = () => {
     $deeper.find('.pattern').text(text);
-    if (isOpen && !isDeep && text && canFilter && canSearch) {
+    if (isOpen && !isDeep && !isInvalid && text && canFilter && canSearch) {
         $deeper.show();
     } else {
         $deeper.hide();
     }
 };
 
+// Marks the field when an expression typed after re: cannot be read. The
+// view keeps the matches of the previous text, dimmed, and screen readers
+// no longer hear their count: they belong to text the field no longer holds.
+const updateValidity = () => {
+    isInvalid = !!text && usedSettings().some(settings => !regExpOf(settings));
+    $input.attr('aria-invalid', isInvalid ? 'true' : 'false');
+    if (isInvalid) {
+        $tool.addCls('invalid');
+        $items.addCls('search-stale');
+        announce('');
+    } else {
+        $tool.rmCls('invalid');
+        $items.rmCls('search-stale');
+    }
+    updateDeeper();
+};
+
+// While a subfolder search runs, the view says so where it would say "no
+// match", and the field's text is dimmed.
+// Says how many matches the subfolder search shows; null hides the line.
+const showFound = count => {
+    foundCount = count;
+    if (count === null) {
+        $found.text('').hide();
+    } else {
+        $found.text(i18n.t('searchFound', count)).show();
+    }
+};
+
+const startPending = () => {
+    $tool.addCls('pending');
+    if (hintBeforeSearch === null) {
+        hintBeforeSearch = view.getHint();
+    }
+    view.setHint('searchPending');
+};
+
+// restoreHint: the view keeps showing what it showed, so its hint comes
+// back; otherwise whatever shows next sets its own.
+const endPending = (restoreHint = false) => {
+    $tool.rmCls('pending');
+    if (restoreHint && hintBeforeSearch !== null) {
+        view.setHint(hintBeforeSearch);
+    }
+    hintBeforeSearch = null;
+};
+
+const cancelTimer = () => {
+    clearTimeout(timer);
+    timer = null;
+};
+
 // Drops any running search.
 const stopSearch = () => {
     request += 1;
     isDeep = false;
-    $tool.rmCls('pending');
+    endPending();
+    $cut.hide();
+    showFound(null);
 };
 
 // Drops any running search and shows the current folder: all of it, or the
@@ -102,13 +265,14 @@ const showFolder = () => {
     let isNoMatch = false;
     if (!text || !canFilter) {
         view.setLocation();
+        announce('');
     } else {
         const re = regExpOf(filterSettings);
         if (re) {
-            const accepts = item => labelMatches(re, item);
-            const matches = filter(location.getItem().content, accepts);
-            view.setMatches(matches, accepts);
-            isNoMatch = matches.length === 0;
+            const accepts = item => view.isListed(item) && labelMatches(re, item);
+            const shown = view.setMatches(filter(location.getItem().content, accepts), accepts, false, highlightOf(filterSettings));
+            isNoMatch = shown.length === 0;
+            announce(shown.length);
         }
     }
     updateDeeper();
@@ -117,7 +281,7 @@ const showFolder = () => {
 
 const searchSubfolders = () => {
     cancelTimer();
-    if (!text || !canSearch) {
+    if (!text || !canSearch || !regExpOf(searchSettings)) {
         return;
     }
 
@@ -126,7 +290,10 @@ const searchSubfolders = () => {
     const asked = text;
     isDeep = true;
     updateDeeper();
-    $tool.addCls('pending');
+    startPending();
+    $cut.hide();
+    showFound(null);
+    const marks = highlightOf(searchSettings);
 
     server.request({
         action: 'get',
@@ -137,13 +304,21 @@ const searchSubfolders = () => {
         }
     }).then(response => {
         if (current === request) {
-            $tool.rmCls('pending');
-            if (!response.search || !response.search.length) {
-                foundNothingFor = asked;
-            }
+            endPending();
             // The results answer the field at the time of the request: a
             // file added to the folder since then waits for the next one.
-            view.setMatches(map(response.search, item => Item.get(item)), () => false, true);
+            const shown = view.setMatches(map(response.search, item => Item.get(item)), () => false, true, marks);
+            showFound(shown.length);
+            // A search the server cut short may have missed names, which
+            // longer text could find too: the line under the matches says so.
+            const isCut = !!response.searchTruncated;
+            if (!shown.length && !isCut) {
+                foundNothingFor = asked;
+            }
+            if (isCut) {
+                $cut.show();
+            }
+            announce(shown.length, isCut);
         }
     }, () => {
         // Back to the folder; the line under it asks again.
@@ -156,6 +331,11 @@ const searchSubfolders = () => {
 const onInput = () => {
     text = $input.val().trim() ? $input.val() : '';
     cancelTimer();
+    // A search answer would now answer older text: it is dropped, and the
+    // next pause filters or searches again.
+    request += 1;
+    endPending(true);
+    updateValidity();
     if (!text) {
         showFolder();
         return;
@@ -178,11 +358,15 @@ const onInput = () => {
     }, filterSettings.debounceTime);
 };
 
-const open = () => {
+// focus: false when the field reopens by itself, on Back or a reload: the
+// focus, and on a phone the keyboard, stay where they were.
+const open = (focus = true) => {
     isOpen = true;
     $tool.addCls('active');
     $tool.find('img').attr('aria-expanded', 'true');
-    $input[0].focus();
+    if (focus) {
+        $input[0].focus();
+    }
 };
 
 // render: false when the view lists a new folder anyway.
@@ -193,6 +377,7 @@ const close = (render = true) => {
     text = '';
     foundNothingFor = null;
     $input.val('');
+    updateValidity();
     $tool.rmCls('active');
     $tool.find('img').attr('aria-expanded', 'false');
     if (showsMatches) {
@@ -200,6 +385,53 @@ const close = (render = true) => {
     } else {
         stopSearch();
         updateDeeper();
+        announce('');
+    }
+};
+
+// The history entry's fields for what the field shows: search, the text,
+// and searchDeep when it shows the matches of the subfolders.
+const stateOf = restored => restored.isDeep ? {search: restored.text, searchDeep: true} : {search: restored.text};
+
+// Leaving a folder by a link keeps the field's text, and whether it showed
+// the matches of the subfolders, in its history entry. Arriving on an entry
+// by Back, Forward or a reload, whose folder is not the one listed yet,
+// takes what it kept, if anything.
+const onBeforeChange = () => {
+    const history = win.history;
+    const state = history && history.state;
+    if (state && state.absHref === location.getAbsHref()) {
+        const kept = Object.assign({}, state);
+        delete kept.search;
+        delete kept.searchDeep;
+        if (text) {
+            Object.assign(kept, stateOf({text, isDeep}));
+        }
+        history.replaceState(kept, '');
+        toRestore = null;
+    } else {
+        const hasText = state && typeof state.search === 'string';
+        toRestore = hasText ? {text: state.search, isDeep: state.searchDeep === true} : null;
+    }
+};
+
+const onLocationChanged = () => {
+    close(false);
+    const restored = toRestore;
+    toRestore = null;
+    if (restored && restored.text) {
+        // location rewrote the entry on the way in, without the text: it is
+        // written back for the next Back or Forward.
+        const state = win.history.state;
+        if (state) {
+            win.history.replaceState(Object.assign({}, state, stateOf(restored)), '');
+        }
+        open(false);
+        $input.val(restored.text);
+        onInput();
+        if (restored.isDeep) {
+            searchSubfolders();
+        }
     }
 };
 
@@ -227,7 +459,11 @@ const init = () => {
 
     $tool = dom(tpl).appTo('#toolbar');
     $input = $tool.find('input');
+    $status = $tool.find('.status');
     $deeper = dom(deeperTpl).hide().appTo('#view');
+    $found = dom(foundTpl).hide().appTo('#view');
+    $cut = dom(cutTpl).hide().appTo('#view');
+    $items = dom('#items');
 
     const toggle = () => {
         if (isOpen) {
@@ -249,7 +485,18 @@ const init = () => {
         searchSubfolders();
         $input[0].focus();
     });
-    event.sub('location.changed', () => close(false));
+    $cut.find('button').on('click', () => {
+        searchSubfolders();
+        $input[0].focus();
+    });
+    // The count line is written with its number: a new language rewrites it.
+    event.sub('l10n.changed', () => {
+        if (foundCount !== null) {
+            showFound(foundCount);
+        }
+    });
+    event.sub('location.beforeChange', onBeforeChange);
+    event.sub('location.changed', onLocationChanged);
 };
 
 

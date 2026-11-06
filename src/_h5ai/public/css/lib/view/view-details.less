@@ -31,9 +31,10 @@
         border-bottom: 1px solid rgba(0,0,0,0.07);
         border-radius: 2px 2px 0 0;
 
+        // Only the hover fades: an eased margin made the header lag behind
+        // the rows when the view narrows, down to "N" on a phone.
         .label, .date, .size {
-            .eased-transition;
-
+            transition: opacity 0.2s ease-in-out, color 0.2s ease-in-out;
             line-height: 24px;
             padding: 0 8px 16px;
             opacity: 0.4;

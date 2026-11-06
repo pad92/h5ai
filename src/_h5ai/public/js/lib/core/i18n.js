@@ -31,6 +31,16 @@ const defaults = {
     parentDirectory: 'Parent Directory',
     qrCode: 'QR code of the link',
     search: 'search',
+    // A button next to searchCut.
+    searchAgain: 'Search again',
+    // Under the matches of a search the server stopped before its end.
+    searchCut: 'The search stopped early: some matches may be missing.',
+    // Under the matches of a subfolder search.
+    searchFound: 'Matches in this folder and its subfolders: %s',
+    // Read by screen readers once the matches show.
+    searchMatches: 'Matches: %s',
+    // In place of "no match" while the subfolders are searched.
+    searchPending: 'searching…',
     // Followed by what was typed, in quotes.
     searchSubfolders: 'Search subfolders for',
     selected: 'selected',

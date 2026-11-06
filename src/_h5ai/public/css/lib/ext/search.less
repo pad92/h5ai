@@ -23,6 +23,24 @@
             color: @col-text-disabled-black;
         }
     }
+
+    // An expression typed after re: that cannot be read.
+    &.invalid {
+        input {
+            color: @col-error;
+            text-decoration: underline wavy @col-error;
+        }
+    }
+
+    // Read by screen readers only.
+    .status {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
 }
 
 // Under the filtered listing: search the subfolders for the same text.
@@ -51,13 +69,104 @@
     }
 }
 
-// A match from a subfolder starts with its folder, dimmed. Grid and icon
-// labels are too short for it: their title still gives the whole path.
-#view .label .path {
-    opacity: 0.54;
+// The matches of the previous text, while the field holds an expression
+// that cannot be read.
+#view #items.search-stale .item {
+    opacity: 0.4;
 }
 
-#view.view-grid .label .path,
-#view.view-icons .label .path {
-    display: none;
+// The characters of a name that the field matched.
+#view .label mark {
+    color: inherit;
+    background: rgba(255, 193, 7, 0.35);
+    border-radius: 2px;
+}
+
+// Under the matches of a subfolder search: how many, and from where.
+#view #search-found {
+    margin: 24px auto 0;
+    padding: 0 16px;
+    text-align: center;
+    opacity: 0.6;
+}
+
+// Under the matches of a search the server stopped before its end.
+// It shows only with #search-found, right under it.
+#view #search-cut {
+    margin: 4px auto 0;
+    padding: 0 16px;
+    text-align: center;
+    opacity: 0.6;
+
+    button {
+        border: 0;
+        padding: 0 4px;
+        background: transparent;
+        color: inherit;
+        font: inherit;
+        text-decoration: underline;
+        cursor: pointer;
+
+        &:hover,
+        &:focus-visible {
+            color: @col-text-hover;
+        }
+    }
+}
+
+// A match from a subfolder starts with its folder, dimmed; the title gives
+// the whole path. In the details view, the folder gives way first: the name
+// keeps all but 3em of the line, and each ends in an ellipsis when cut.
+#view .label.with-path {
+    display: flex;
+
+    .path,
+    .name {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .path {
+        flex: 0 1 auto;
+        min-width: 0;
+        opacity: 0.54;
+    }
+
+    .name {
+        flex: 0 0 auto;
+        max-width: ~"calc(100% - 3em)";
+    }
+}
+
+// The grid and icon views show the name, then its folder on a smaller line
+// under it: two files of the same name stay apart.
+#view.view-grid .label.with-path,
+#view.view-icons .label.with-path {
+    flex-direction: column;
+    justify-content: center;
+
+    .name {
+        max-width: none;
+    }
+
+    .path {
+        order: 1;
+        font-size: 0.85em;
+    }
+}
+
+// Every icon label keeps room for a folder line, so that the floated items
+// stay aligned.
+#view.view-grid .label.with-path {
+    display: inline-flex;
+}
+
+#view.view-icons.shows-paths .label {
+    height: 42px;
+    line-height: 21px;
+}
+
+#view.view-icons .label.with-path {
+    justify-content: flex-start;
 }
