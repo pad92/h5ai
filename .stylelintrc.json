@@ -16,6 +16,7 @@
     "media-feature-range-notation": null,
     "hue-degree-notation": null,
     "declaration-property-value-no-unknown": null,
-    "selector-pseudo-class-no-unknown": null
+    "selector-pseudo-class-no-unknown": null,
+    "value-no-invalid": null
   }
 }

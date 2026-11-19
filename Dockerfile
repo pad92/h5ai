@@ -1,7 +1,7 @@
 # Stage 1: Build h5ai application from source
 # The zip holds only PHP, JS and CSS: build it once on the build host instead
 # of under QEMU for each target platform.
-FROM --platform=$BUILDPLATFORM node:24.22.2-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS h5ai-builder
+FROM --platform=$BUILDPLATFORM node:24.22.3-slim@sha256:dc26ae92c9fb15cf6b1d63e20f0944b2efe0f115b20e00be48fb23fceb061c54 AS h5ai-builder
 
 WORKDIR /build
 ARG H5AI_VERSION
@@ -24,7 +24,7 @@ ARG TARGETARCH
 COPY .php-rar/${TARGETARCH}/opt/php-rar/rar.so /rar.so
 
 # Stage 3: Fetch s6-overlay and unpack the h5ai build
-FROM php:8.4.27-alpine3.24@sha256:d8784155c4d37986be9ddd7a8950df7e78998cc48e35472cd69e2b9371424a65 AS deps-builder
+FROM php:8.4.28-alpine3.24@sha256:5b84d9d7524ac30fe65dc50de6117efa54b777c38b4f3d9060d7f2dfe070bf9c AS deps-builder
 
 ARG S6_OVERLAY_VERSION=3.2.3.2
 ARG TARGETARCH
