@@ -2,7 +2,7 @@
 
 ## v1.8.3 - *2026-11-20*
 
-* **Dependencies** (build, test and CI tooling only): Babel 8.1.2, eslint 10.15, jsdom 31.0.1, less 4.9.1, marked 18.2.1, postcss-less 7.1.1, and the majors `@stylistic/eslint-plugin` 6, stylelint 18 and stylelint-config-standard 41. stylelint 18 adds `value-no-invalid`, which cannot read Less values (`@var`, `~"…"`, `fade()`), so it is turned off like the other value checks. The build uses Node 24.22.3. The PHP test, coverage and php-rar build images move to PHP 8.4.28 (the image itself keeps Alpine's PHP package), and PHPUnit to 12.5.45. CI runs Docker 29.10 (dind) and BuildKit 0.35.1. The scanners, also used by `make scan` and `make docker-grype`, move to Grype 0.122.1 and Syft 1.57.2. `npm audit` reports no vulnerability.
+* **Dependencies** (build, test and CI tooling only): Babel 8.1.2, eslint 10.15, jsdom 31.0.1, less 4.9.1, marked 18.2.1, postcss-less 7.1.1, and the majors `@stylistic/eslint-plugin` 6, stylelint 18 and stylelint-config-standard 41. stylelint 18 adds `value-no-invalid`, which cannot read Less values (`@var`, `~"…"`, `fade()`), so it is turned off like the other value checks. The build uses Node 24.22.3, and the image's ffmpeg is compiled on Alpine 3.24.4. The PHP test, coverage and php-rar build images move to PHP 8.4.28 (the image itself keeps Alpine's PHP package), and PHPUnit to 12.5.45. CI runs Docker 29.10 (dind) and BuildKit 0.35.1. The scanners, also used by `make scan` and `make docker-grype`, move to Grype 0.122.1 and Syft 1.57.2. `npm audit` reports no vulnerability.
 
 ## v1.8.2 - *2026-11-06*
 
