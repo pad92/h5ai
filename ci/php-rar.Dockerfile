@@ -2,7 +2,7 @@
 # with the PHP 8.4 zend_resolve_path API. The main image loads rar.so into
 # Alpine's php84, which shares this PHP version's extension API; bump the
 # base image below with the PHP version the main Dockerfile requires.
-FROM php:8.4.27-alpine3.24@sha256:d8784155c4d37986be9ddd7a8950df7e78998cc48e35472cd69e2b9371424a65 AS php-rar-builder
+FROM php:8.4.28-alpine3.24@sha256:5b84d9d7524ac30fe65dc50de6117efa54b777c38b4f3d9060d7f2dfe070bf9c AS php-rar-builder
 
 ARG PHP_RAR_COMMIT=9c8fcd9ebc9feaf36f945d6d7407fdcd57b7136f
 RUN apk add --no-cache git autoconf g++ make \

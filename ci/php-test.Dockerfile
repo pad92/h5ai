@@ -2,15 +2,15 @@
 # GD with JPEG and WebP as in the runtime image, Xdebug for coverage, and a
 # checksum-verified PHPUnit phar at /usr/local/bin/phpunit.phar. Built with
 # an empty context; the Docker layer cache keeps it until a pin changes.
-ARG PHP_IMAGE=php:8.4.27-cli@sha256:7e7413ed31b8c42b31c939cc83b3758b1cd618f7bf3803f5a0c39f98d4adcbee
+ARG PHP_IMAGE=php:8.4.28-cli@sha256:1afd622efcdd7623feca3562344097fb60c8078926e9961679f0c54657fac603
 FROM ${PHP_IMAGE}
 
 # The checksum check below pipes into sha256sum.
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 ARG XDEBUG_VERSION=3.5.3
-ARG PHPUNIT_VERSION=12.5.43
-ARG PHPUNIT_SHA256=55350db3736f8d42170d9f7989ccd8b8e19ab4ba6be96e8c1c9cbcad430cb6d5
+ARG PHPUNIT_VERSION=12.5.45
+ARG PHPUNIT_SHA256=2223380a477aef6b2ad4dc87d587710bbb608d53f027f2b0210e35cf246c6e72
 
 # The base image is pinned by digest; its Debian packages follow that
 # snapshot's repositories.

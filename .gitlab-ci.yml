@@ -34,17 +34,17 @@ variables:
   BRANCH_BUILD_CACHE: "$CI_REGISTRY_IMAGE/buildcache:branches"
   # BuildKit of the `h5ai-ci` builder each Docker job creates in its own
   # Docker daemon, pinned by digest.
-  BUILDKIT_IMAGE: "moby/buildkit:v0.33.1@sha256:cec9f139f45e93c5c69c60f8b07cfad9f43f4ef6b6a6cd917527fea5ff2e3dea"
+  BUILDKIT_IMAGE: "moby/buildkit:v0.35.1@sha256:baf6138eb8c37644800c7c913fba051e840ebb9ba13eaf92d92ef9a1712d0b4c"
   # Job and scanner containers pinned by digest. These jobs receive registry
   # credentials and drive a Docker daemon, so the container holding them must
   # not be swappable — pinning only the scanners would leave that outer
   # container mutable underneath them. Other job images (node, hadolint, the
   # php test base, curl, release-cli) and the privileged helper are pinned as
   # well. DIND_IMAGE is the same image, run as the job's Docker daemon.
-  DOCKER_IMAGE: "docker:28@sha256:2a232a42256f70d78e3cc5d2b5d6b3276710a0de0596c145f627ecfae90282ac"
-  DIND_IMAGE: "docker:28.5.2-dind@sha256:2a232a42256f70d78e3cc5d2b5d6b3276710a0de0596c145f627ecfae90282ac"
-  GRYPE_IMAGE: "anchore/grype:v0.121.1@sha256:6b06708b036f74b2cd70e94b706b4586af96d1932e6ac46255940b2e39dd44a9"
-  SYFT_IMAGE: "anchore/syft:v1.56.0@sha256:697ae864af1299cfa43c54b161cea3dd65c6d54de82e3dba66ea3dccb3acc313"
+  DOCKER_IMAGE: "docker:29@sha256:4bbc7223f81db790097c6dea42fb93e05b8fead4f0431fbe6ccaba6e8473201c"
+  DIND_IMAGE: "docker:29.10.0-dind@sha256:4bbc7223f81db790097c6dea42fb93e05b8fead4f0431fbe6ccaba6e8473201c"
+  GRYPE_IMAGE: "anchore/grype:v0.122.1@sha256:661583704a253c0448ed63998b5ea2cd9d5a76ee71eedc4aed439b8ce3e93a1c"
+  SYFT_IMAGE: "anchore/syft:v1.57.2@sha256:e97e20b6e6d1699c60296b66ab337941724f9bd06ac279d893eda89601fc4b2a"
 
 # Every job runs on the single `chataigne` runner, which keeps this cache
 # locally: node_modules is reused as long as the lockfile and the Node major
@@ -110,7 +110,7 @@ cache: &node_cache
 # npm runs dependency install scripts here: the job must not be privileged
 # nor reach a Docker daemon (doc/development.md, "CI runner").
 .node-job:
-  image: node:24.22.2-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c
+  image: node:24.22.3-slim@sha256:dc26ae92c9fb15cf6b1d63e20f0944b2efe0f115b20e00be48fb23fceb061c54
   before_script:
     - |
       capabilities=$(sed -n 's/^CapEff:[[:space:]]*//p' /proc/self/status)
@@ -366,7 +366,7 @@ test:php:
 
 # One weighted line percentage, rather than an average of language percentages.
 test:coverage:
-  image: node:24.22.2-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c
+  image: node:24.22.3-slim@sha256:dc26ae92c9fb15cf6b1d63e20f0944b2efe0f115b20e00be48fb23fceb061c54
   stage: test
   needs:
     - job: test:app
