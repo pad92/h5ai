@@ -10,7 +10,7 @@
 # musl gives threads a 128 KiB stack unless the executable asks for more in
 # its ELF header; the ffmpeg CLI demuxes in a thread, and MPEG-TS overflows
 # that stack (segfault on .ts/.mts), hence the 2 MiB stack-size link flag.
-FROM alpine:3.24@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a AS ffmpeg-builder
+FROM alpine:3.24.4@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf AS ffmpeg-builder
 
 ARG FFMPEG_VERSION=9.0.2
 # SHA-256 of GitHub's source archive for the official n9.0.2 mirror tag.
