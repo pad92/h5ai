@@ -6,6 +6,7 @@ Upgrading: every bundled language now has `selectAllCopy`. Custom translation fi
 
 * **Text and Markdown previews**: a button in the preview bar selects the whole text and copies it, since the overlay lets neither a drag nor Ctrl+A select it. It copies the file as it is (the Markdown source, not its rendering), through the Clipboard API on HTTPS and through the browser's copy command on plain HTTP. It turns green once copied, red if the browser refused.
 * **Video preview**: the cast button is a native button, like the new copy button. An `li` of the preview bar carried `role="button"`, which the W3C checker refuses.
+* **CI**: a new push to a branch cancels the lint, build, test and scan jobs still running for the previous push, once "Auto-cancel redundant pipelines" is on. Publication and release jobs are never cancelled.
 
 ## v1.8.3 - *2026-11-20*
 

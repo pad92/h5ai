@@ -19,6 +19,14 @@ default:
   tags:
     - chataigne
 
+# Jobs marked `interruptible: true` stop when a newer pipeline starts on the
+# same ref (the project's "Auto-cancel redundant pipelines" setting): they
+# only check, build, or push an untagged candidate or a package that
+# scripts/native-package.sh uploads in a crash-safe order. Publication and
+# release jobs are not marked: once one has started, GitLab stops cancelling
+# the pipeline, so a promotion or a release is never cut halfway. `.dind`
+# stays unmarked because the publish template extends it.
+
 variables:
   npm_config_cache: "$CI_PROJECT_DIR/.npm"
   # Docker image published to Docker Hub under this name.
@@ -111,6 +119,7 @@ cache: &node_cache
 # nor reach a Docker daemon (doc/development.md, "CI runner").
 .node-job:
   image: node:24.22.3-slim@sha256:dc26ae92c9fb15cf6b1d63e20f0944b2efe0f115b20e00be48fb23fceb061c54
+  interruptible: true
   before_script:
     - |
       capabilities=$(sed -n 's/^CapEff:[[:space:]]*//p' /proc/self/status)
@@ -139,6 +148,7 @@ lint:app:
 
 lint:dockerfile:
   stage: lint
+  interruptible: true
   image: ghcr.io/hadolint/hadolint:v2.15.1-debian@sha256:9a3944b7fddcb947d1ffd90829ac1a6e5c30479223358f249d8b96c7d0019e27
   needs: []
   cache: []
@@ -148,6 +158,7 @@ lint:dockerfile:
 
 test:native-package:
   stage: lint
+  interruptible: true
   image: $DOCKER_IMAGE
   needs: []
   cache: []
@@ -173,6 +184,7 @@ build:app:
 
 .docker-build-base:
   extends: .dind
+  interruptible: true
   cache: []
   needs:
     - job: lint:dockerfile
@@ -334,6 +346,7 @@ test:app:
 # project's paths, and the report comes back the same way.
 test:php:
   extends: .dind
+  interruptible: true
   stage: test
   needs: []
   cache: []
@@ -367,6 +380,7 @@ test:php:
 # One weighted line percentage, rather than an average of language percentages.
 test:coverage:
   image: node:24.22.3-slim@sha256:dc26ae92c9fb15cf6b1d63e20f0944b2efe0f115b20e00be48fb23fceb061c54
+  interruptible: true
   stage: test
   needs:
     - job: test:app
@@ -381,6 +395,7 @@ test:coverage:
 
 test:docker:
   extends: .dind
+  interruptible: true
   stage: test
   # Tests the exact digest pushed by build:candidate (publishable pipelines)
   # or build:image (branches and MRs).
@@ -501,6 +516,7 @@ test:docker:
 
 test:docker-publish:
   stage: test
+  interruptible: true
   image: $DOCKER_IMAGE
   needs: []
   cache: []
@@ -523,6 +539,7 @@ test:docker-publish:
 # on predominantly unfixed findings.
 scan:grype:image:
   extends: .dind
+  interruptible: true
   stage: scan
   needs:
     - job: build:candidate
@@ -566,6 +583,7 @@ scan:grype:image:
 # gate of scan:grype:image. Single platform (the runner's).
 scan:grype:branch-image:
   extends: .dind
+  interruptible: true
   stage: scan
   needs:
     - job: build:image
@@ -605,6 +623,7 @@ scan:grype:branch-image:
 # then the SBOM for Grype.
 scan:grype:deps:
   extends: .dind
+  interruptible: true
   stage: scan
   needs: []
   cache: []

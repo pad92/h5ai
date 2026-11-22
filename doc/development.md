@@ -205,6 +205,12 @@ Registering QEMU for arm64 changes the host kernel. `prepare:packages` and
 `build:candidate` do it inside their `docker:dind` service and share the
 `docker-build` resource group.
 
+Turn on "Auto-cancel redundant pipelines" (Settings > CI/CD > General
+pipelines). A new push to a branch then cancels the jobs of the previous
+pipeline that are marked `interruptible: true`: lint, build, test and scan.
+Publication and release jobs are not marked. Once one of them has started,
+GitLab no longer cancels that pipeline. Tag pipelines are never cancelled.
+
 
 ## Version
 
