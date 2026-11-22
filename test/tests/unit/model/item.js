@@ -652,6 +652,8 @@ test('video preview uses native and isolated-player paths with subtitle tracks',
         assert.equal(preview.controlsType, 'vid');
         const cast = document.querySelector('#pv-bar-cast');
         assert.ok(cast.classList.contains('hidden'), 'the cast control waits for an available device');
+        assert.equal(cast.tagName, 'BUTTON', 'a native button: no role on the bar li');
+        assert.equal(cast.parentElement.getAttribute('role'), null);
         availability(true);
         assert.equal(cast.classList.contains('hidden'), false);
         cast.click();

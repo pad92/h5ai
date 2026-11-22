@@ -48,6 +48,7 @@
     "requestFailed": "请求失败",
     "networkError": "网络错误",
     "requestTimedOut": "请求超时",
+    "selectAllCopy": "全选并复制",
     "castToDevice": "投放到设备",
     "subtitles": "字幕",
     "photoDetails": "照片详情",

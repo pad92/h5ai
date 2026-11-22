@@ -2,7 +2,9 @@ const {keys, dom} = require('../../util');
 const allsettings = require('../../core/settings');
 const i18n = require('../../core/i18n');
 const preview = require('./preview');
+const event = require('../../core/event');
 const {render} = require('./text-content');
+const {addCopyButton} = require('./text-copy');
 
 const win = global.window;
 const XHR = win.XMLHttpRequest;
@@ -55,10 +57,24 @@ const requestTextContent = href => {
     });
 };
 
+// The file's text, by the element that shows it, for the copy button.
+const texts = new WeakMap();
+
 const load = item => {
     return requestTextContent(item.absHref)
-        .catch(err => `[${i18n.t('requestFailed')}] ${err}`)
-        .then(content => render(content, settings.styles[item.type], win));
+        .then(content => {
+            const $content = render(content, settings.styles[item.type], win);
+            texts.set($content[0], content);
+            return $content;
+        }, err => render(`[${i18n.t('requestFailed')}] ${err}`, settings.styles[item.type], win));
+};
+
+// The button is added once the content shows: a load the user moved past is
+// never attached, so it must not leave a button behind.
+const onContent = (item, el) => {
+    if (el && texts.has(el)) {
+        addCopyButton(el, texts.get(el), win);
+    }
 };
 
 const init = () => {
@@ -72,6 +88,7 @@ const init = () => {
             typesToRegister.push('txt-readme');
         }
         preview.register(typesToRegister, load, updateGui);
+        event.sub('preview.content', onContent);
     }
 };
 

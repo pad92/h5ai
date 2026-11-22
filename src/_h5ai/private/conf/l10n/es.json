@@ -48,6 +48,7 @@
     "requestFailed": "la solicitud falló",
     "networkError": "error de red",
     "requestTimedOut": "la solicitud expiró",
+    "selectAllCopy": "Seleccionar todo y copiar",
     "castToDevice": "Enviar a un dispositivo",
     "subtitles": "Subtítulos",
     "photoDetails": "Detalles de la foto",

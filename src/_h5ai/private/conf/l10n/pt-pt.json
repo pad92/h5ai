@@ -48,6 +48,7 @@
     "requestFailed": "o pedido falhou",
     "networkError": "erro de rede",
     "requestTimedOut": "o pedido expirou",
+    "selectAllCopy": "Selecionar tudo e copiar",
     "castToDevice": "Transmitir para um dispositivo",
     "subtitles": "Legendas",
     "photoDetails": "Detalhes da fotografia",

@@ -48,6 +48,7 @@
     "requestFailed": "échec de la requête",
     "networkError": "erreur réseau",
     "requestTimedOut": "délai de la requête dépassé",
+    "selectAllCopy": "Tout sélectionner et copier",
     "castToDevice": "Diffuser sur un appareil",
     "subtitles": "Sous-titres",
     "photoDetails": "Détails de la photo",

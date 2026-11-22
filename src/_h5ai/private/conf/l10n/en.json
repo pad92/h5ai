@@ -48,6 +48,7 @@
     "requestFailed": "request failed",
     "networkError": "network error",
     "requestTimedOut": "request timed out",
+    "selectAllCopy": "Select all and copy",
     "castToDevice": "Cast to a device",
     "subtitles": "Subtitles",
     "photoDetails": "Photo Details",

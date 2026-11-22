@@ -1,4 +1,4 @@
-const {dom, onActivationKey} = require('../../util');
+const {dom, onActivationKey, beforeUnload} = require('../../util');
 const allsettings = require('../../core/settings');
 const event = require('../../core/event');
 const i18n = require('../../core/i18n');
@@ -66,20 +66,12 @@ const watchCastTargets = (media, onChange) => {
     return null;
 };
 
-const beforeUnload = (el, fn) => {
-    const originalUnload = el.unload;
-    el.unload = function unload() {
-        fn();
-        if (typeof originalUnload === 'function') {
-            originalUnload.call(this);
-        }
-    };
-};
-
 // Native <video>: a button in the preview bar, next to the other bar buttons.
 const addCastButton = el => {
-    const $button = i18n.apply(dom('<li id="pv-bar-cast" class="bar-right bar-button hidden l10n_title-castToDevice l10n_aria-castToDevice" role="button" tabindex="0"/>'))
+    const $item = dom('<li class="bar-right"/>');
+    const $button = i18n.apply(dom('<button type="button" id="pv-bar-cast" class="bar-button hidden l10n_title-castToDevice l10n_aria-castToDevice"/>'))
         .html(CAST_ICON);
+    $item.app($button);
     const cast = watchCastTargets(el, available => {
         if (available) {
             $button.rmCls('hidden');
@@ -91,11 +83,11 @@ const addCastButton = el => {
         return;
     }
 
-    dom('#pv-buttons').app($button);
+    dom('#pv-buttons').app($item);
     $button.on('click', cast.prompt).on('keydown', onActivationKey(cast.prompt));
     beforeUnload(el, () => {
         cast.stop();
-        $button.rm();
+        $item.rm();
     });
 };
 

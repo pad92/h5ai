@@ -48,6 +48,7 @@
     "requestFailed": "żądanie nie powiodło się",
     "networkError": "błąd sieci",
     "requestTimedOut": "przekroczono czas żądania",
+    "selectAllCopy": "Zaznacz wszystko i kopiuj",
     "castToDevice": "Przesyłaj na urządzenie",
     "subtitles": "Napisy",
     "photoDetails": "Szczegóły zdjęcia",

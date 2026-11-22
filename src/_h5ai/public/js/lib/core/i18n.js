@@ -71,6 +71,8 @@ const defaults = {
     requestFailed: 'request failed',
     networkError: 'network error',
     requestTimedOut: 'request timed out',
+    // A preview bar button for text: selects the shown text, copies the file's.
+    selectAllCopy: 'Select all and copy',
     castToDevice: 'Cast to a device',
     subtitles: 'Subtitles',
     photoDetails: 'Photo Details',

@@ -13,5 +13,6 @@
     "name": "Ime",
     "noMatch": "ni zadetkov",
     "parentDirectory": "Nadrejena mapa",
+    "selectAllCopy": "Izberi vse in kopiraj",
     "size": "Velikost"
 }

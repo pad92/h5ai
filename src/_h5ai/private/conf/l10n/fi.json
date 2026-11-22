@@ -13,5 +13,6 @@
     "name": "Nimi",
     "noMatch": "ei osumia",
     "parentDirectory": "Ylähakemisto",
+    "selectAllCopy": "Valitse kaikki ja kopioi",
     "size": "Koko"
 }
