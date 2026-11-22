@@ -48,6 +48,7 @@
     "requestFailed": "запрос не выполнен",
     "networkError": "ошибка сети",
     "requestTimedOut": "время ожидания запроса истекло",
+    "selectAllCopy": "Выделить всё и копировать",
     "castToDevice": "Транслировать на устройство",
     "subtitles": "Субтитры",
     "photoDetails": "Сведения о фото",

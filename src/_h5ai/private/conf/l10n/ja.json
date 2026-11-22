@@ -48,6 +48,7 @@
     "requestFailed": "リクエストに失敗しました",
     "networkError": "ネットワークエラー",
     "requestTimedOut": "リクエストがタイムアウトしました",
+    "selectAllCopy": "すべて選択してコピー",
     "castToDevice": "デバイスにキャスト",
     "subtitles": "字幕",
     "photoDetails": "写真の詳細",

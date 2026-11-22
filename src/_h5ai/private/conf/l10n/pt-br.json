@@ -48,6 +48,7 @@
     "requestFailed": "falha na requisição",
     "networkError": "erro de rede",
     "requestTimedOut": "tempo da requisição esgotado",
+    "selectAllCopy": "Selecionar tudo e copiar",
     "castToDevice": "Transmitir para um dispositivo",
     "subtitles": "Legendas",
     "photoDetails": "Detalhes da foto",

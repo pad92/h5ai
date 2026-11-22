@@ -48,6 +48,7 @@
     "requestFailed": "verzoek mislukt",
     "networkError": "netwerkfout",
     "requestTimedOut": "time-out van verzoek",
+    "selectAllCopy": "Alles selecteren en kopiëren",
     "castToDevice": "Casten naar een apparaat",
     "subtitles": "Ondertitels",
     "photoDetails": "Fotodetails",

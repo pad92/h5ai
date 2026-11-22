@@ -53,3 +53,107 @@ test('markdown preview hides images that cannot load, such as badges blocked by 
     assert.ok(badge.classList.contains('pv-md-img-failed'));
     assert.equal(local.classList.contains('pv-md-img-failed'), false);
 });
+
+const {addCopyButton} = require('../../../src/_h5ai/public/js/lib/ext/preview/text-copy');
+
+// A window whose clipboard and copy command the test controls.
+const copyWin = ({secure, writeText, execCommand}) => {
+    const copied = [];
+    const doc = window.document;
+    const originalExec = doc.execCommand;
+    doc.execCommand = command => {
+        copied.push(['textarea', doc.querySelector('textarea').value]);
+        // A browser's textarea.select() takes the selection; jsdom's does not.
+        window.getSelection().removeAllRanges();
+        return execCommand ? execCommand(command) : true;
+    };
+    const win = {
+        document: doc,
+        getSelection: () => window.getSelection(),
+        setTimeout: () => 0,
+        clearTimeout: () => {},
+        isSecureContext: secure,
+        navigator: {clipboard: writeText ? {writeText: text => {
+            copied.push(['clipboard', text]);
+            return writeText(text);
+        }} : undefined}
+    };
+    return {win, copied, restore: () => { doc.execCommand = originalExec; }};
+};
+
+// Mounts the shown text and a preview bar, as the overlay holds them.
+const mountCopy = (win, source, unload) => {
+    const ownBar = !document.querySelector('#pv-buttons');
+    if (ownBar) {
+        document.body.insertAdjacentHTML('beforeend', '<ul id="pv-buttons"></ul>');
+    }
+    const el = render(source, 2, window)[0];
+    el.unload = unload;
+    document.body.appendChild(el);
+    const copy = addCopyButton(el, source, win);
+    const button = () => document.querySelector('#pv-bar-copy');
+    const cleanup = () => {
+        el.unload();
+        el.remove();
+        if (ownBar) {
+            document.querySelector('#pv-buttons').remove();
+        }
+    };
+    return {el, copy, button, cleanup};
+};
+
+test('text preview copy button selects the shown text and copies the file source', async () => {
+    const {win, copied, restore} = copyWin({secure: true, writeText: async () => {}});
+    const unloads = [];
+    const {el, button, cleanup} = mountCopy(win, '# Title\n\n**bold**', () => unloads.push('content'));
+    try {
+        assert.equal(button().getAttribute('title'), 'Select all and copy');
+        button().click();
+        await new Promise(resolve => setTimeout(resolve, 0));
+
+        assert.deepEqual(copied, [['clipboard', '# Title\n\n**bold**']]);
+        assert.equal(window.getSelection().toString().trim(), el.textContent.trim());
+        assert.ok(button().classList.contains('copied'));
+    } finally {
+        cleanup();
+        restore();
+        window.getSelection().removeAllRanges();
+    }
+    assert.equal(document.querySelector('#pv-bar-copy'), null);
+    assert.deepEqual(unloads, ['content']);
+});
+
+test('text preview copy falls back to a textarea without a secure context', async () => {
+    const {win, copied, restore} = copyWin({secure: false, writeText: async () => {}});
+    const {button, copy, cleanup} = mountCopy(win, 'plain text');
+    try {
+        assert.equal(await copy(), true);
+        assert.deepEqual(copied, [['textarea', 'plain text']]);
+        assert.equal(document.querySelector('textarea'), null);
+        assert.equal(window.getSelection().toString().trim(), 'plain text');
+        assert.ok(button().classList.contains('copied'));
+    } finally {
+        cleanup();
+        restore();
+        window.getSelection().removeAllRanges();
+    }
+});
+
+test('text preview copy reports a failure when no way to copy works', async () => {
+    const {win, copied, restore} = copyWin({
+        secure: true,
+        writeText: () => Promise.reject(new Error('denied')),
+        execCommand: () => false
+    });
+    const {button, copy, cleanup} = mountCopy(win, 'text');
+    try {
+        assert.equal(await copy(), false);
+        assert.deepEqual(copied.map(entry => entry[0]), ['clipboard', 'textarea']);
+        assert.ok(button().classList.contains('copy-failed'));
+        assert.equal(button().classList.contains('copied'), false);
+    } finally {
+        cleanup();
+        restore();
+        window.getSelection().removeAllRanges();
+    }
+});

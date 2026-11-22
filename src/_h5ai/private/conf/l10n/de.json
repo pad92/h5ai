@@ -48,6 +48,7 @@
     "requestFailed": "Anfrage fehlgeschlagen",
     "networkError": "Netzwerkfehler",
     "requestTimedOut": "Zeitüberschreitung der Anfrage",
+    "selectAllCopy": "Alles auswählen und kopieren",
     "castToDevice": "Auf ein Gerät streamen",
     "subtitles": "Untertitel",
     "photoDetails": "Fotodetails",
