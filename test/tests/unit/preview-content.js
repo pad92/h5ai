@@ -63,7 +63,9 @@ const copyWin = ({secure, writeText, execCommand}) => {
     const originalExec = doc.execCommand;
     doc.execCommand = command => {
         copied.push(['textarea', doc.querySelector('textarea').value]);
-        // A browser's textarea.select() takes the selection; jsdom's does not.
+        // A browser's textarea.select() takes the selection and the focus;
+        // jsdom's does not.
+        doc.querySelector('textarea').focus();
         window.getSelection().removeAllRanges();
         return execCommand ? execCommand(command) : true;
     };
@@ -151,6 +153,37 @@ test('text preview copy reports a failure when no way to copy works', async () =
         assert.deepEqual(copied.map(entry => entry[0]), ['clipboard', 'textarea']);
         assert.ok(button().classList.contains('copy-failed'));
         assert.equal(button().classList.contains('copied'), false);
+    } finally {
+        cleanup();
+        restore();
+        window.getSelection().removeAllRanges();
+    }
+});
+
+test('text preview copy gives the focus back to the button after the textarea copy', async () => {
+    const {win, restore} = copyWin({secure: false});
+    const {button, copy, cleanup} = mountCopy(win, 'text');
+    try {
+        button().focus();
+        assert.equal(document.activeElement, button());
+        assert.equal(await copy(), true);
+        assert.equal(document.activeElement, button());
+    } finally {
+        cleanup();
+        restore();
+        window.getSelection().removeAllRanges();
+    }
+});
+
+test('text preview copy falls back to a textarea when writeText throws', async () => {
+    const {win, copied, restore} = copyWin({secure: true, writeText: () => {
+        throw new Error('blocked');
+    }});
+    const {button, copy, cleanup} = mountCopy(win, 'text');
+    try {
+        assert.equal(await copy(), true);
+        assert.deepEqual(copied.map(entry => entry[0]), ['clipboard', 'textarea']);
+        assert.ok(button().classList.contains('copied'));
     } finally {
         cleanup();
         restore();

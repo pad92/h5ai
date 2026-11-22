@@ -122,9 +122,21 @@ const on_activation_key = act => ev => {
     }
 };
 
+// Runs `fn` before the `unload` an element already has: preview.js calls it
+// when the preview moves on or closes.
+const before_unload = (el, fn) => {
+    const originalUnload = el.unload;
+    el.unload = function unload() {
+        fn();
+        if (typeof originalUnload === 'function') {
+            originalUnload.call(this);
+        }
+    };
+};
 
 module.exports = {
     onActivationKey: on_activation_key,
+    beforeUnload: before_unload,
     parsePattern: parse_pattern,
     escapeHtml: escape_html,
     sanitizeHtml: sanitize_html

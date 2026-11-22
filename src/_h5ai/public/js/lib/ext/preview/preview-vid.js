@@ -1,4 +1,4 @@
-const {dom, onActivationKey} = require('../../util');
+const {dom, onActivationKey, beforeUnload} = require('../../util');
 const allsettings = require('../../core/settings');
 const event = require('../../core/event');
 const i18n = require('../../core/i18n');
@@ -64,16 +64,6 @@ const watchCastTargets = (media, onChange) => {
     }
 
     return null;
-};
-
-const beforeUnload = (el, fn) => {
-    const originalUnload = el.unload;
-    el.unload = function unload() {
-        fn();
-        if (typeof originalUnload === 'function') {
-            originalUnload.call(this);
-        }
-    };
 };
 
 // Native <video>: a button in the preview bar, next to the other bar buttons.

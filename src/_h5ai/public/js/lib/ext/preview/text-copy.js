@@ -1,4 +1,4 @@
-const {dom, onActivationKey} = require('../../util');
+const {dom, onActivationKey, beforeUnload} = require('../../util');
 const i18n = require('../../core/i18n');
 
 const COPY_ICON = '<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>';
@@ -18,6 +18,9 @@ const selectAll = (el, win) => {
 // context, and an h5ai on plain HTTP has none.
 const copyWithTextarea = (text, win) => {
     const doc = win.document;
+    // select() moves the focus: it goes back where it was, the copy button
+    // for a keyboard user.
+    const focused = doc.activeElement;
     const textarea = doc.createElement('textarea');
     textarea.value = text;
     textarea.setAttribute('readonly', '');
@@ -31,13 +34,25 @@ const copyWithTextarea = (text, win) => {
         return false;
     } finally {
         textarea.remove();
+        if (focused && typeof focused.focus === 'function') {
+            focused.focus();
+        }
     }
 };
 
 const copyText = (text, win) => {
     const clipboard = win.navigator && win.navigator.clipboard;
     if (win.isSecureContext && clipboard && typeof clipboard.writeText === 'function') {
-        return clipboard.writeText(text).then(() => true, () => copyWithTextarea(text, win));
+        // Called within the click, not a later microtask, so the browser still
+        // sees the user's gesture; a writeText that throws instead of
+        // rejecting falls back the same way.
+        let written;
+        try {
+            written = Promise.resolve(clipboard.writeText(text));
+        } catch (err) {
+            written = Promise.reject(err);
+        }
+        return written.then(() => true, () => copyWithTextarea(text, win));
     }
     return Promise.resolve(copyWithTextarea(text, win));
 };
@@ -60,18 +75,13 @@ const addCopyButton = (el, text, win) => {
         });
     };
 
-    dom('#pv-bar-copy').rm();
     dom('#pv-buttons').app($button);
     $button.on('click', copy).on('keydown', onActivationKey(copy));
 
-    const originalUnload = el.unload;
-    el.unload = function unload() {
+    beforeUnload(el, () => {
         win.clearTimeout(timeoutId);
         $button.rm();
-        if (typeof originalUnload === 'function') {
-            originalUnload.call(this);
-        }
-    };
+    });
     return copy;
 };
 
