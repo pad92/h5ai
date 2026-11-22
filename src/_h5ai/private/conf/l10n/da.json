@@ -13,5 +13,6 @@
     "name": "Navn",
     "noMatch": "ingen match",
     "parentDirectory": "Overordnet mappe",
+    "selectAllCopy": "Markér alt og kopiér",
     "size": "Størrelse"
 }

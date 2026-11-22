@@ -15,6 +15,7 @@
     "noMatch": "해당파일이 없습니다.",
     "parentDirectory": "상위폴더",
     "search": "검색",
+    "selectAllCopy": "모두 선택하고 복사",
     "size": "크기",
     "tree": "트리",
     "view": "보기"

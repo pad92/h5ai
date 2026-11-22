@@ -12,5 +12,6 @@
     "name": "Név",
     "noMatch": "nincs találat",
     "parentDirectory": "Szülő könyvtár",
+    "selectAllCopy": "Az összes kijelölése és másolása",
     "size": "Méret"
 }

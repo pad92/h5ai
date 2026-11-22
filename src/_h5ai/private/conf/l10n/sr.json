@@ -11,5 +11,6 @@
     "name": "Ime",
     "noMatch": "bez poklapanja",
     "parentDirectory": "Roditeljski direktorijum",
+    "selectAllCopy": "Izaberi sve i kopiraj",
     "size": "Veličina"
 }

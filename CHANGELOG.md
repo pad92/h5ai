@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-Upgrading: custom translation files can add `selectAllCopy`; `en.json` has the English text.
+Upgrading: every bundled language now has `selectAllCopy`. Custom translation files can add it; `en.json` has the English text.
 
 * **Text and Markdown previews**: a button in the preview bar selects the whole text and copies it, since the overlay lets neither a drag nor Ctrl+A select it. It copies the file as it is (the Markdown source, not its rendering), through the Clipboard API on HTTPS and through the browser's copy command on plain HTTP. It turns green once copied, red if the browser refused.
 

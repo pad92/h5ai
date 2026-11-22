@@ -12,5 +12,6 @@
     "name": "Filnamn",
     "noMatch": "ingen matchning",
     "parentDirectory": "Till överordnad mapp",
+    "selectAllCopy": "Markera allt och kopiera",
     "size": "Filstorlek"
 }

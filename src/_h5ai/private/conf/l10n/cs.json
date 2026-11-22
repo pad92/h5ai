@@ -14,6 +14,7 @@
     "name": "Název",
     "noMatch": "Žádná shoda",
     "parentDirectory": "Nadřazený adresář",
+    "selectAllCopy": "Vybrat vše a kopírovat",
     "size": "Velikost",
     "tree": "Strom",
     "view": "Zobrazení"
