@@ -1,12 +1,12 @@
 # Changelog
 
-## Unreleased
+## v1.8.4 - *2026-11-22*
 
-Upgrading: every bundled language now has `selectAllCopy`. Custom translation files can add it; `en.json` has the English text. The cast button of the video preview is now a `<button>` inside its `li` (`#pv-bar-cast` moves to the button), so a custom style sheet that targets `li#pv-bar-cast` must follow.
+Upgrading: every bundled language has the new `selectAllCopy` key. A custom translation file can add it; `en.json` has the English text. The cast button of the video preview is now a `<button>` inside its `li`, and the `#pv-bar-cast` id moved to the button: a custom style sheet that targets `li#pv-bar-cast` must be updated.
 
-* **Text and Markdown previews**: a button in the preview bar selects the whole text and copies it, since the overlay lets neither a drag nor Ctrl+A select it. It copies the file as it is (the Markdown source, not its rendering), through the Clipboard API on HTTPS and through the browser's copy command on plain HTTP. It turns green once copied, red if the browser refused.
-* **Video preview**: the cast button is a native button, like the new copy button. An `li` of the preview bar carried `role="button"`, which the W3C checker refuses.
-* **CI**: a new push to a branch cancels the lint, build, test and scan jobs still running for the previous push, once "Auto-cancel redundant pipelines" is on. Publication and release jobs are never cancelled.
+* **Text and Markdown previews**: a new button in the preview bar selects the whole text and copies it. Until now the text could not be selected at all, because the overlay blocks both a drag and Ctrl+A. The button copies the file itself, so a Markdown file gives its source, not the rendered page. It uses the Clipboard API on HTTPS and the browser's copy command on plain HTTP. The icon turns green when the copy works, red when the browser refuses it.
+* **Video preview**: the cast button is a real `<button>`, like the copy button. It used to be an `li` with `role="button"`, which the W3C validator rejects.
+* **CI**: a new push to a branch cancels the lint, build, test and scan jobs still running for the previous push. GitLab does this only when "Auto-cancel redundant pipelines" is on. Publication and release jobs are never cancelled.
 
 ## v1.8.3 - *2026-11-20*
 
