@@ -61,8 +61,12 @@ const copyText = (text, win) => {
 // file's own text: the Markdown source, not its rendered HTML. It goes with
 // the content: preview.js unloads the content when it moves on or closes.
 const addCopyButton = (el, text, win) => {
-    const $button = i18n.apply(dom('<li id="pv-bar-copy" class="bar-right bar-button l10n_title-selectAllCopy l10n_aria-selectAllCopy" role="button" tabindex="0"/>'))
+    // A native button in its own li: the validator refuses a role on an li of
+    // the bar's ul.
+    const $item = dom('<li class="bar-right"/>');
+    const $button = i18n.apply(dom('<button type="button" id="pv-bar-copy" class="bar-button l10n_title-selectAllCopy l10n_aria-selectAllCopy"/>'))
         .html(COPY_ICON);
+    $item.app($button);
     let timeoutId = null;
     const copy = () => {
         // Selected once copied: the textarea copy replaces the selection.
@@ -75,12 +79,14 @@ const addCopyButton = (el, text, win) => {
         });
     };
 
-    dom('#pv-buttons').app($button);
+    dom('#pv-buttons').app($item);
+    // The key handler cancels the native activation, so a press copies once,
+    // and keeps Enter from reaching the preview, where it means "next item".
     $button.on('click', copy).on('keydown', onActivationKey(copy));
 
     beforeUnload(el, () => {
         win.clearTimeout(timeoutId);
-        $button.rm();
+        $item.rm();
     });
     return copy;
 };

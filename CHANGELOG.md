@@ -2,9 +2,10 @@
 
 ## Unreleased
 
-Upgrading: every bundled language now has `selectAllCopy`. Custom translation files can add it; `en.json` has the English text.
+Upgrading: every bundled language now has `selectAllCopy`. Custom translation files can add it; `en.json` has the English text. The cast button of the video preview is now a `<button>` inside its `li` (`#pv-bar-cast` moves to the button), so a custom style sheet that targets `li#pv-bar-cast` must follow.
 
 * **Text and Markdown previews**: a button in the preview bar selects the whole text and copies it, since the overlay lets neither a drag nor Ctrl+A select it. It copies the file as it is (the Markdown source, not its rendering), through the Clipboard API on HTTPS and through the browser's copy command on plain HTTP. It turns green once copied, red if the browser refused.
+* **Video preview**: the cast button is a native button, like the new copy button. An `li` of the preview bar carried `role="button"`, which the W3C checker refuses.
 
 ## v1.8.3 - *2026-11-20*
 

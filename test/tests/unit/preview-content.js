@@ -125,6 +125,25 @@ test('text preview copy button selects the shown text and copies the file source
     assert.deepEqual(unloads, ['content']);
 });
 
+// The W3C check of the rendered Markdown preview refuses an li of the bar's
+// ul with role="button": the control is a native button inside the li.
+test('text preview copy button is a native button, not an li with a role', () => {
+    const {win, restore} = copyWin({secure: true, writeText: async () => {}});
+    const {button, cleanup} = mountCopy(win, 'plain text');
+    try {
+        assert.equal(button().tagName, 'BUTTON');
+        assert.equal(button().getAttribute('type'), 'button');
+        assert.equal(button().parentElement.tagName, 'LI');
+        assert.equal(button().getAttribute('aria-label'), 'Select all and copy');
+        const roled = [...document.querySelectorAll('#pv-buttons li[role]')].map(li => li.outerHTML);
+        assert.deepEqual(roled, []);
+    } finally {
+        cleanup();
+        restore();
+    }
+    assert.equal(document.querySelectorAll('#pv-buttons li:empty').length, 0, 'the li goes with the button');
+});
+
 test('text preview copy falls back to a textarea without a secure context', async () => {
     const {win, copied, restore} = copyWin({secure: false, writeText: async () => {}});
     const {button, copy, cleanup} = mountCopy(win, 'plain text');
